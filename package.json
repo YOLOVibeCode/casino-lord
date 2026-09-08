@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Multi-game electronic casino table system: dealer phone, TV scoreboard, optional player phones with play chips.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "packageManager": "pnpm@10.17.0",
   "engines": {
     "node": ">=22.13"
