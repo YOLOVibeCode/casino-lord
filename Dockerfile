@@ -11,7 +11,7 @@ COPY scripts scripts
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm build && pnpm stamp
-RUN pnpm deploy --filter sync --prod /prod/sync
+RUN pnpm deploy --filter sync --prod --legacy /prod/sync
 
 FROM node:22-alpine AS runner
 
