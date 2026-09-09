@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  */
 import "fake-indexeddb/auto";
-import { render, screen } from "@testing-library/preact";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/preact";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStubModule, STUB_RULES } from "@casino-lord/core/testing";
 import { LocationProvider, Router } from "preact-iso";
 import { asUntypedModule } from "../table/module-types.js";
@@ -20,6 +20,14 @@ vi.mock("../sync/config.js", () => ({
   getSyncBaseUrl: () => "http://127.0.0.1:3000",
 }));
 
+let readOnly = false;
+const listeners = new Set<() => void>();
+
+function setReadOnly(next: boolean): void {
+  readOnly = next;
+  for (const l of listeners) l();
+}
+
 function mockSyncStore(): SyncStore {
   const module = asUntypedModule(createStubModule());
   const store = createTableStore({
@@ -31,9 +39,13 @@ function mockSyncStore(): SyncStore {
     id: () => "s1",
   });
   return Object.assign(store, {
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     getConnectionState: () => "connected" as const,
     getPresence: () => ({ dealers: 1, displays: 0 }),
-    isReadOnly: () => false,
+    isReadOnly: () => readOnly,
     getRejectReason: () => null,
     takeover: () => undefined,
     destroy: () => undefined,
@@ -58,10 +70,25 @@ function renderPage(path: string) {
 }
 
 describe("DealerPage", () => {
+  afterEach(cleanup);
+
   it("renders dealer shell when sync store connects", async () => {
     renderPage("/dealer/ABCD23?t=test-token");
     await vi.waitFor(() => {
       expect(screen.getByTestId("dealer-shell")).toBeTruthy();
+    });
+  });
+
+  it("shows the demoted banner when the store becomes read-only", async () => {
+    setReadOnly(false);
+    renderPage("/dealer/ABCD23?t=test-token");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("dealer-shell")).toBeTruthy();
+    });
+    expect(screen.queryByTestId("demoted-banner")).toBeNull();
+    setReadOnly(true);
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("demoted-banner")).toBeTruthy();
     });
   });
 });

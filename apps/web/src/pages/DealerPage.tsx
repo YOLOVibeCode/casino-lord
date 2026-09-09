@@ -90,6 +90,10 @@ export function DealerPage(_props: { path?: string }) {
     }
   }, [error, loading, store, route]);
 
+  // Re-render on demotion/connection changes so the banner tracks the store.
+  const [, setTick] = useState(0);
+  useEffect(() => store?.subscribe(() => setTick((n) => n + 1)), [store]);
+
   if (!isSyncConfigured()) {
     return (
       <main class="dealer-page dealer-page--error">

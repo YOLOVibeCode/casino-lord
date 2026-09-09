@@ -76,6 +76,10 @@ export function DisplayPage(_props: { path?: string }) {
     }
   }, [error, loading, store, route]);
 
+  // Re-render on presence/connection changes so the waiting banner tracks the store.
+  const [, setTick] = useState(0);
+  useEffect(() => store?.subscribe(() => setTick((n) => n + 1)), [store]);
+
   if (!isSyncConfigured()) {
     return (
       <main class="display-page display-page--error">

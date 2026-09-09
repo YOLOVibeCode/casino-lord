@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  */
 import "fake-indexeddb/auto";
-import { render, screen } from "@testing-library/preact";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/preact";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStubModule, STUB_RULES } from "@casino-lord/core/testing";
 import { LocationProvider, Router } from "preact-iso";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
@@ -25,6 +25,14 @@ vi.mock("../hooks/use-device-settings.js", () => ({
   useDeviceSettings: () => [DEFAULT_DEVICE_SETTINGS, vi.fn()],
 }));
 
+let presence = { dealers: 0, displays: 1 };
+const listeners = new Set<() => void>();
+
+function setPresence(next: { dealers: number; displays: number }): void {
+  presence = next;
+  for (const l of listeners) l();
+}
+
 function mockSyncStore(): SyncStore {
   const module = asUntypedModule(createStubModule());
   const store = createTableStore({
@@ -36,8 +44,12 @@ function mockSyncStore(): SyncStore {
     id: () => "s1",
   });
   return Object.assign(store, {
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     getConnectionState: () => "connected" as const,
-    getPresence: () => ({ dealers: 0, displays: 1 }),
+    getPresence: () => presence,
     isReadOnly: () => false,
     getRejectReason: () => null,
     takeover: () => undefined,
@@ -63,11 +75,25 @@ function renderPage(path: string) {
 }
 
 describe("DisplayPage", () => {
+  afterEach(cleanup);
+
   it("renders display shell and waiting-for-dealer hint", async () => {
     renderPage("/display/ABCD23");
     await vi.waitFor(() => {
       expect(screen.getByTestId("display-shell")).toBeTruthy();
       expect(screen.getByTestId("waiting-for-dealer")).toBeTruthy();
+    });
+  });
+
+  it("hides the waiting hint once presence reports a dealer", async () => {
+    setPresence({ dealers: 0, displays: 1 });
+    renderPage("/display/ABCD23");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("waiting-for-dealer")).toBeTruthy();
+    });
+    setPresence({ dealers: 1, displays: 1 });
+    await vi.waitFor(() => {
+      expect(screen.queryByTestId("waiting-for-dealer")).toBeNull();
     });
   });
 });
