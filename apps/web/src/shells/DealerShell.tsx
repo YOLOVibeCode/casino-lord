@@ -196,6 +196,8 @@ export function DealerShell({
           table,
           emit: store.emit,
           record: store.record,
+          autoAdvance: deviceSettings.autoAdvance,
+          expressMode: deviceSettings.expressMode,
         })}
       </div>
 

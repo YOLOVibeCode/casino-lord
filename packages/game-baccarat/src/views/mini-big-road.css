@@ -1,0 +1,39 @@
+.mini-big-road {
+  overflow-x: auto;
+  padding: 8px;
+  background: #111;
+  border-radius: 8px;
+}
+
+.mini-big-road__grid {
+  display: grid;
+  gap: 2px;
+}
+
+.mini-big-road__cell {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-big-road__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid;
+}
+
+.mini-big-road__dot--P {
+  border-color: #2563eb;
+}
+
+.mini-big-road__dot--B {
+  border-color: #e5322d;
+}
+
+.mini-big-road__tie {
+  font-size: 0.55rem;
+  color: #16a34a;
+}
