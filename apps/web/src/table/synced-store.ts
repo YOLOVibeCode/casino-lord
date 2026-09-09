@@ -64,6 +64,7 @@ function waitUntil(fn: () => boolean, timeoutMs: number): Promise<void> {
 }
 
 const testSockets = new WeakMap<SyncStore, Socket>();
+const testMessageHandlers = new WeakMap<SyncStore, (msg: Record<string, unknown>) => void>();
 
 export function disconnectSyncStoreForTest(store: SyncStore): void {
   testSockets.get(store)?.disconnect();
@@ -71,6 +72,14 @@ export function disconnectSyncStoreForTest(store: SyncStore): void {
 
 export function reconnectSyncStoreForTest(store: SyncStore): void {
   testSockets.get(store)?.connect();
+}
+
+export function getSyncSocketForTest(store: SyncStore): Socket | undefined {
+  return testSockets.get(store);
+}
+
+export function deliverMessageForTest(store: SyncStore, msg: Record<string, unknown>): void {
+  testMessageHandlers.get(store)?.(msg);
 }
 
 export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncStore {
@@ -310,7 +319,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     clearOfflineTimer();
   });
 
-  socket.on("message", (msg: Record<string, unknown>) => {
+  const onSocketMessage = (msg: Record<string, unknown>): void => {
     if (!msg || typeof msg !== "object") return;
 
     if (msg.op === "joined") {
@@ -356,7 +365,9 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       readOnly = true;
       notify();
     }
-  });
+  };
+
+  socket.on("message", onSocketMessage);
 
   void loadTable(code).then((stored) => {
     if (stored && stored.events.length > 0) {
@@ -482,6 +493,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   };
 
   testSockets.set(store, socket);
+  testMessageHandlers.set(store, onSocketMessage);
   return store;
 }
 

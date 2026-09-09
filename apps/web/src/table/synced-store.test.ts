@@ -7,7 +7,9 @@ import { asUntypedModule } from "./module-types.js";
 import { composedStateFingerprint } from "./store.js";
 import {
   createSyncedTableStore,
+  deliverMessageForTest,
   disconnectSyncStoreForTest,
+  getSyncSocketForTest,
   reconnectSyncStoreForTest,
   waitForSyncReady,
 } from "./synced-store.js";
@@ -127,6 +129,57 @@ describe("synced store", () => {
     await waitForSyncReady(dealer);
     await new Promise((r) => setTimeout(r, 400));
 
+    await waitForFingerprint(display, composedStateFingerprint(dealer));
+
+    dealer.destroy();
+    display.destroy();
+  });
+
+  it("resyncs on seq gap", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url);
+    const dealer = await openDealer(server.url, code, dealerToken);
+    const display = await openDisplay(server.url, code);
+
+    dealer.record(minimalBaccaratResult(), { quick: false });
+    await waitForFingerprint(display, composedStateFingerprint(dealer));
+
+    const latestSeq = display.events.reduce((max, e) => Math.max(max, e.seq), 0);
+    const socket = getSyncSocketForTest(display);
+    expect(socket).toBeTruthy();
+
+    let resyncCount = 0;
+    const originalEmit = socket!.emit.bind(socket);
+    socket!.emit = ((event: string, ...args: unknown[]) => {
+      const msg = args[0] as { op?: string } | undefined;
+      if (event === "message" && msg?.op === "resync") {
+        resyncCount += 1;
+      }
+      return originalEmit(event, ...args);
+    }) as typeof socket.emit;
+
+    deliverMessageForTest(display, {
+      op: "event",
+      event: {
+        type: "RESULT_RECORDED",
+        seq: latestSeq + 2,
+        at: "2026-01-01T00:00:10.000Z",
+        result: {
+          id: "gap-gap",
+          index: 99,
+          recordedAt: "2026-01-01T00:00:10.000Z",
+          quick: false,
+          source: "physical",
+          by: "dealer",
+          data: minimalBaccaratResult(),
+        },
+      },
+    });
+
+    await new Promise((r) => setTimeout(r, 300));
+    expect(resyncCount).toBeGreaterThan(0);
+
+    dealer.record(minimalBaccaratResult(), { quick: false });
     await waitForFingerprint(display, composedStateFingerprint(dealer));
 
     dealer.destroy();
