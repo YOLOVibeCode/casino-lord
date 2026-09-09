@@ -34,7 +34,7 @@ packages/game-baccarat/   GameModule for baccarat. Exists.
 packages/game-roulette/   Planned (M7).
 packages/game-craps/      Planned (M8).
 packages/game-blackjack/  Planned (M9).
-apps/web/                 Vite + Preact SPA: dealer / display / player shells. Planned (M2).
+apps/web/                 Vite + Preact SPA: dealer / display / player shells. Exists (M2 slice 1).
 apps/sync/                Fastify + Socket.IO relay + Virtual Dealer. Planned (M3, M6).
 ```
 
@@ -72,7 +72,7 @@ Integration branch: **`main`**. Work on a feature branch (`feat/<topic>`, `fix/<
 - Never introduce real-money, payment, wallet, or currency-conversion code paths. Chips are integers with no cash value (SPEC.md §2, §26).
 - Never generate outcomes on a table whose `outcomeSource` is `physical`, and never let a virtual outcome read bets (SPEC.md §14, §26).
 - Do not modify `.github/workflows/`, `railway.json`, Dockerfiles, or `.cursor/` unless the task is explicitly about them.
-- Do not add runtime dependencies to `packages/core` (dependency-free by design). `packages/game-*` may depend only on `@casino-lord/core` and `zod`. Elsewhere, state why in the PR.
+- Do not add runtime dependencies to `packages/core` (dependency-free by design). `packages/game-*` may depend only on `@casino-lord/core` and `zod`. **`apps/web`** may use `preact`, `preact-iso`, `zod`, `@casino-lord/core`, and workspace game packages only. Elsewhere, state why in the PR.
 - Do not commit secrets, `.env` files, `dist/`, or `node_modules/`.
 - Do not rewrite or reformat spec files as a side effect of a code task.
 - Do not weaken a test to make it pass.
