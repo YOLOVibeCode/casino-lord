@@ -32,8 +32,8 @@
 }
 
 .dice-picker__face {
-  min-width: 3.5rem;
-  min-height: 3.5rem;
+  min-width: 48px;
+  min-height: 48px;
   padding: 0.25rem;
   border: 2px solid #334155;
   border-radius: 0.5rem;
@@ -72,6 +72,8 @@
 
 .dice-picker__clear,
 .dice-picker__commit {
+  min-height: 48px;
+  min-width: 48px;
   padding: 0.5rem 1rem;
   border-radius: 0.375rem;
   border: 1px solid #475569;

@@ -41,6 +41,25 @@ describe("CardPicker", () => {
     expect(onCommit).toHaveBeenCalledWith({ rank: "7", suit: "H" });
   });
 
+  it("calls onUndoLast when undo button is clicked", () => {
+    const onUndoLast = vi.fn();
+    render(
+      <CardPicker
+        open
+        title="Player · Card 1"
+        expressMode={false}
+        suitRequired={false}
+        valueOf={valueOf}
+        onCommit={vi.fn()}
+        onRemove={vi.fn()}
+        onUndoLast={onUndoLast}
+        onClose={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("card-picker-undo-last"));
+    expect(onUndoLast).toHaveBeenCalledTimes(1);
+  });
+
   it("commits instantly in express mode when suit is sticky", () => {
     const { onCommit } = renderPicker({
       expressMode: true,
