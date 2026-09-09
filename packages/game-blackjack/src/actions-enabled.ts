@@ -3,7 +3,13 @@ import { canSplit, handValue } from "./engine.js";
 import type { BlackjackRules } from "./rules.js";
 import type { BlackjackState } from "./state.js";
 import type { HandInput, Seat } from "./types.js";
-import { dealerShowsAce, getPendingTurn, isHandComplete, isInsuranceWindow } from "./turn.js";
+import {
+  dealerShowsAce,
+  getLiveInput,
+  getPendingTurn,
+  isHandComplete,
+  isInsuranceWindow,
+} from "./turn.js";
 import type { BlackjackAction } from "./virtual.js";
 
 function playerSeat(me: PlayerState): Seat | undefined {
@@ -20,7 +26,7 @@ function activeHand(
   const pending = getPendingTurn(state, rules);
   const seat = playerSeat(me);
   if (!pending || seat !== pending.seat) return null;
-  const hand = state.liveInput.seats[seat]?.[pending.handIndex];
+  const hand = getLiveInput(state).seats[seat]?.[pending.handIndex];
   if (!hand) return null;
   return { hand, handIndex: pending.handIndex, seat };
 }
@@ -45,7 +51,7 @@ export function canDouble(state: BlackjackState, me: PlayerState, rules: Blackja
   const { hand } = ctx;
   if (hand.doubled || (hand.fromSplit && !rules.doubleAfterSplit)) return false;
   if (hand.cards.length !== 2) return false;
-  const completed = state.liveInput.virtual?.completedHands ?? [];
+  const completed = getLiveInput(state).virtual?.completedHands ?? [];
   if (isHandComplete(hand, ctx.seat, ctx.handIndex, rules, completed)) return false;
   return true;
 }
@@ -57,7 +63,7 @@ export function canSplitHand(
 ): boolean {
   const ctx = activeHand(state, rules, me);
   if (!ctx) return false;
-  const hands = state.liveInput.seats[ctx.seat] ?? [];
+  const hands = getLiveInput(state).seats[ctx.seat] ?? [];
   return canSplit(hands, rules);
 }
 
@@ -87,7 +93,7 @@ export function canPlaceEvenMoney(
   seat: Seat,
 ): boolean {
   if (!isInsuranceWindow(state) || !dealerShowsAce(state)) return false;
-  const hand = state.liveInput.seats[seat]?.[0];
+  const hand = getLiveInput(state).seats[seat]?.[0];
   if (!hand) return false;
   const hv = handValue(hand.cards, hand.fromSplit, rules.blackjackAfterSplit);
   return hv.blackjack;

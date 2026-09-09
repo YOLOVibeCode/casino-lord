@@ -1,8 +1,12 @@
 import { handValue } from "./engine.js";
 import type { BlackjackRules } from "./rules.js";
 import type { BlackjackState } from "./state.js";
-import type { HandInput, Seat } from "./types.js";
+import type { BlackjackLiveInput, HandInput, Seat } from "./types.js";
 import { ALL_SEATS } from "./types.js";
+
+export function getLiveInput(state: BlackjackState): BlackjackLiveInput {
+  return state.liveInput ?? { dealer: [], seats: {} };
+}
 
 /** Matches platform default `settings.virtual.actionTimerSec` (SPEC.md §14.5). */
 export const ACTION_TIMER_MS = 20_000;
@@ -62,7 +66,7 @@ export function findPendingTurn(
 }
 
 export function getPendingTurn(state: BlackjackState, rules: BlackjackRules): PendingTurn | null {
-  const { liveInput } = state;
+  const liveInput = getLiveInput(state);
   const virtual = liveInput.virtual;
 
   if (
@@ -105,7 +109,7 @@ export function blackjackTurn(
   const pending = getPendingTurn(state, rules);
   if (!pending) return null;
 
-  const virtual = state.liveInput.virtual;
+  const virtual = getLiveInput(state).virtual;
   let deadlineMs: number | undefined;
   if (virtual?.turnStartedAt) {
     deadlineMs = Date.parse(virtual.turnStartedAt) + ACTION_TIMER_MS;
@@ -119,9 +123,9 @@ export function blackjackTurn(
 }
 
 export function isInsuranceWindow(state: BlackjackState): boolean {
-  return state.liveInput.virtual?.phase === "insurance";
+  return getLiveInput(state).virtual?.phase === "insurance";
 }
 
 export function dealerShowsAce(state: BlackjackState): boolean {
-  return state.liveInput.dealer[0]?.rank === "A";
+  return getLiveInput(state).dealer[0]?.rank === "A";
 }

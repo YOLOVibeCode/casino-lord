@@ -6,7 +6,7 @@ import type { BlackjackBetId } from "../bet-target.js";
 import { handValue } from "../engine.js";
 import type { BlackjackRules } from "../rules.js";
 import type { BlackjackState } from "../state.js";
-import { blackjackTurn, isInsuranceWindow } from "../turn.js";
+import { blackjackTurn, getLiveInput, isInsuranceWindow } from "../turn.js";
 import type { HandInput, Seat } from "../types.js";
 import type { BlackjackAction } from "../virtual.js";
 import { formatCardGlyph, handTotalLabel, isRedSuit, outcomeDisplayLabel } from "./card-display.js";
@@ -73,10 +73,11 @@ export function PlayerView({ state, rules, me, round, place, act }: PlayerViewPr
   const [otherSeatsOpen, setOtherSeatsOpen] = useState(false);
   const [pendingIntent, setPendingIntent] = useState<BlackjackAction | null>(null);
   const [countdownLabel, setCountdownLabel] = useState<string | null>(null);
-  const liveInputRef = useRef(state.liveInput);
+  const liveInput = getLiveInput(state);
+  const liveInputRef = useRef(liveInput);
 
   const mySeat = me.player.seat as Seat | undefined;
-  const isPhysical = !state.liveInput.virtual;
+  const isPhysical = !liveInput.virtual;
   const insuranceOpen = isInsuranceWindow(state);
   const betsOpen = round.status === "open";
   const myTurn = mySeat !== undefined && isMyTurn(state, me, rules);
@@ -84,11 +85,12 @@ export function PlayerView({ state, rules, me, round, place, act }: PlayerViewPr
   const pending = myTurn ? turnInfo : null;
 
   useEffect(() => {
-    if (liveInputRef.current !== state.liveInput) {
+    const next = getLiveInput(state);
+    if (liveInputRef.current !== next) {
       setPendingIntent(null);
-      liveInputRef.current = state.liveInput;
+      liveInputRef.current = next;
     }
-  }, [state.liveInput]);
+  }, [state]);
 
   useEffect(() => {
     if (!pending?.deadlineMs) {
@@ -103,12 +105,12 @@ export function PlayerView({ state, rules, me, round, place, act }: PlayerViewPr
 
   const activeHandIndex = useMemo(() => {
     if (!mySeat || !myTurn) return 0;
-    const virtual = state.liveInput.virtual;
+    const virtual = getLiveInput(state).virtual;
     if (virtual?.phase === "player" && virtual.currentSeat === mySeat) {
       return virtual.currentHandIndex;
     }
     return 0;
-  }, [mySeat, myTurn, state.liveInput.virtual]);
+  }, [mySeat, myTurn, state]);
 
   const bettingZones = useMemo((): FeltZoneDef[] => {
     const zones: FeltZoneDef[] = [
@@ -165,11 +167,11 @@ export function PlayerView({ state, rules, me, round, place, act }: PlayerViewPr
   }, [betsOpen, insuranceOpen, mySeat, rules.sideBets, state, rules]);
 
   const showBetting = betsOpen && !myTurn && !pendingIntent;
-  const myHands = mySeat !== undefined ? (state.liveInput.seats[mySeat] ?? []) : [];
-  const dealerCards = state.liveInput.dealer;
+  const myHands = mySeat !== undefined ? (liveInput.seats[mySeat] ?? []) : [];
+  const dealerCards = liveInput.dealer;
   const holeHidden =
     dealerCards.length === 1 ||
-    (state.liveInput.virtual !== undefined && !state.liveInput.virtual.holeDealt && rules.peek);
+    (liveInput.virtual !== undefined && !liveInput.virtual.holeDealt && rules.peek);
   const dealerVisible = dealerCards[0];
   const dealerTotal = holeHidden
     ? dealerVisible
@@ -204,12 +206,12 @@ export function PlayerView({ state, rules, me, round, place, act }: PlayerViewPr
     for (let s = 1; s <= rules.seats; s++) {
       const seat = s as Seat;
       if (seat === mySeat) continue;
-      const hands = state.liveInput.seats[seat];
+      const hands = liveInput.seats[seat];
       if (!hands?.length) continue;
       parts.push(`${seat}: ${seatSummary(hands, rules)}`);
     }
     return parts;
-  }, [mySeat, rules, state.liveInput.seats]);
+  }, [mySeat, rules, liveInput.seats]);
 
   if (mySeat === undefined) {
     return (
