@@ -4,6 +4,7 @@
 import "fake-indexeddb/auto";
 import { cleanup, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_TABLE_SETTINGS } from "@casino-lord/core";
 import { LocationProvider, Router } from "preact-iso";
 
 vi.mock("../table/solo-table.js", () => ({
@@ -13,8 +14,14 @@ vi.mock("../table/solo-table.js", () => ({
     events: [],
     getComposed: () => ({
       platform: {
-        participation: { playerMode: "off", virtualOutcomes: false },
-        settings: { rules: {} },
+        participation: { playerMode: "off", bank: "none", outcomeSource: "physical" },
+        settings: DEFAULT_TABLE_SETTINGS,
+        rounds: [],
+        bets: [],
+        players: [],
+        bankrolls: {},
+        settlements: {},
+        chipsIssuedTotal: 0,
       },
       module: {
         results: [],
@@ -75,6 +82,7 @@ vi.mock("../table/solo-table.js", () => ({
     }),
     emit: vi.fn(),
     record: vi.fn(),
+    canUndoLastResult: vi.fn(() => ({ ok: true })),
     undoLastResult: vi.fn(),
     editResult: vi.fn(),
     deleteResult: vi.fn(),

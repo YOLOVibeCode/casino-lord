@@ -4,6 +4,7 @@
 import "fake-indexeddb/auto";
 import { act, cleanup, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { houseSettings } from "@casino-lord/core/testing";
 import { baccaratModule } from "@casino-lord/game-baccarat";
 import { DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
 import { asUntypedModule } from "../table/module-types.js";
@@ -219,5 +220,33 @@ describe("DisplayShell animations", () => {
     });
 
     expect(screen.queryByTestId("animation-layer")).toBeNull();
+  });
+
+  it("schedules platform bets_open animation on BETS_OPENED", async () => {
+    let n = 0;
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => `2026-01-01T00:00:${String(++n).padStart(2, "0")}.000Z`,
+      id: () => `id-${n}`,
+    });
+    store.emit({ type: "PARTICIPATION_CHANGED", participation: houseSettings().participation });
+
+    render(
+      <DisplayShell
+        store={store}
+        module={baccarat}
+        rules={DEFAULT_BACCARAT_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+
+    await act(async () => {
+      store.emit({ type: "BETS_OPENED", roundId: "r1" });
+    });
+
+    expect(screen.getByTestId("animation-layer")).toBeTruthy();
   });
 });

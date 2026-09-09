@@ -1,9 +1,10 @@
 import { createElement } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { ComponentType } from "preact";
-import type { ResultEnvelope } from "@casino-lord/core";
+import { buildBetsView, type ResultEnvelope } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
+import { useBettingRound } from "../betting/use-betting-round.js";
 import { QrDialog } from "../sync/QrDialog.js";
 import { tableUrl } from "../sync/urls.js";
 import { isSyncStore } from "../table/sync-store-types.js";
@@ -11,6 +12,8 @@ import type { TableStore } from "../table/store.js";
 import { useStore } from "../hooks/use-store.js";
 import { buildExportText } from "../table/export.js";
 import { countSeries, currentSeriesStartedAt } from "../table/meta.js";
+import { BankPanel } from "./BankPanel.js";
+import { BettingBar } from "./BettingBar.js";
 import { SettingsDialog } from "./SettingsDialog.js";
 import { HistoryDialog } from "./HistoryDialog.js";
 import { CalculatorDialog } from "./CalculatorDialog.js";
@@ -26,7 +29,7 @@ export interface DealerShellProps {
   onNewTable?: () => void;
 }
 
-type ActiveDialog = "settings" | "history" | "calculator" | "qr" | "players" | null;
+type ActiveDialog = "settings" | "history" | "calculator" | "qr" | "players" | "bank" | null;
 
 export function DealerShell({
   store,
@@ -40,11 +43,24 @@ export function DealerShell({
   const composed = store.getComposed();
   const table = store.getTableMeta();
   const playerModeOn = composed.platform.participation.playerMode === "on";
+  const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
   const confirmState = module.confirm(composed.module, rules);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
   const [editingEnvelope, setEditingEnvelope] = useState<ResultEnvelope<unknown> | null>(null);
+  const [undoBlockedMsg, setUndoBlockedMsg] = useState<string | null>(null);
+
+  const settings = composed.platform.settings;
+  const undoCheck = store.canUndoLastResult();
+  const betting = useBettingRound({
+    store,
+    composed,
+    settings,
+    editing: editingEnvelope !== null,
+    newRoundId: () => crypto.randomUUID(),
+  });
+  const betsView = buildBetsView(composed.platform, module, composed.module);
   const [undoArmed, setUndoArmed] = useState(false);
   const [undoHand, setUndoHand] = useState(0);
   const [confirming, setConfirming] = useState(false);
@@ -83,13 +99,22 @@ export function DealerShell({
       setEditingEnvelope(null);
       store.emit(clearLiveInput);
     } else {
+      betting.onDealerEntry();
       store.record(confirmState.result, { quick: false });
       if (confirmState.autoSeries) {
         store.startNewSeries(undefined, { auto: true });
       }
     }
     clearConfirmTimer();
-  }, [clearConfirmTimer, confirmState, deviceSettings.haptics, editingEnvelope, module.id, store]);
+  }, [
+    betting,
+    clearConfirmTimer,
+    confirmState,
+    deviceSettings.haptics,
+    editingEnvelope,
+    module.id,
+    store,
+  ]);
 
   const startConfirmDelay = useCallback(() => {
     if (!confirmState?.enabled || !confirmState.result) return;
@@ -115,6 +140,14 @@ export function DealerShell({
     const results = (composed.module as { results?: unknown[] }).results;
     const count = Array.isArray(results) ? results.length : 0;
     if (count === 0) return;
+
+    const check = store.canUndoLastResult();
+    if (!check.ok) {
+      setUndoBlockedMsg(check.reason ?? "Undo blocked.");
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+      undoTimer.current = setTimeout(() => setUndoBlockedMsg(null), 4000);
+      return;
+    }
 
     if (!undoArmed) {
       setUndoArmed(true);
@@ -274,9 +307,15 @@ export function DealerShell({
       </header>
 
       {playerModeOn && (
-        <div class="dealer-shell__betting-bar" data-testid="betting-bar">
-          BETS — player mode
-        </div>
+        <BettingBar
+          round={betting.round}
+          betsView={betsView}
+          countdownSec={betting.countdownSec}
+          onToggle={() => {
+            if (betting.round?.status === "open") betting.closeBets();
+            else betting.openBets();
+          }}
+        />
       )}
 
       <div class="dealer-shell__module">
@@ -284,7 +323,10 @@ export function DealerShell({
           state: composed.module,
           rules,
           table,
-          emit: store.emit,
+          emit: (body: Parameters<typeof store.emit>[0]) => {
+            if (body.type === "LIVE_INPUT") betting.onDealerEntry();
+            store.emit(body);
+          },
           record: store.record,
           autoAdvance: deviceSettings.autoAdvance,
           expressMode: deviceSettings.expressMode,
@@ -292,13 +334,20 @@ export function DealerShell({
         })}
       </div>
 
+      {undoBlockedMsg && (
+        <div class="dealer-shell__undo-blocked" data-testid="undo-blocked">
+          {undoBlockedMsg}
+        </div>
+      )}
+
       <div class="dealer-shell__actions">
         <button
           type="button"
           class="dealer-shell__btn"
           onClick={handleUndo}
-          disabled={!!editingEnvelope || readOnly}
+          disabled={!!editingEnvelope || readOnly || !undoCheck.ok}
           data-testid="undo-btn"
+          title={undoCheck.reason}
         >
           {undoArmed ? `Tap again to undo Hand ${undoHand}` : "UNDO"}
         </button>
@@ -341,7 +390,13 @@ export function DealerShell({
             >
               👥
             </button>
-            <button type="button" disabled title="Coming soon">
+            <button
+              type="button"
+              disabled={!bankHouse}
+              title={bankHouse ? "Bank" : "House bank not enabled"}
+              data-testid="bank-btn"
+              onClick={() => setActiveDialog("bank")}
+            >
               🏦
             </button>
           </>
@@ -439,6 +494,14 @@ export function DealerShell({
         </div>
       </footer>
 
+      {activeDialog === "bank" && bankHouse && (
+        <BankPanel
+          store={store}
+          composed={composed}
+          settings={settings}
+          onClose={() => setActiveDialog(null)}
+        />
+      )}
       {activeDialog === "settings" && (
         <SettingsDialog
           store={store}

@@ -1,0 +1,52 @@
+.leaderboard-interstitial {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.leaderboard-interstitial__panel {
+  background: var(--panel-bg, #1a1a1a);
+  border: 1px solid var(--gold-hairline, #c9a227);
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  max-width: 36rem;
+  width: 90%;
+}
+
+.leaderboard-interstitial__columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin: 1rem 0;
+}
+
+.leaderboard-interstitial h2 {
+  margin: 0;
+  text-align: center;
+  color: var(--accent, #c9a227);
+}
+
+.leaderboard-interstitial h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+}
+
+.leaderboard-interstitial ol {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.leaderboard-interstitial button {
+  display: block;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--gold-hairline, #c9a227);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+}

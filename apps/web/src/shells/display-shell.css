@@ -132,6 +132,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.display-shell__player-bankroll {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold-accent);
+}
+
 .display-shell__animation-overlay {
   position: fixed;
   inset: 0;

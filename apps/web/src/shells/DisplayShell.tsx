@@ -1,10 +1,19 @@
+import {
+  buildBetsView,
+  buildLeaderboard,
+  getBankroll,
+  getCurrentRound,
+  getSettlementTicker,
+  sortPlayers,
+  type TableEvent,
+} from "@casino-lord/core";
 import { createElement } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ComponentType } from "preact";
 import type { UntypedGameModule } from "../table/module-types.js";
+import { useBettingRound } from "../betting/use-betting-round.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
 import { resolveLayout } from "../settings/device-settings.js";
-import { getBankroll } from "@casino-lord/core";
 import { fetchVersion } from "../sync/api.js";
 import { QrBadge } from "../sync/QrBadge.js";
 import { isSyncConfigured } from "../sync/config.js";
@@ -15,6 +24,8 @@ import { AnimationLayer } from "../animation/AnimationLayer.js";
 import { animationSound } from "../animation/sound.js";
 import { useAnimationRuntime } from "../animation/useAnimationRuntime.js";
 import { useStore } from "../hooks/use-store.js";
+import { BettingStrip } from "./BettingStrip.js";
+import { LeaderboardInterstitial } from "./LeaderboardInterstitial.js";
 import "./display-shell.css";
 
 export interface DisplayShellProps {
@@ -39,14 +50,41 @@ export function DisplayShell({
   const table = store.getTableMeta();
   const playerModeOn = composed.platform.participation.playerMode === "on";
   const joiningOpen = composed.platform.settings.players?.joiningOpen ?? false;
-  const showBankrolls = composed.platform.participation.bank === "house";
-  const rosterPlayers = (composed.platform.players ?? [])
-    .filter((p) => p.status !== "removed")
-    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt));
+  const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
+  const showBankrolls = bankHouse && composed.platform.settings.players.showBankrolls;
   const playUrl =
     playerModeOn && joiningOpen && isSyncConfigured() ? tableUrl(`/play/${store.code}`) : undefined;
   const layout = resolveLayout(module.layouts, deviceSettings.layoutId);
   const stats = module.stats(composed.module, rules);
+  const settings = composed.platform.settings;
+
+  const betting = useBettingRound({
+    store,
+    composed,
+    settings,
+    editing: false,
+    newRoundId: () => crypto.randomUUID(),
+  });
+  const betsView = buildBetsView(composed.platform, module, composed.module);
+  const round = getCurrentRound(composed.platform);
+  const settledRound = composed.platform.rounds.filter((r) => r.status === "settled").at(-1);
+  const settlementTicker = settledRound
+    ? getSettlementTicker(composed.platform, settledRound.id)
+    : "";
+
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const lastLeaderboardSeq = useRef(0);
+
+  useEffect(() => {
+    const triggerEvents = store.events.filter(
+      (e: TableEvent) =>
+        (e.type === "SERIES_ENDED" || e.type === "SESSION_ENDED") &&
+        e.seq > lastLeaderboardSeq.current,
+    );
+    if (triggerEvents.length === 0) return;
+    lastLeaderboardSeq.current = Math.max(...triggerEvents.map((e) => e.seq));
+    setShowLeaderboard(true);
+  }, [store.events]);
 
   const [fsHint, setFsHint] = useState(!deviceSettings.fullScreen);
   const [soundUnlocked, setSoundUnlocked] = useState(() => animationSound.isUnlocked());
@@ -116,8 +154,22 @@ export function DisplayShell({
     }
   };
 
-  const emptyBets = { round: null, summaries: [], openBets: [] };
   const syncStore = isSyncStore(store) ? store : null;
+
+  const buyInByPlayer: Record<string, number> = {};
+  for (const e of store.events) {
+    if (e.type === "BANK_ISSUED" && e.reason === "buyin") {
+      buyInByPlayer[e.playerId] = (buyInByPlayer[e.playerId] ?? 0) + e.amount;
+    }
+  }
+  const leaderboard = buildLeaderboard(composed.platform, buyInByPlayer);
+  const topByBankroll = [...leaderboard].sort((a, b) => b.bankroll - a.bankroll).slice(0, 3);
+  const topByNet = [...leaderboard].sort((a, b) => b.net - a.net).slice(0, 3);
+  const sortedPlayers = sortPlayers(
+    composed.platform.players.filter((p) => p.status !== "removed"),
+    composed.platform,
+    settings.players.playersSort,
+  );
 
   const connectionLabel = syncStore
     ? syncStore.getConnectionState() === "connected"
@@ -178,9 +230,12 @@ export function DisplayShell({
       )}
 
       {playerModeOn && (
-        <div class="display-shell__betting-strip" data-testid="betting-strip">
-          BETS OPEN
-        </div>
+        <BettingStrip
+          round={round ?? settledRound ?? null}
+          betsView={betsView}
+          countdownSec={betting.countdownSec}
+          settlementTicker={settlementTicker}
+        />
       )}
 
       <div
@@ -192,32 +247,28 @@ export function DisplayShell({
           state: displayModuleState,
           rules,
           table,
-          bets: emptyBets,
+          bets: betsView,
           layout,
         })}
       </div>
 
-      {playerModeOn && rosterPlayers.length > 0 && (
+      {playerModeOn && sortedPlayers.length > 0 && (
         <aside class="display-shell__players" data-testid="players-panel">
           <h3 class="display-shell__players-title">PLAYERS</h3>
           <ul class="display-shell__players-list">
-            {rosterPlayers.map((p) => {
+            {sortedPlayers.map((p) => {
               const connected = syncStore
                 ?.getPresence()
                 .players.some((entry) => entry.id === p.id && entry.connected);
-              const away = p.status === "away" || !connected;
+              const away = p.status === "away" || (syncStore ? !connected : false);
               return (
-                <li
-                  key={p.id}
-                  class="display-shell__player-row"
-                  data-testid={`display-player-${p.id}`}
-                >
+                <li key={p.id} class="display-shell__player-row" data-testid={`player-row-${p.id}`}>
                   <span class="display-shell__player-dot" style={{ background: p.color }} />
                   <span class="display-shell__player-name">{p.name}</span>
                   {away && <span class="display-shell__player-away">away</span>}
                   {showBankrolls && (
-                    <span class="display-shell__player-bank">
-                      {getBankroll(composed.platform, p.id)}
+                    <span class="display-shell__player-bankroll" data-testid="player-bankroll">
+                      {getBankroll(composed.platform, p.id).toLocaleString()}
                     </span>
                   )}
                 </li>
@@ -242,6 +293,14 @@ export function DisplayShell({
           <div>Connection: {connectionLabel}</div>
           <div>Version: {version}</div>
         </div>
+      )}
+
+      {showLeaderboard && playerModeOn && (
+        <LeaderboardInterstitial
+          byBankroll={topByBankroll}
+          byNet={topByNet}
+          onDismiss={() => setShowLeaderboard(false)}
+        />
       )}
 
       <div ref={overlayRef} class="display-shell__animation-overlay" aria-hidden="true">

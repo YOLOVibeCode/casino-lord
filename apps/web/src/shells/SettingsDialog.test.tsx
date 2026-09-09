@@ -47,6 +47,38 @@ describe("SettingsDialog", () => {
     }
   });
 
+  it("emits SETTINGS_CHANGED for bank settings", () => {
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceChange={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("tab-bank"));
+    const input = screen.getByTestId("bank-table-min");
+    fireEvent.change(input, { target: { value: "10" } });
+
+    const changed = store.events.find((e) => e.type === "SETTINGS_CHANGED");
+    expect(changed?.type).toBe("SETTINGS_CHANGED");
+    if (changed?.type === "SETTINGS_CHANGED") {
+      expect(changed.patch.bank?.tableMin).toBe(10);
+    }
+  });
+
   it("calls onDeviceChange when layout changes", () => {
     const onDeviceChange = vi.fn();
     const store = createTableStore({

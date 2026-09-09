@@ -1,4 +1,5 @@
 import {
+  canUndoResult,
   replay,
   resolveEffectiveRules,
   type ComposedState,
@@ -7,6 +8,7 @@ import {
   type TableEvent,
   type TableEventType,
 } from "@casino-lord/core";
+import { buildResultEnvelope } from "../betting/build-result-envelope.js";
 import { io, type Socket } from "socket.io-client";
 import { newClientId } from "../sync/client-id.js";
 import { saveDealerToken } from "../sync/dealer-token.js";
@@ -470,19 +472,23 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     void sendPersistedEvent(body);
   };
 
+  const canUndoLastResult = (): { ok: boolean; reason?: string } => {
+    const composed = getComposed();
+    const results = (composed.module as { results?: { id: string }[] }).results;
+    if (!Array.isArray(results) || results.length === 0) {
+      return { ok: false, reason: "No result to undo." };
+    }
+    const last = results[results.length - 1]!;
+    return canUndoResult(composed.platform, last.id);
+  };
+
   const record = (result: unknown, opts: { quick: boolean }): void => {
     const composed = getComposed();
-    const results = (composed.module as { results?: unknown[] }).results;
-    const index = Array.isArray(results) ? results.length : 0;
-    const envelope: ResultEnvelope<unknown> = {
+    const envelope = buildResultEnvelope(composed, result, {
       id: id(),
-      index,
-      recordedAt: now(),
+      now: now(),
       quick: opts.quick,
-      source: "physical",
-      by: "dealer",
-      data: result,
-    };
+    });
     void sendPersistedEvent({ type: "RESULT_RECORDED", result: envelope });
   };
 
@@ -501,7 +507,10 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     getTableMeta,
     emit: emitLive,
     record,
+    canUndoLastResult,
     undoLastResult: () => {
+      const check = canUndoLastResult();
+      if (!check.ok) return;
       const composed = getComposed();
       const results = (composed.module as { results?: { id: string }[] }).results;
       if (!Array.isArray(results) || results.length === 0) return;

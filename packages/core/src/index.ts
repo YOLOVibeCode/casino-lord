@@ -9,6 +9,7 @@
 
 export * from "./animation.js";
 export * from "./betting.js";
+export * from "./betting-selectors.js";
 export * from "./data-model.js";
 export * from "./events.js";
 export * from "./game-module.js";
