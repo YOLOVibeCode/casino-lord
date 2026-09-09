@@ -19,6 +19,7 @@ export interface TableSettings {
     tableMin: number;
     tableMax: number;
     maxExposure: number;
+    bigWinMultiple: number;
     roundingMode: "down";
   };
   betting: {
@@ -59,6 +60,7 @@ export const DEFAULT_TABLE_SETTINGS: TableSettings = {
     tableMin: 5,
     tableMax: 500,
     maxExposure: 0,
+    bigWinMultiple: 20,
     roundingMode: "down",
   },
   betting: {
