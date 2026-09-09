@@ -48,7 +48,11 @@ function applyCarryBets(bets: PlacedBet[], settlements: Settlement[]): PlacedBet
   return bets.map((b) => carryByBetId.get(b.id) ?? b);
 }
 
-function reassignCarriedBets(bets: PlacedBet[], rounds: PlatformState["rounds"], newRoundId: string): PlacedBet[] {
+function reassignCarriedBets(
+  bets: PlacedBet[],
+  rounds: PlatformState["rounds"],
+  newRoundId: string,
+): PlacedBet[] {
   return bets.map((b) => {
     if (!b.working) return b;
     const round = rounds.find((r) => r.id === b.roundId);
