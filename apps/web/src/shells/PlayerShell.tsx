@@ -9,6 +9,7 @@ import {
   type TableEvent,
 } from "@casino-lord/core";
 import {
+  ActionButtons,
   BetSlip,
   ChipTray,
   PlayerBettingContext,
@@ -19,8 +20,11 @@ import { createElement, type ComponentType } from "preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { validateBet, validatePlaceAll } from "../betting/validate-bet.js";
 import { useCountUp } from "../hooks/use-count-up.js";
+import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { useStore } from "../hooks/use-store.js";
+import { tapHaptic } from "../settings/haptics.js";
 import { getGame } from "../table/games.js";
+import { currentSeriesCommit } from "../table/meta.js";
 import type { TableStore } from "../table/store.js";
 import { isSyncStore } from "../table/sync-store-types.js";
 import "./player-shell.css";
@@ -38,6 +42,8 @@ interface PendingBet {
 }
 
 type FooterTab = "play" | "history" | "leaderboard" | "rules" | "info";
+
+const SETTLEMENT_DISPLAY_MS = 4000;
 
 function findBetDef(
   catalogue: BetCatalogue<unknown, unknown, unknown, unknown>,
@@ -67,8 +73,23 @@ function buildBuyInMap(events: readonly TableEvent[]): Record<string, number> {
   return map;
 }
 
+function buildSettlementSummary(
+  outcome: string,
+  playerTotal: number | null,
+  bankerTotal: number | null,
+  profit: number,
+): string {
+  const outcomeLabel = outcome === "B" ? "Banker" : outcome === "P" ? "Player" : "Tie";
+  const total = outcome === "B" ? bankerTotal : outcome === "P" ? playerTotal : playerTotal;
+  const sign = profit >= 0 ? "+" : "";
+  const verb = profit >= 0 ? "won" : "lost";
+  const headline = total !== null ? `${outcomeLabel} ${total}` : outcomeLabel;
+  return `${headline} — you ${verb} ${sign}${profit}`;
+}
+
 export function PlayerShell({ store, playerName }: PlayerShellProps) {
   useStore(store);
+  const [deviceSettings] = useDeviceSettings();
   const composed = store.getComposed();
   const settings = composed.platform.settings;
   const rules = store.getRules();
@@ -80,17 +101,24 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
   const [selectedDenom, setSelectedDenom] = useState(() => settings.bank.chipDenominations[0] ?? 5);
   const [pendingBets, setPendingBets] = useState<PendingBet[]>([]);
-  const [validationError, setValidationError] = useState("");
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FooterTab>("play");
   const [settlementFlash, setSettlementFlash] = useState<"win" | "lose" | null>(null);
+  const [settlementByZone, setSettlementByZone] = useState<Record<string, "win" | "lose">>({});
+  const [settlementSummary, setSettlementSummary] = useState<string | null>(null);
   const [countdownSec, setCountdownSec] = useState<number | null>(null);
+  const [turnCountdownSec, setTurnCountdownSec] = useState<number | null>(null);
   const lastSettledRoundRef = useRef<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settlementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const round = getCurrentRound(composed.platform);
   const openRound = round?.status === "open" ? round : null;
   const bankroll = playerId ? getBankroll(composed.platform, playerId) : 0;
   const displayBankroll = useCountUp(bankroll);
   const houseBank = composed.platform.participation.bank === "house";
+  const virtualTable = composed.platform.participation.outcomeSource === "virtual";
+  const seriesCommit = virtualTable ? currentSeriesCommit(store.events) : null;
 
   const placedBets =
     playerId && openRound
@@ -114,21 +142,63 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
   const settledRound = composed.platform.rounds.filter((r) => r.status === "settled").at(-1);
 
+  const showToast = useCallback((msg: string) => {
+    setToastMsg(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastMsg(null), 4000);
+  }, []);
+
   useEffect(() => {
-    if (!settledRound || settledRound.id === lastSettledRoundRef.current || !playerId) return;
-    lastSettledRoundRef.current = settledRound.id;
-    const settlements = getRoundSettlements(composed.platform, settledRound.id);
-    const betById = new Map(composed.platform.bets.map((b) => [b.id, b]));
+    const roundId = settledRound?.id;
+    if (!roundId || roundId === lastSettledRoundRef.current || !playerId) return;
+    lastSettledRoundRef.current = roundId;
+
+    const snapshot = store.getComposed();
+    const settlements = getRoundSettlements(snapshot.platform, roundId);
+    const betById = new Map(snapshot.platform.bets.map((b) => [b.id, b]));
     let profit = 0;
+    const byZone: Record<string, "win" | "lose"> = {};
     for (const s of settlements) {
       const bet = betById.get(s.betId);
-      if (bet?.playerId === playerId) profit += s.profit;
+      if (bet?.playerId !== playerId) continue;
+      profit += s.profit;
+      if (s.profit > 0) byZone[bet.type] = "win";
+      else if (s.profit < 0) byZone[bet.type] = "lose";
     }
-    if (profit > 0) setSettlementFlash("win");
-    else if (profit < 0) setSettlementFlash("lose");
-    const t = setTimeout(() => setSettlementFlash(null), 800);
-    return () => clearTimeout(t);
-  }, [composed.platform, playerId, settledRound]);
+
+    const mod = snapshot.module as {
+      results?: {
+        data: {
+          outcome: string;
+          bankerTotal: number | null;
+          playerTotal: number | null;
+        };
+      }[];
+    };
+    const last = mod.results?.at(-1)?.data;
+
+    if (last && profit !== 0) {
+      const summary = buildSettlementSummary(
+        last.outcome,
+        last.playerTotal,
+        last.bankerTotal,
+        profit,
+      );
+      setSettlementSummary(summary);
+      setSettlementFlash(profit > 0 ? "win" : "lose");
+      setSettlementByZone(byZone);
+      if (settlementTimer.current) clearTimeout(settlementTimer.current);
+      settlementTimer.current = setTimeout(() => {
+        setSettlementSummary(null);
+        setSettlementFlash(null);
+        setSettlementByZone({});
+      }, SETTLEMENT_DISPLAY_MS);
+    }
+
+    return () => {
+      if (settlementTimer.current) clearTimeout(settlementTimer.current);
+    };
+  }, [store, playerId, settledRound?.id]);
 
   useEffect(() => {
     if (!openRound?.closesAt) {
@@ -147,15 +217,30 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     return () => clearInterval(id);
   }, [openRound?.closesAt, openRound?.id]);
 
+  const turnInfo = module?.turn?.(composed.module) ?? null;
+  const isMyTurn = turnInfo?.playerId === playerId;
+
+  useEffect(() => {
+    if (!isMyTurn || !turnInfo?.deadlineMs) {
+      setTurnCountdownSec(null);
+      return;
+    }
+    const tick = (): void => {
+      const sec = Math.max(0, Math.ceil((turnInfo.deadlineMs! - Date.now()) / 1000));
+      setTurnCountdownSec(sec);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [isMyTurn, turnInfo?.deadlineMs, turnInfo?.playerId]);
+
   useEffect(() => {
     if (!playerId || !isSyncStore(store)) return;
-    let hiddenAt: number | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let markedAway = false;
 
     const onVis = (): void => {
       if (document.hidden) {
-        hiddenAt = Date.now();
         timer = setTimeout(() => {
           markedAway = true;
           void store.emit({
@@ -174,7 +259,6 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           });
           markedAway = false;
         }
-        hiddenAt = null;
       }
     };
 
@@ -185,8 +269,20 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     };
   }, [playerId, store]);
 
+  useEffect(
+    () => () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    },
+    [],
+  );
+
+  const hapticTap = useCallback(() => {
+    tapHaptic(deviceSettings.haptics);
+  }, [deviceSettings.haptics]);
+
   const addPending = useCallback(
     (betType: string) => {
+      hapticTap();
       if (!module || !playerId || !openRound || !me) return;
       const betDef = findBetDef(module.bets, betType);
       if (!betDef) return;
@@ -205,11 +301,10 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       });
 
       if (!result.ok) {
-        setValidationError(result.reason ?? "Bet rejected");
+        showToast(result.reason ?? "Bet rejected");
         return;
       }
 
-      setValidationError("");
       setPendingBets((prev) => [
         ...prev,
         {
@@ -233,16 +328,18 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       placedTotal,
       composed.module,
       houseBank,
+      showToast,
+      hapticTap,
     ],
   );
 
   const removeFromZone = useCallback(
     (betType: string) => {
+      hapticTap();
       const pending = pendingBets.filter((b) => b.type === betType);
       if (pending.length > 0) {
         const last = pending[pending.length - 1]!;
         setPendingBets((prev) => prev.filter((b) => b.clientId !== last.clientId));
-        setValidationError("");
         return;
       }
       const placed = placedBets.filter((b) => b.type === betType);
@@ -251,7 +348,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         void store.emit({ type: "BET_REMOVED", betId: last.id });
       }
     },
-    [pendingBets, placedBets, store],
+    [pendingBets, placedBets, store, hapticTap],
   );
 
   const handlePlace = useCallback(() => {
@@ -277,7 +374,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     );
 
     if (!validation.ok) {
-      setValidationError(validation.reason ?? "Cannot place bets");
+      showToast(validation.reason ?? "Cannot place bets");
       return;
     }
 
@@ -300,7 +397,6 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       });
     }
     setPendingBets([]);
-    setValidationError("");
   }, [
     module,
     playerId,
@@ -313,6 +409,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     composed.module,
     houseBank,
     store,
+    showToast,
   ]);
 
   const handleRemoveSlip = useCallback(
@@ -322,9 +419,25 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       } else {
         void store.emit({ type: "BET_REMOVED", betId: id });
       }
-      setValidationError("");
     },
     [store],
+  );
+
+  const handleAct = useCallback(
+    (action: unknown) => {
+      if (!playerId) return;
+      hapticTap();
+      void store.emit({ type: "PLAYER_ACTION", playerId, action });
+    },
+    [playerId, store, hapticTap],
+  );
+
+  const handleSelectDenom = useCallback(
+    (denom: number) => {
+      hapticTap();
+      setSelectedDenom(denom);
+    },
+    [hapticTap],
   );
 
   const getOwnStake = useCallback(
@@ -357,6 +470,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           getOwnStake,
           getTableStake,
           settlementFlash,
+          settlementByZone,
           onZoneTap: addPending,
           onZoneLongPress: removeFromZone,
         }
@@ -378,31 +492,13 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   ];
 
   const statusLine = ((): string => {
+    if (settlementSummary) return settlementSummary;
+    if (isMyTurn && turnInfo) return turnInfo.prompt;
     if (openRound) {
       const cd = countdownSec !== null ? ` · 0:${String(countdownSec).padStart(2, "0")}` : "";
       return `BETS OPEN${cd}`;
     }
     if (round?.status === "closed") return "BETS CLOSED";
-    if (settledRound && playerId) {
-      const settlements = getRoundSettlements(composed.platform, settledRound.id);
-      const betById = new Map(composed.platform.bets.map((b) => [b.id, b]));
-      let profit = 0;
-      for (const s of settlements) {
-        const bet = betById.get(s.betId);
-        if (bet?.playerId === playerId) profit += s.profit;
-      }
-      const mod = composed.module as {
-        results?: { data: { outcome: string; bankerTotal: number; playerTotal: number } }[];
-      };
-      const last = mod.results?.at(-1)?.data;
-      if (last && profit !== 0) {
-        const label = last.outcome === "B" ? "Banker" : last.outcome === "P" ? "Player" : "Tie";
-        const total = last.outcome === "B" ? last.bankerTotal : last.playerTotal;
-        const sign = profit >= 0 ? "+" : "";
-        const verb = profit >= 0 ? "won" : "lost";
-        return `${label} ${total} — you ${verb} ${sign}${profit}`;
-      }
-    }
     return "BETS — idle";
   })();
 
@@ -428,7 +524,6 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
   const noopPlace = useCallback(() => {}, []);
   const noopRemove = useCallback(() => {}, []);
-  const noopAct = useCallback(() => {}, []);
 
   if (!module || !me || !bettingContext) {
     return (
@@ -443,6 +538,8 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     rules: unknown;
     onChange: (patch: unknown) => void;
   }>;
+
+  const playerActions = module.playerActions ?? [];
 
   return (
     <div class="player-shell" data-testid="player-shell">
@@ -487,27 +584,53 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
                   } as const),
                 place: noopPlace,
                 remove: noopRemove,
-                act: noopAct,
+                act: handleAct,
               })}
             </main>
-            <ChipTray
-              denominations={settings.bank.chipDenominations}
-              selected={selectedDenom}
-              onSelect={setSelectedDenom}
-              onClear={() => {
-                setPendingBets([]);
-                setValidationError("");
-              }}
-            />
-            <BetSlip
-              entries={slipEntries}
-              total={pendingTotal + placedTotal}
-              locked={!openRound}
-              canPlace={!!openRound && pendingBets.length > 0}
-              error={validationError}
-              onRemove={handleRemoveSlip}
-              onPlace={handlePlace}
-            />
+
+            <div class="player-shell__bottom" data-testid="player-bottom-bar">
+              {toastMsg && (
+                <div class="player-shell__toast" data-testid="player-toast" role="alert">
+                  <span>{toastMsg}</span>
+                  <button
+                    type="button"
+                    class="player-shell__toast-dismiss"
+                    aria-label="Dismiss"
+                    onClick={() => setToastMsg(null)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {isMyTurn && playerActions.length > 0 && (
+                <ActionButtons
+                  actions={playerActions.map((a) => ({
+                    id: a.id,
+                    label: a.label,
+                    enabled: a.enabled?.(composed.module, me) ?? true,
+                    action: a.action,
+                  }))}
+                  countdownSec={turnCountdownSec}
+                  onAction={handleAct}
+                />
+              )}
+
+              <ChipTray
+                denominations={settings.bank.chipDenominations}
+                selected={selectedDenom}
+                onSelect={handleSelectDenom}
+                onClear={() => setPendingBets([])}
+              />
+              <BetSlip
+                entries={slipEntries}
+                total={pendingTotal + placedTotal}
+                locked={!openRound}
+                canPlace={!!openRound && pendingBets.length > 0}
+                onRemove={handleRemoveSlip}
+                onPlace={handlePlace}
+              />
+            </div>
           </>
         )}
 
@@ -553,6 +676,11 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         {activeTab === "info" && (
           <div class="player-shell__panel" data-testid="player-info">
             <p>Play chips only — no cash value</p>
+            {virtualTable && seriesCommit && (
+              <p class="player-shell__fairness" data-testid="player-fairness-commit">
+                Fairness commitment: {seriesCommit.slice(0, 16)}…
+              </p>
+            )}
           </div>
         )}
       </PlayerBettingContext.Provider>

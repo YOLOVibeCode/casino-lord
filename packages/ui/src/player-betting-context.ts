@@ -8,6 +8,7 @@ export interface PlayerBettingContextValue {
   getOwnStake: (zoneId: string) => number;
   getTableStake: (zoneId: string) => number;
   settlementFlash: "win" | "lose" | null;
+  settlementByZone: Record<string, "win" | "lose">;
   onZoneTap: (betType: string) => void;
   onZoneLongPress: (betType: string) => void;
 }

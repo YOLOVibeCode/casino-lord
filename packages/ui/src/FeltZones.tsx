@@ -19,8 +19,14 @@ function FeltZoneButton({
   onTap: (zone: FeltZoneDef) => void;
   onLongPress: (zone: FeltZoneDef) => void;
 }) {
-  const { showOthersBets, playerColor, getOwnStake, getTableStake, settlementFlash } =
-    usePlayerBetting();
+  const {
+    showOthersBets,
+    playerColor,
+    getOwnStake,
+    getTableStake,
+    settlementFlash,
+    settlementByZone,
+  } = usePlayerBetting();
   const ownStake = getOwnStake(zone.id);
   const tableStake = getTableStake(zone.id);
   const chipCount = Math.min(5, Math.ceil(ownStake / 25) || (ownStake > 0 ? 1 : 0));
@@ -30,14 +36,15 @@ function FeltZoneButton({
     onLongPress: () => onLongPress(zone),
   });
 
+  const zoneOutcome = settlementByZone[zone.id];
   const flashClass =
-    settlementFlash === "win"
+    zoneOutcome === "win" || settlementFlash === "win"
       ? " felt-zones__zone--flash-win"
-      : settlementFlash === "lose"
+      : zoneOutcome === "lose" || settlementFlash === "lose"
         ? " felt-zones__zone--flash-lose"
         : "";
 
-  const ariaLabel = `${zone.label}, stake ${ownStake}${showOthersBets && tableStake > ownStake ? `, table total ${tableStake}` : ""}`;
+  const ariaLabel = `${zone.label}, stake ${ownStake}${showOthersBets && tableStake > ownStake ? `, table total ${tableStake}` : ""}${zoneOutcome ? `, ${zoneOutcome}` : ""}`;
 
   return (
     <button
@@ -54,6 +61,15 @@ function FeltZoneButton({
       onTouchCancel={press.cancelPress}
       onKeyDown={(e) => press.handleKeyDown(e as unknown as KeyboardEvent)}
     >
+      {zoneOutcome && (
+        <span
+          class={`felt-zones__badge felt-zones__badge--${zoneOutcome}`}
+          data-testid={`felt-zone-badge-${zone.id}`}
+          aria-hidden="true"
+        >
+          {zoneOutcome === "win" ? "WIN" : "LOSE"}
+        </span>
+      )}
       <span class="felt-zones__label">{zone.label}</span>
       {zone.sublabel && <span class="felt-zones__sublabel">{zone.sublabel}</span>}
       {ownStake > 0 && (

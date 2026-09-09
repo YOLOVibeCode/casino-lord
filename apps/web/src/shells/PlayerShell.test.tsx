@@ -5,11 +5,12 @@ import "fake-indexeddb/auto";
 import { baccaratModule } from "@casino-lord/game-baccarat";
 import { DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
 import { houseSettings } from "@casino-lord/core/testing";
-import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
 import { PlayerShell } from "./PlayerShell.js";
+import "./player-shell.css";
 
 describe("PlayerShell", () => {
   afterEach(() => cleanup());
@@ -99,7 +100,7 @@ describe("PlayerShell", () => {
     expect(screen.getByTestId("bet-slip-locked")).toBeTruthy();
   });
 
-  it("shows insufficient bankroll error", () => {
+  it("shows insufficient bankroll toast", () => {
     const { store } = setupStore({ bankroll: 50 });
     render(<PlayerShell store={store} playerName="Ana" />);
 
@@ -107,10 +108,10 @@ describe("PlayerShell", () => {
     const zone = screen.getByTestId("felt-zone-banker");
     fireEvent.mouseDown(zone);
     fireEvent.mouseUp(zone);
-    expect(screen.getByTestId("bet-slip-error").textContent).toContain("Insufficient");
+    expect(screen.getByTestId("player-toast").textContent).toContain("Insufficient");
   });
 
-  it("shows over max validation error", () => {
+  it("shows over max validation toast", () => {
     const { store } = setupStore();
     store.emit({
       type: "SETTINGS_CHANGED",
@@ -122,7 +123,7 @@ describe("PlayerShell", () => {
     const zone = screen.getByTestId("felt-zone-banker");
     fireEvent.mouseDown(zone);
     fireEvent.mouseUp(zone);
-    expect(screen.getByTestId("bet-slip-error").textContent).toContain("Maximum");
+    expect(screen.getByTestId("player-toast").textContent).toContain("Maximum");
   });
 
   it("emits BET_REMOVED when removing placed bet from slip", () => {
@@ -145,6 +146,117 @@ describe("PlayerShell", () => {
     render(<PlayerShell store={store} playerName="Ana" />);
     fireEvent.click(screen.getByTestId("bet-slip-remove-b1"));
     expect(emitSpy).toHaveBeenCalledWith({ type: "BET_REMOVED", betId: "b1" });
+  });
+
+  it("shows settlement summary for quick entry with null totals", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: null,
+        bankerTotal: null,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("Banker");
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("+95");
+    expect(screen.getByTestId("player-status-bar").textContent).not.toContain("null");
+  });
+
+  it("persists settlement summary for at least 4 seconds", async () => {
+    vi.useFakeTimers();
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: 4,
+        bankerTotal: 9,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("+95");
+    await act(async () => {
+      vi.advanceTimersByTime(3500);
+    });
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("+95");
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.getByTestId("player-status-bar").textContent).not.toContain("+95");
+    vi.useRealTimers();
+  });
+
+  it("shows WIN badge on winning zone after settlement", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: null,
+        bankerTotal: null,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("felt-zone-badge-banker").textContent).toBe("WIN");
   });
 
   it("shows settlement summary after banker win", () => {
@@ -185,6 +297,54 @@ describe("PlayerShell", () => {
     const { store } = setupStore({ bankroll: 0 });
     render(<PlayerShell store={store} playerName="Ana" />);
     expect(screen.getByTestId("player-rebuy-hint")).toBeTruthy();
+  });
+
+  it("shows fairness commitment on virtual table info tab", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: {
+        ...houseSettings().participation,
+        outcomeSource: "virtual",
+      },
+    });
+    store.emit({
+      type: "SERIES_STARTED",
+      seriesId: "s1",
+      commit: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByLabelText("Information"));
+    expect(screen.getByTestId("player-fairness-commit").textContent).toContain("abcdef0123456789");
+  });
+
+  it("renders turn prompt and emits PLAYER_ACTION from fake module", async () => {
+    const fakeModule = asUntypedModule({
+      ...baccaratModule,
+      turn: () => ({
+        playerId: "p1",
+        prompt: "Your move: HIT · STAND",
+        deadlineMs: Date.now() + 20_000,
+      }),
+      playerActions: [{ id: "hit", label: "HIT", action: "hit" }],
+    });
+    const games = await import("../table/games.js");
+    const getGameSpy = vi.spyOn(games, "getGame").mockReturnValue({
+      id: "baccarat",
+      name: "Baccarat",
+      module: fakeModule,
+      enabled: true,
+    });
+    const { store } = setupStore();
+    const emitSpy = vi.spyOn(store, "emit");
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("Your move");
+    expect(screen.getByTestId("action-btn-hit")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("action-btn-hit"));
+    expect(emitSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "PLAYER_ACTION", playerId: "p1", action: "hit" }),
+    );
+    getGameSpy.mockRestore();
   });
 
   it("emits away after 60s hidden", () => {

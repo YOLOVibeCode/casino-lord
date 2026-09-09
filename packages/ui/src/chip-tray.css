@@ -3,35 +3,64 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.5rem 0.75rem;
+  touch-action: manipulation;
 }
 
 .chip-tray__denom {
-  min-width: 3rem;
-  min-height: 3rem;
+  min-width: 3.5rem;
+  min-height: 3.5rem;
+  width: 3.5rem;
+  height: 3.5rem;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.35);
   background: #333;
   color: #fff;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: max(0.875rem, 14px);
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s ease;
+}
+
+.chip-tray__denom:active {
+  transform: scale(0.95);
 }
 
 .chip-tray__denom--selected {
+  min-width: 4rem;
+  min-height: 4rem;
+  width: 4rem;
+  height: 4rem;
   border-color: #ffd54f;
-  box-shadow: 0 0 0 2px #ffd54f;
+  box-shadow: 0 0 0 3px #ffd54f;
+  font-size: max(1rem, 16px);
 }
 
 .chip-tray__clear {
   margin-left: auto;
+  min-width: 3rem;
   min-height: 3rem;
   padding: 0 1rem;
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 0.5rem;
   background: transparent;
   color: #fff;
-  font-size: 0.85rem;
+  font-size: max(0.875rem, 14px);
+  font-weight: 600;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chip-tray__clear:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip-tray__denom:active,
+  .chip-tray__clear:active {
+    transform: none;
+  }
 }

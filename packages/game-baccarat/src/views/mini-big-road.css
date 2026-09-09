@@ -1,8 +1,9 @@
 .mini-big-road {
   overflow-x: auto;
   padding: 8px;
-  background: #111;
+  background: #1a1a1a;
   border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .mini-big-road__grid {
@@ -27,13 +28,16 @@
 
 .mini-big-road__dot--P {
   border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.35);
 }
 
 .mini-big-road__dot--B {
   border-color: #e5322d;
+  background: rgba(229, 50, 45, 0.35);
 }
 
 .mini-big-road__tie {
   font-size: 0.55rem;
   color: #16a34a;
+  font-weight: 700;
 }
