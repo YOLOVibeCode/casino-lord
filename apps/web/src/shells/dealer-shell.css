@@ -48,6 +48,14 @@
   padding: 1rem;
 }
 
+.dealer-shell__undo-blocked {
+  padding: 0.35rem 1rem;
+  background: rgba(244, 67, 54, 0.15);
+  color: #f44336;
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
 .dealer-shell__actions {
   display: flex;
   gap: 0.75rem;

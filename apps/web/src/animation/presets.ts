@@ -1,5 +1,6 @@
 import type { AnimationEventDef, AnimationPreset, TableSettings } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
+import { PLATFORM_ANIMATION_EVENTS } from "./platform-events.js";
 
 export function buildEventDefMap(events: AnimationEventDef[]): Map<string, AnimationEventDef> {
   return new Map(events.map((def) => [def.id, def]));
@@ -10,7 +11,9 @@ export function resolvePreset(
   module: UntypedGameModule,
   tableSettings: TableSettings | unknown,
 ): AnimationPreset {
-  const def = module.animationEvents.find((e) => e.id === eventId);
+  const def =
+    module.animationEvents.find((e) => e.id === eventId) ??
+    PLATFORM_ANIMATION_EVENTS.find((e) => e.id === eventId);
   const base = def?.defaultPreset ?? {
     enabled: false,
     style: "none" as const,
