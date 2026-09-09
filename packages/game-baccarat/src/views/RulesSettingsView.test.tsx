@@ -40,4 +40,34 @@ describe("RulesSettingsView", () => {
     fireEvent.input(slider, { target: { value: "8" } });
     expect(onChange).toHaveBeenCalledWith({ dragonThreshold: 8 });
   });
+
+  it("emits partial when tie payout changed", () => {
+    const onChange = vi.fn();
+    render(<RulesSettingsView rules={DEFAULT_BACCARAT_RULES} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("radio", { name: /9:1/ }));
+    expect(onChange).toHaveBeenCalledWith({ tiePayout: 9 });
+  });
+
+  it("emits partial when suit required toggled", () => {
+    const onChange = vi.fn();
+    render(<RulesSettingsView rules={DEFAULT_BACCARAT_RULES} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Suit required/ }));
+    expect(onChange).toHaveBeenCalledWith({ suitRequired: true });
+  });
+
+  it("emits partial when tie max divisor changed", () => {
+    const onChange = vi.fn();
+    render(<RulesSettingsView rules={DEFAULT_BACCARAT_RULES} onChange={onChange} />);
+    const input = screen.getByLabelText(/Tie max divisor/);
+    fireEvent.change(input, { target: { value: "6" } });
+    expect(onChange).toHaveBeenCalledWith({ tieMaxDivisor: 6 });
+  });
+
+  it("emits partial when burn rule changed", () => {
+    const onChange = vi.fn();
+    render(<RulesSettingsView rules={DEFAULT_BACCARAT_RULES} onChange={onChange} />);
+    const select = screen.getByRole("combobox");
+    fireEvent.change(select, { target: { value: "first_card_value" } });
+    expect(onChange).toHaveBeenCalledWith({ burnRule: "first_card_value" });
+  });
 });
