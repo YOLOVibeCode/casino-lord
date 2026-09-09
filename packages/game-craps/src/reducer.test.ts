@@ -64,6 +64,7 @@ describe("All/Tall/Small", () => {
       state = reduce(state, roll(`s${i}`, i, total), rules);
     }
     expect(state.shooter.ats.small).toEqual([2, 3, 4, 5, 6]);
+    expect(state.shooter.ats.small).toHaveLength(5);
 
     state = reduce(state, roll("r5", 5, 7, 4, 3), rules);
     state = reduce(state, ev(7, { type: "SERIES_STARTED", seriesId: "s2", auto: true }), rules);
@@ -72,6 +73,20 @@ describe("All/Tall/Small", () => {
 });
 
 describe("seven-out auto-series semantics", () => {
+  it("undo of seven-out roll restores point-on state before auto series", () => {
+    let state = initialState();
+    state = reduce(state, ev(1, { type: "SERIES_STARTED", seriesId: "s1" }), DEFAULT_CRAPS_RULES);
+    state = reduce(state, roll("r1", 0, 8, 4, 4), DEFAULT_CRAPS_RULES);
+    state = reduce(state, roll("r2", 1, 7, 4, 3), DEFAULT_CRAPS_RULES);
+    expect(state.lastRoll?.info.decision).toBe("seven_out");
+    expect(state.phase).toBe("come_out");
+
+    state = reduce(state, ev(3, { type: "RESULT_UNDONE", resultId: "r2" }), DEFAULT_CRAPS_RULES);
+    expect(state.phase).toBe("point");
+    expect(state.point).toBe(8);
+    expect(state.shooter.rollCount).toBe(1);
+  });
+
   it("rebuilds correctly when mid-hand roll edited to seven-out", () => {
     let state = initialState();
     state = reduce(state, ev(1, { type: "SERIES_STARTED", seriesId: "s1" }), DEFAULT_CRAPS_RULES);

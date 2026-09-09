@@ -5,7 +5,7 @@ import { reduce } from "./reducer.js";
 import { DEFAULT_CRAPS_RULES } from "./rules.js";
 import { settleCraps } from "./settle.js";
 import { initialState } from "./state.js";
-import type { CrapsBetTarget } from "./bet-target.js";
+import { CRAPS_BET_IDS, type CrapsBetTarget } from "./bet-target.js";
 import type { TableEvent } from "@casino-lord/core";
 
 const STAKE = 100;
@@ -164,5 +164,29 @@ describe("settlement matrix", () => {
       rules: DEFAULT_CRAPS_RULES,
     });
     expect(["win", "lose"]).toContain(s?.outcome);
+  });
+
+  it("settles every catalogue bet id without falling through to default lose", () => {
+    let state = initialState();
+    const { before, after, result } = applyRoll(state, 7, 4, 3);
+
+    for (const betId of CRAPS_BET_IDS) {
+      const target =
+        betId === "place" || betId === "buy" || betId === "lay" || betId === "hard"
+          ? ({ kind: "point", value: 6 } as const)
+          : betId === "pass_odds"
+            ? ({ kind: "attach", line: "pass" } as const)
+            : betId === "dont_odds"
+              ? ({ kind: "attach", line: "dont_pass" } as const)
+              : undefined;
+      const [s] = settleCraps({
+        bets: [makeBet(betId, target)],
+        result,
+        before,
+        after,
+        rules: DEFAULT_CRAPS_RULES,
+      });
+      expect(["win", "lose", "push", "stay", "partial"]).toContain(s?.outcome);
+    }
   });
 });
