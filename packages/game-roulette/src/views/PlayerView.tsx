@@ -45,7 +45,8 @@ interface BetSnapshot {
 }
 
 function historySlice(state: RouletteState) {
-  return [...state.history].slice(-10).reverse();
+  const history = Array.isArray(state.history) ? state.history : [];
+  return [...history].slice(-10).reverse();
 }
 
 function renderHistoryChip(pocket: Pocket | null, rules: RouletteRules, key: string) {
@@ -406,8 +407,16 @@ export function PlayerView({ state, rules, me, round, place, remove }: PlayerVie
                 renderHistoryChip(spin.pocket, rules, `${String(spin.pocket)}-${i}`),
               )}
             </div>
-            <HotColdPanel title="HOT" pockets={state.hot} counts={state.counts} />
-            <HotColdPanel title="COLD" pockets={state.cold} counts={state.counts} />
+            <HotColdPanel
+              title="HOT"
+              pockets={Array.isArray(state.hot) ? state.hot : []}
+              counts={state.counts ?? {}}
+            />
+            <HotColdPanel
+              title="COLD"
+              pockets={Array.isArray(state.cold) ? state.cold : []}
+              counts={state.counts ?? {}}
+            />
           </aside>
 
           <div class="roulette-player-view__main">
