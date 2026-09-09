@@ -6,7 +6,11 @@ import { TableRegistry } from "./tables/registry.js";
 const config = loadConfig();
 const repository = createRepository(config);
 const registry = new TableRegistry({ config, repository });
-const { app, io } = await buildServer({ config, registry });
+const { app, io } = await buildServer({
+  config,
+  registry,
+  ...(config.staticRoot ? { staticRoot: config.staticRoot } : {}),
+});
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, "shutting down");

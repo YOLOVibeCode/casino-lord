@@ -7,8 +7,9 @@ const booleanFromEnv = z
   .transform((value) => value === true || value === "true");
 
 const configSchema = z.object({
-  port: z.coerce.number().int().positive().default(3000),
+  port: z.coerce.number().int().min(0).default(3000),
   persist: persistSchema.default("sqlite"),
+  staticRoot: z.string().optional(),
   sqlitePath: z.string().default("/data/casino-lord.db"),
   tableTtlHours: z.coerce.number().int().positive().default(6),
   tableRetentionDays: z.coerce.number().int().positive().default(30),
@@ -33,6 +34,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const config = configSchema.parse({
     port: env.PORT,
     persist: env.PERSIST,
+    staticRoot: env.STATIC_ROOT,
     sqlitePath: env.SQLITE_PATH,
     tableTtlHours: env.TABLE_TTL_HOURS,
     tableRetentionDays: env.TABLE_RETENTION_DAYS,

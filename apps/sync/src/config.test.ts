@@ -38,4 +38,23 @@ describe("loadConfig", () => {
     expect(config.tableRetentionDays).toBe(30);
     expect(config.enabledGames).toEqual(["baccarat", "roulette", "craps", "blackjack"]);
   });
+
+  it("accepts PORT=0 for ephemeral binding", () => {
+    const config = loadConfig({
+      PORT: "0",
+      PERSIST: "memory",
+    });
+
+    expect(config.port).toBe(0);
+  });
+
+  it("accepts STATIC_ROOT", () => {
+    const config = loadConfig({
+      PORT: "3000",
+      PERSIST: "memory",
+      STATIC_ROOT: "/tmp/static",
+    });
+
+    expect(config.staticRoot).toBe("/tmp/static");
+  });
 });
