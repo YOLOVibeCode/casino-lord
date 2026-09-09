@@ -1,0 +1,109 @@
+.dealer-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--panel-bg);
+  border: 1px solid var(--gold-hairline);
+  border-radius: 8px;
+}
+
+.dealer-shell__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--gold-hairline);
+  font-size: 0.875rem;
+}
+
+.dealer-shell__dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: #4caf50;
+}
+
+.dealer-shell__module {
+  flex: 1;
+  min-height: 8rem;
+  padding: 1rem;
+}
+
+.dealer-shell__actions {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--gold-hairline);
+}
+
+.dealer-shell__btn {
+  flex: 1;
+  min-height: 3rem;
+  border: 1px solid var(--gold-hairline);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.dealer-shell__btn--confirm {
+  position: relative;
+  overflow: hidden;
+}
+
+.dealer-shell__btn--confirm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dealer-shell__confirm-progress {
+  position: absolute;
+  inset: 0;
+  background: rgba(212, 175, 55, 0.25);
+  transform-origin: left;
+  pointer-events: none;
+}
+
+.dealer-shell__badges {
+  display: block;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.dealer-shell__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--gold-hairline);
+}
+
+.dealer-shell__menu {
+  position: relative;
+}
+
+.dealer-shell__menu-panel {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 0.25rem;
+  min-width: 12rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--gold-hairline);
+  border-radius: 8px;
+  padding: 0.5rem 0;
+  z-index: 10;
+}
+
+.dealer-shell__menu-panel button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 1rem;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.dealer-shell__menu-panel button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
