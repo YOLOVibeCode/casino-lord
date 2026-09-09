@@ -1,10 +1,11 @@
-import { createElement, Fragment } from "preact";
+import { createElement } from "preact";
 import { useState } from "preact/hooks";
 import type { ComponentType } from "preact";
 import type { LayoutPreset } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { TableStore } from "../table/store.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
+import { AnimationEditorTab } from "./AnimationEditorTab.js";
 import "./settings-dialog.css";
 
 export interface SettingsDialogProps {
@@ -16,7 +17,7 @@ export interface SettingsDialogProps {
   onClose: () => void;
 }
 
-type Tab = "rules" | "device";
+type Tab = "rules" | "device" | "animations";
 
 export function SettingsDialog({
   store,
@@ -44,7 +45,10 @@ export function SettingsDialog({
 
   return (
     <div class="settings-dialog__backdrop" data-testid="settings-dialog" onClick={onClose}>
-      <div class="settings-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        class={`settings-dialog${tab === "animations" ? " settings-dialog--wide" : ""}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <header class="settings-dialog__header">
           <div class="settings-dialog__tabs">
             <button
@@ -53,6 +57,14 @@ export function SettingsDialog({
               onClick={() => setTab("rules")}
             >
               Rules
+            </button>
+            <button
+              type="button"
+              class={`settings-dialog__tab${tab === "animations" ? " settings-dialog__tab--active" : ""}`}
+              data-testid="tab-animations"
+              onClick={() => setTab("animations")}
+            >
+              Animations
             </button>
             <button
               type="button"
@@ -75,6 +87,7 @@ export function SettingsDialog({
               }>,
               { rules, onChange: handleRulesChange },
             )}
+          {tab === "animations" && <AnimationEditorTab store={store} module={module} />}
           {tab === "device" && (
             <DeviceSettingsForm
               layouts={module.layouts}
@@ -98,7 +111,7 @@ function DeviceSettingsForm({
   onChange: (patch: Partial<DeviceSettings>) => void;
 }) {
   return (
-    <Fragment>
+    <>
       <div class="settings-dialog__field">
         <label for="layout-select">Layout preset</label>
         <select
@@ -175,6 +188,15 @@ function DeviceSettingsForm({
           />{" "}
           Full screen hint
         </label>
+        <label>
+          <input
+            type="checkbox"
+            data-testid="device-sounds"
+            checked={settings.soundEnabled}
+            onChange={(e) => onChange({ soundEnabled: (e.target as HTMLInputElement).checked })}
+          />{" "}
+          Sounds
+        </label>
       </div>
       <div class="settings-dialog__field">
         <label for="confirm-delay">Confirm delay ({settings.confirmDelayMs} ms)</label>
@@ -192,6 +214,6 @@ function DeviceSettingsForm({
           }
         />
       </div>
-    </Fragment>
+    </>
   );
 }

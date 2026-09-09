@@ -78,4 +78,32 @@ describe("SettingsDialog", () => {
       expect.objectContaining({ layoutId: "roads-only" }),
     );
   });
+
+  it("calls onDeviceChange when sounds toggled", () => {
+    const onDeviceChange = vi.fn();
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceChange={onDeviceChange}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Device"));
+    fireEvent.click(screen.getByTestId("device-sounds"));
+
+    expect(onDeviceChange).toHaveBeenCalledWith(expect.objectContaining({ soundEnabled: true }));
+  });
 });
