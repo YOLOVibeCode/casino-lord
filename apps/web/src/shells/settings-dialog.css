@@ -1,0 +1,74 @@
+.settings-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.settings-dialog {
+  background: var(--surface-elevated, #1a1a2e);
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+  width: min(420px, 95vw);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--text, #eee);
+}
+
+.settings-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border, #333);
+}
+
+.settings-dialog__tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.settings-dialog__tab {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #aaa);
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+
+.settings-dialog__tab--active {
+  color: var(--text, #eee);
+  border-bottom: 2px solid var(--accent, #c9a227);
+}
+
+.settings-dialog__body {
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.settings-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.settings-dialog__field label {
+  font-size: 0.85rem;
+  color: var(--text-muted, #aaa);
+}
+
+.settings-dialog__field input[type="range"],
+.settings-dialog__field select {
+  width: 100%;
+}
+
+.settings-dialog__checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}

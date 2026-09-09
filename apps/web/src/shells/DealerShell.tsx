@@ -1,12 +1,16 @@
 import { createElement } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { ComponentType } from "preact";
+import type { ResultEnvelope } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
 import type { TableStore } from "../table/store.js";
 import { useStore } from "../hooks/use-store.js";
 import { buildExportText } from "../table/export.js";
 import { countSeries, currentSeriesStartedAt } from "../table/meta.js";
+import { SettingsDialog } from "./SettingsDialog.js";
+import { HistoryDialog } from "./HistoryDialog.js";
+import { CalculatorDialog } from "./CalculatorDialog.js";
 import "./dealer-shell.css";
 
 export interface DealerShellProps {
@@ -14,14 +18,18 @@ export interface DealerShellProps {
   module: UntypedGameModule;
   rules: unknown;
   deviceSettings: DeviceSettings;
+  onDeviceSettingsChange: (settings: DeviceSettings) => void;
   onNewTable?: () => void;
 }
+
+type ActiveDialog = "settings" | "history" | "calculator" | null;
 
 export function DealerShell({
   store,
   module,
   rules,
   deviceSettings,
+  onDeviceSettingsChange,
   onNewTable,
 }: DealerShellProps) {
   useStore(store);
@@ -31,6 +39,8 @@ export function DealerShell({
   const confirmState = module.confirm(composed.module, rules);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
+  const [editingEnvelope, setEditingEnvelope] = useState<ResultEnvelope<unknown> | null>(null);
   const [undoArmed, setUndoArmed] = useState(false);
   const [undoHand, setUndoHand] = useState(0);
   const [confirming, setConfirming] = useState(false);
@@ -46,14 +56,29 @@ export function DealerShell({
     setConfirmProgress(0);
   }, []);
 
+  const cancelEdit = useCallback(() => {
+    setEditingEnvelope(null);
+    store.emit({ type: "LIVE_INPUT", payload: { slots: {} }, source: "dealer" });
+  }, [store]);
+
   const executeConfirm = useCallback(() => {
     if (!confirmState?.enabled || !confirmState.result) return;
     if (deviceSettings.haptics && typeof navigator.vibrate === "function") {
       navigator.vibrate(10);
     }
-    store.record(confirmState.result, { quick: false });
+    if (editingEnvelope) {
+      store.editResult({
+        ...editingEnvelope,
+        data: confirmState.result,
+        quick: editingEnvelope.quick,
+      });
+      setEditingEnvelope(null);
+      store.emit({ type: "LIVE_INPUT", payload: { slots: {} }, source: "dealer" });
+    } else {
+      store.record(confirmState.result, { quick: false });
+    }
     clearConfirmTimer();
-  }, [clearConfirmTimer, confirmState, deviceSettings.haptics, store]);
+  }, [clearConfirmTimer, confirmState, deviceSettings.haptics, editingEnvelope, store]);
 
   const startConfirmDelay = useCallback(() => {
     if (!confirmState?.enabled || !confirmState.result) return;
@@ -75,6 +100,7 @@ export function DealerShell({
   }, [confirmState, deviceSettings.confirmDelayMs, executeConfirm]);
 
   const handleUndo = useCallback(() => {
+    if (editingEnvelope) return;
     const results = (composed.module as { results?: unknown[] }).results;
     const count = Array.isArray(results) ? results.length : 0;
     if (count === 0) return;
@@ -90,7 +116,7 @@ export function DealerShell({
     store.undoLastResult();
     setUndoArmed(false);
     if (undoTimer.current) clearTimeout(undoTimer.current);
-  }, [composed.module, store, undoArmed]);
+  }, [composed.module, editingEnvelope, store, undoArmed]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -167,20 +193,55 @@ export function DealerShell({
     setMenuOpen(false);
   };
 
+  const handleQuickEdit = useCallback(
+    (result: unknown) => {
+      if (!editingEnvelope) return;
+      store.editResult({
+        ...editingEnvelope,
+        data: result,
+        quick: true,
+      });
+      setEditingEnvelope(null);
+    },
+    [editingEnvelope, store],
+  );
+
+  const editMode =
+    editingEnvelope !== null
+      ? {
+          envelope: editingEnvelope,
+          onConfirm: () => {},
+          onQuickEdit: handleQuickEdit,
+        }
+      : undefined;
+
   return (
     <div class="dealer-shell" data-testid="dealer-shell">
       <header class="dealer-shell__header">
-        <span class="dealer-shell__dot" title="Local / Solo" />
-        <span>{store.code}</span>
-        <span>·</span>
-        <span>
-          {module.seriesLabel} {table.seriesNumber}
-        </span>
-        <span>·</span>
-        <span>
-          {module.resultLabel} {table.resultIndex}
-        </span>
-        {playerModeOn && <span class="dealer-shell__player-count">👥 {table.playerCount}</span>}
+        {editingEnvelope ? (
+          <button
+            type="button"
+            class="dealer-shell__edit-banner"
+            data-testid="edit-banner"
+            onClick={cancelEdit}
+          >
+            Editing Hand {editingEnvelope.index + 1} · Cancel
+          </button>
+        ) : (
+          <>
+            <span class="dealer-shell__dot" title="Local / Solo" />
+            <span>{store.code}</span>
+            <span>·</span>
+            <span>
+              {module.seriesLabel} {table.seriesNumber}
+            </span>
+            <span>·</span>
+            <span>
+              {module.resultLabel} {table.resultIndex}
+            </span>
+            {playerModeOn && <span class="dealer-shell__player-count">👥 {table.playerCount}</span>}
+          </>
+        )}
       </header>
 
       {playerModeOn && (
@@ -198,11 +259,18 @@ export function DealerShell({
           record: store.record,
           autoAdvance: deviceSettings.autoAdvance,
           expressMode: deviceSettings.expressMode,
+          editMode,
         })}
       </div>
 
       <div class="dealer-shell__actions">
-        <button type="button" class="dealer-shell__btn" onClick={handleUndo} data-testid="undo-btn">
+        <button
+          type="button"
+          class="dealer-shell__btn"
+          onClick={handleUndo}
+          disabled={!!editingEnvelope}
+          data-testid="undo-btn"
+        >
           {undoArmed ? `Tap again to undo Hand ${undoHand}` : "UNDO"}
         </button>
         <button
@@ -220,7 +288,7 @@ export function DealerShell({
             />
           )}
           <span>
-            {confirmState?.label ?? "CONFIRM"}
+            {editingEnvelope ? "✓ SAVE EDIT" : (confirmState?.label ?? "CONFIRM")}
             {confirmState?.badges && (
               <span class="dealer-shell__badges"> · {confirmState.badges.join(" · ")}</span>
             )}
@@ -291,14 +359,35 @@ export function DealerShell({
               <button type="button" onClick={handleImport}>
                 Import
               </button>
-              <button type="button" disabled>
-                Settings (coming soon)
+              <button
+                type="button"
+                data-testid="menu-settings"
+                onClick={() => {
+                  setActiveDialog("settings");
+                  setMenuOpen(false);
+                }}
+              >
+                Settings
               </button>
-              <button type="button" disabled>
-                History (coming soon)
+              <button
+                type="button"
+                data-testid="menu-history"
+                onClick={() => {
+                  setActiveDialog("history");
+                  setMenuOpen(false);
+                }}
+              >
+                History
               </button>
-              <button type="button" disabled>
-                Calculator (coming soon)
+              <button
+                type="button"
+                data-testid="menu-calculator"
+                onClick={() => {
+                  setActiveDialog("calculator");
+                  setMenuOpen(false);
+                }}
+              >
+                Calculator
               </button>
               <button type="button" disabled>
                 Show QR (coming soon)
@@ -307,6 +396,37 @@ export function DealerShell({
           )}
         </div>
       </footer>
+
+      {activeDialog === "settings" && (
+        <SettingsDialog
+          store={store}
+          module={module}
+          rules={rules}
+          deviceSettings={deviceSettings}
+          onDeviceChange={onDeviceSettingsChange}
+          onClose={() => setActiveDialog(null)}
+        />
+      )}
+      {activeDialog === "history" && (
+        <HistoryDialog
+          store={store}
+          module={module}
+          rules={rules}
+          onClose={() => setActiveDialog(null)}
+          onEdit={(envelope) => {
+            setEditingEnvelope(envelope);
+            setActiveDialog(null);
+          }}
+        />
+      )}
+      {activeDialog === "calculator" && (
+        <CalculatorDialog
+          store={store}
+          module={module}
+          rules={rules}
+          onClose={() => setActiveDialog(null)}
+        />
+      )}
     </div>
   );
 }

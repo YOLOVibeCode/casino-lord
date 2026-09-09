@@ -38,6 +38,7 @@ describe("DealerShell UI confirm", () => {
         module={baccarat}
         rules={DEFAULT_BACCARAT_RULES}
         deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceSettingsChange={() => {}}
       />,
     );
 

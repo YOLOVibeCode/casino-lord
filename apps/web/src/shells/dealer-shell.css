@@ -7,6 +7,17 @@
   border-radius: 8px;
 }
 
+.dealer-shell__edit-banner {
+  background: transparent;
+  border: none;
+  color: var(--accent, #c9a227);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  width: 100%;
+  text-align: left;
+}
+
 .dealer-shell__header {
   display: flex;
   align-items: center;
