@@ -18,6 +18,7 @@ export interface BetDef<Rules, State, Target = unknown> {
     rules: Rules,
     ctx?: { target?: Target; state?: State },
   ): { num: number; den: number } | "itemised";
+  profit?(amount: number, rules: Rules): number;
   note?(rules: Rules): string | undefined;
   allowedWhen?(state: State, me: PlayerStateForBet): boolean | string;
   limits?(rules: Rules): { min?: number; max?: number; maxMultipleOf?: string };

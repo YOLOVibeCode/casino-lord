@@ -4,6 +4,7 @@ import type { PlacedBet, ResultEnvelope } from "./data-model.js";
 import type { TableEvent } from "./events.js";
 import type { PlatformState } from "./platform-state.js";
 import { initialPlatformState } from "./platform-state.js";
+import { mergeTableSettings } from "./merge-settings.js";
 
 export interface PlatformReducerContext<Rules, Result, LiveInput, State, BetTarget, Action> {
   module: GameModule<Rules, Result, LiveInput, State, BetTarget, Action>;
@@ -88,7 +89,7 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
     case "SETTINGS_CHANGED":
       return {
         ...state,
-        settings: { ...state.settings, ...event.patch },
+        settings: mergeTableSettings(state.settings, event.patch),
       };
 
     case "PARTICIPATION_CHANGED":
