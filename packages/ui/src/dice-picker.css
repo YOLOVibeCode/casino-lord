@@ -1,0 +1,93 @@
+.dice-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  outline: none;
+}
+
+.dice-picker__blocked {
+  margin: 0;
+  color: #d7263d;
+  font-size: 0.875rem;
+}
+
+.dice-picker__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.dice-picker__die-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+  color: #94a3b8;
+}
+
+.dice-picker__faces {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.dice-picker__face {
+  min-width: 3.5rem;
+  min-height: 3.5rem;
+  padding: 0.25rem;
+  border: 2px solid #334155;
+  border-radius: 0.5rem;
+  background: #1e293b;
+  cursor: pointer;
+}
+
+.dice-picker__face--selected {
+  border-color: #d4af37;
+  background: #0f172a;
+}
+
+.dice-picker__pip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 100%;
+  height: 100%;
+  gap: 2px;
+}
+
+.dice-picker__pip {
+  border-radius: 50%;
+  background: transparent;
+}
+
+.dice-picker__pip--on {
+  background: #f8fafc;
+}
+
+.dice-picker__actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.dice-picker__clear,
+.dice-picker__commit {
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  border: 1px solid #475569;
+  background: #334155;
+  color: #f8fafc;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.dice-picker__commit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dice-picker__commit {
+  background: #d4af37;
+  color: #0f172a;
+  border-color: #d4af37;
+}

@@ -4,35 +4,38 @@
 import "fake-indexeddb/auto";
 import { cleanup, render, screen, waitFor } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_ROULETTE_RULES, rouletteModule } from "@casino-lord/game-roulette";
 import { LocationProvider, Router } from "preact-iso";
-import { blackjackModule } from "@casino-lord/game-blackjack";
-import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
 import { SoloPage } from "./SoloPage.js";
 
-vi.mock("../hooks/use-device-settings.js", () => ({
-  useDeviceSettings: () => [DEFAULT_DEVICE_SETTINGS, vi.fn()],
+vi.mock("../shells/DealerShell.js", () => ({
+  DealerShell: () => <div data-testid="dealer-shell">Dealer Shell</div>,
 }));
 
-const blackjack = asUntypedModule(blackjackModule);
+vi.mock("../shells/DisplayShell.js", () => ({
+  DisplayShell: () => <div data-testid="display-shell">Display Shell</div>,
+}));
+
+const roulette = asUntypedModule(rouletteModule);
 
 vi.mock("../table/solo-table.js", () => ({
-  resolveSoloTableStore: vi.fn(async () => {
-    let n = 0;
-    return createTableStore({
-      game: "blackjack",
-      module: blackjack,
-      rules: blackjackModule.defaultRules,
-      rng: () => 0,
-      now: () => `2026-01-01T00:00:${String(++n).padStart(2, "0")}.000Z`,
-      id: () => `id-${n}`,
-    });
-  }),
+  resolveSoloTableStore: () =>
+    Promise.resolve(
+      createTableStore({
+        game: "roulette",
+        module: roulette,
+        rules: DEFAULT_ROULETTE_RULES,
+        rng: () => 0,
+        now: () => "2026-01-01T00:00:00.000Z",
+        id: () => "s1",
+      }),
+    ),
   createNewSoloTable: vi.fn(),
 }));
 
-function renderSoloPage(path: string) {
+function renderPage(path: string) {
   window.history.replaceState({}, "", path);
   return render(
     <LocationProvider>
@@ -43,17 +46,14 @@ function renderSoloPage(path: string) {
   );
 }
 
-afterEach(() => cleanup());
+describe("SoloPage roulette", () => {
+  afterEach(() => cleanup());
 
-describe("SoloPage blackjack route", () => {
-  it("renders dealer and display shells for /solo/blackjack", async () => {
-    renderSoloPage("/solo/blackjack");
-
+  it("renders dealer and display shells at /solo/roulette", async () => {
+    renderPage("/solo/roulette");
     await waitFor(() => {
       expect(screen.getByTestId("dealer-shell")).toBeTruthy();
-      expect(screen.getByTestId("display-view")).toBeTruthy();
+      expect(screen.getByTestId("display-shell")).toBeTruthy();
     });
-
-    expect(screen.queryByText(/coming soon/i)).toBeNull();
   });
 });

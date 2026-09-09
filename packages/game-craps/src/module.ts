@@ -21,6 +21,10 @@ import type { CrapsState } from "./types.js";
 import { crapsStats } from "./stats.js";
 import type { CrapsLiveInput, CrapsResult } from "./types.js";
 import { crapsVirtualStep } from "./virtual.js";
+import { DealerView } from "./views/DealerView.js";
+import { DisplayView } from "./views/DisplayView.js";
+import { ResultDetailView } from "./views/ResultDetailView.js";
+import { RulesSettingsView } from "./views/RulesSettingsView.js";
 
 function stubComponent(): Component<Record<string, unknown>> {
   return (() => null) as unknown as Component<Record<string, unknown>>;
@@ -50,7 +54,7 @@ export const crapsModule: GameModule<
   reduce,
   confirm: crapsConfirm,
 
-  DealerView: stubComponent() as unknown as GameModule<
+  DealerView: DealerView as unknown as GameModule<
     CrapsRules,
     CrapsResult,
     CrapsLiveInput,
@@ -58,7 +62,7 @@ export const crapsModule: GameModule<
     CrapsBetTarget,
     CrapsAction
   >["DealerView"],
-  DisplayView: stubComponent() as unknown as GameModule<
+  DisplayView: DisplayView as unknown as GameModule<
     CrapsRules,
     CrapsResult,
     CrapsLiveInput,
@@ -74,7 +78,7 @@ export const crapsModule: GameModule<
     CrapsBetTarget,
     CrapsAction
   >["PlayerView"],
-  ResultDetailView: stubComponent() as unknown as GameModule<
+  ResultDetailView: ResultDetailView as unknown as GameModule<
     CrapsRules,
     CrapsResult,
     CrapsLiveInput,
@@ -82,7 +86,7 @@ export const crapsModule: GameModule<
     CrapsBetTarget,
     CrapsAction
   >["ResultDetailView"],
-  RulesSettingsView: stubComponent() as unknown as GameModule<
+  RulesSettingsView: RulesSettingsView as unknown as GameModule<
     CrapsRules,
     CrapsResult,
     CrapsLiveInput,

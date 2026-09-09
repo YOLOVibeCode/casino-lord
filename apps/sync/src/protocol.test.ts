@@ -263,6 +263,23 @@ describe("sync protocol", () => {
     dealer.close();
   });
 
+  it("creates a craps table via POST /tables", async () => {
+    const server = await boot();
+    const response = await fetch(`${server.url}/tables`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        game: "craps",
+        participation: { playerMode: "off", bank: "none", outcomeSource: "physical" },
+      }),
+    });
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as { code: string };
+    expect(body.code).toMatch(/^[A-Z2-9]{6}$/);
+    expect(getModule("craps")).not.toBeNull();
+    expect(resolveRules("craps")).toEqual(expect.objectContaining({ maxOdds: "3-4-5x" }));
+  });
+
   it("rate limits the 6th table create per minute", async () => {
     const server = await boot();
     const body = {

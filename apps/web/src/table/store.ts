@@ -30,7 +30,7 @@ export interface TableStore {
   undoLastResult(): void;
   editResult(result: ResultEnvelope<unknown>): void;
   deleteResult(resultId: string): void;
-  startNewSeries(label?: string): void;
+  startNewSeries(label?: string, opts?: { auto?: boolean }): void;
   endSession(): void;
   importResults(results: unknown[]): void;
   subscribe(listener: Listener): () => void;
@@ -140,11 +140,12 @@ export function createTableStore(options: CreateTableOptions): TableStore {
     append({ type: "RESULT_DELETED", resultId });
   };
 
-  const startNewSeries = (label?: string): void => {
+  const startNewSeries = (label?: string, opts?: { auto?: boolean }): void => {
     append({
       type: "SERIES_STARTED",
       seriesId: id(),
       ...(label !== undefined ? { label } : {}),
+      ...(opts?.auto ? { auto: true } : {}),
     });
   };
 

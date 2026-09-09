@@ -62,5 +62,8 @@ export function crapsConfirm(
   };
   if (color) confirm.color = color;
   if (badges.length > 0) confirm.badges = badges;
+  if (info.decision === "seven_out" && rules.autoNewShooterOnSevenOut) {
+    confirm.autoSeries = true;
+  }
   return confirm;
 }
