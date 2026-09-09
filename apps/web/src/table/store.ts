@@ -36,7 +36,13 @@ export interface TableStore {
   startNewSeries(label?: string, opts?: { auto?: boolean }): void;
   endSession(): void;
   importResults(results: unknown[]): void;
-  sendVirtual(kind: "trigger" | "action" | "force"): void;
+  sendVirtual(kind: "trigger" | "action" | "force", payload?: unknown): void;
+  getVirtualStatus?(): {
+    awaiting: "none" | "action" | "trigger";
+    turnPlayerId?: string;
+    turnPrompt?: string;
+  } | null;
+  getVirtualPending?(): { kind: "dice" | "shoe" | "wheel"; untilAt: string } | null;
   subscribe(listener: Listener): () => void;
 }
 

@@ -3,32 +3,36 @@ import {
   commitFor,
   createSeededRng,
   hexToBytes,
+  triggerForKind,
   type Rng,
   type TableEvent,
+  type VirtualTrigger,
 } from "@casino-lord/core";
-import {
-  baccaratVirtualStep,
-  type BaccaratRules,
-  type BaccaratState,
-  type VirtualShoeSession,
-} from "@casino-lord/game-baccarat";
 import { randomBytes } from "node:crypto";
 import type { UntypedModule } from "../modules.js";
 import type { TableInstance } from "./table-instance.js";
 
-export interface PacedEvent {
+export interface ScheduledEvent {
   event: Omit<TableEvent, "seq" | "at">;
   at: string;
+  /** Ephemeral events are broadcast only, never persisted. */
+  broadcastOnly?: boolean;
 }
 
 export interface VirtualDealerState {
   seriesId: string;
   seed: Uint8Array;
   rng: Rng;
-  session: VirtualShoeSession | null;
+  session: unknown;
   awaiting: "none" | "action" | "trigger";
   drawLog: Array<{ from: number; to: number }>;
 }
+
+export type VirtualStepRequest =
+  | { mode: "trigger"; trigger: VirtualTrigger }
+  | { mode: "action"; playerId: string; action: unknown }
+  | { mode: "force-trigger"; trigger: VirtualTrigger }
+  | { mode: "force-action"; playerId: string; action: unknown };
 
 export class VirtualDealer {
   private state: VirtualDealerState;
@@ -70,6 +74,21 @@ export class VirtualDealer {
 
   getDrawLog(): ReadonlyArray<{ from: number; to: number }> {
     return this.state.drawLog;
+  }
+
+  getTurnHint(
+    table: TableInstance,
+    module: UntypedModule,
+  ): { playerId: string | null; prompt: string } | null {
+    if (!module.turn) {
+      return null;
+    }
+    const composed = table.getComposed();
+    const turn = module.turn(composed.module);
+    if (!turn) {
+      return null;
+    }
+    return { playerId: turn.playerId, prompt: turn.prompt };
   }
 
   startSeriesEvent(label?: string, auto?: boolean): Omit<TableEvent, "seq" | "at"> {
@@ -127,7 +146,7 @@ export class VirtualDealer {
   runStep(
     table: TableInstance,
     module: UntypedModule,
-    trigger: "deal" | "spin" | "roll" = "deal",
+    request: VirtualStepRequest,
   ): Omit<TableEvent, "seq" | "at">[] {
     if (!module.virtual) {
       throw new Error("module has no virtual handler");
@@ -136,28 +155,37 @@ export class VirtualDealer {
     const composed = table.getComposed();
     const rules = table.getEffectiveRules();
     const moduleState = composed.module;
+    const defaultTrigger = triggerForKind(module.virtual.kind);
 
-    if (module.id !== "baccarat") {
-      throw new Error("virtual dealer slice supports baccarat only");
-    }
-
-    const out = baccaratVirtualStep({
-      state: moduleState as BaccaratState,
-      rules: rules as BaccaratRules,
+    const stepInput = {
+      state: moduleState,
+      rules,
       rng: this.loggingRng(),
-      trigger,
+      trigger:
+        request.mode === "trigger" || request.mode === "force-trigger"
+          ? request.trigger
+          : defaultTrigger,
       session: this.state.session,
       seriesId: this.state.seriesId,
-    });
+      ...(request.mode === "action" || request.mode === "force-action"
+        ? { action: { playerId: request.playerId, action: request.action } }
+        : {}),
+    } as Parameters<NonNullable<UntypedModule["virtual"]>["step"]>[0];
 
-    this.state.session = out.session;
+    const out = module.virtual.step(stepInput);
+
+    if (out.session !== undefined) {
+      this.state.session = out.session;
+    }
     this.state.awaiting = out.awaiting;
 
     const events: Omit<TableEvent, "seq" | "at">[] = [];
+    let seriesRollover = false;
 
     for (const rawEvent of out.events) {
       const event = rawEvent as TableEvent;
       if (event.type === "SERIES_ENDED" || event.type === "SERIES_STARTED") {
+        seriesRollover = true;
         continue;
       }
       if (event.type === "RESULT_RECORDED") {
@@ -174,36 +202,77 @@ export class VirtualDealer {
       events.push(rawEvent);
     }
 
-    if (out.seriesRollover) {
+    if (seriesRollover) {
       events.push(...this.rotateSeries(true, module.seriesLabel));
     }
 
     return events;
   }
 
-  paceEvents(
+  schedulePacedEvents(
     events: Omit<TableEvent, "seq" | "at">[],
     baseAt: string,
-    revealDelayMs: number,
-  ): PacedEvent[] {
+    virtualSettings: {
+      revealDelayMs: number;
+      diceTumbleMs: number;
+      wheelSpinMs: number;
+    },
+    kind: "dice" | "shoe" | "wheel",
+  ): ScheduledEvent[] {
     let t = Date.parse(baseAt);
-    const paced: PacedEvent[] = [];
-    let seenLive = false;
+    const scheduled: ScheduledEvent[] = [];
 
-    for (const event of events) {
-      if (event.type === "LIVE_INPUT") {
-        if (seenLive) {
-          t += revealDelayMs;
+    if (kind === "shoe") {
+      let seenLive = false;
+      for (const event of events) {
+        if (event.type === "LIVE_INPUT") {
+          if (seenLive) {
+            t += virtualSettings.revealDelayMs;
+          }
+          seenLive = true;
         }
-        seenLive = true;
+        scheduled.push({ event, at: new Date(t).toISOString() });
       }
-      paced.push({ event, at: new Date(t).toISOString() });
+      return scheduled;
     }
 
-    return paced;
+    const pendingMs = kind === "dice" ? virtualSettings.diceTumbleMs : virtualSettings.wheelSpinMs;
+
+    for (let i = 0; i < events.length; i++) {
+      const event = events[i]!;
+      if (event.type === "LIVE_INPUT") {
+        scheduled.push({ event, at: new Date(t).toISOString() });
+        const next = events[i + 1];
+        if (next?.type === "RESULT_RECORDED") {
+          const untilAt = new Date(t + pendingMs).toISOString();
+          scheduled.push({
+            event: { type: "VIRTUAL_PENDING", kind, untilAt } as Omit<TableEvent, "seq" | "at">,
+            at: new Date(t).toISOString(),
+            broadcastOnly: true,
+          });
+          t += pendingMs;
+          continue;
+        }
+      }
+      scheduled.push({ event, at: new Date(t).toISOString() });
+    }
+
+    return scheduled;
   }
 
   static fromSeed(tableCode: string, seriesId: string, seedHex: string): VirtualDealer {
     return new VirtualDealer(tableCode, seriesId, hexToBytes(seedHex));
   }
+}
+
+export function defaultActionForModule(module: UntypedModule): unknown {
+  const stand = module.playerActions?.find((a) => a.id === "stand");
+  if (stand) {
+    return stand.action;
+  }
+  const first = module.playerActions?.[0];
+  if (first) {
+    return first.action;
+  }
+  throw new Error("module has no default action");
 }

@@ -49,6 +49,11 @@ export function DealerShell({
   const virtualTable = composed.platform.participation.outcomeSource === "virtual";
   const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
   const seriesCommit = virtualTable ? currentSeriesCommit(store.events) : null;
+  const virtualStatus = store.getVirtualStatus?.() ?? null;
+  const virtualTriggerLabel =
+    module.virtual?.kind === "wheel" ? "SPIN" : module.virtual?.kind === "dice" ? "ROLL" : "DEAL";
+  const awaitingPlayerAction =
+    virtualTable && virtualStatus?.awaiting === "action" && virtualStatus.turnPlayerId;
   const confirmState = module.confirm(composed.module, rules);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -482,6 +487,9 @@ export function DealerShell({
                 <button type="button" onClick={handleImport}>
                   Import
                 </button>
+                <a href={tableUrl(`/verify?code=${store.code}`)} data-testid="menu-verify">
+                  Verify fairness
+                </a>
                 <button
                   type="button"
                   data-testid="menu-settings"
@@ -531,17 +539,23 @@ export function DealerShell({
         <div class="dealer-shell__actions">
           {virtualTable ? (
             <>
+              {awaitingPlayerAction && (
+                <span class="dealer-shell__virtual-hint" data-testid="virtual-action-hint">
+                  Waiting for {virtualStatus?.turnPrompt ?? "player action"}
+                </span>
+              )}
               <button
                 type="button"
                 class="dealer-shell__btn dealer-shell__btn--confirm"
-                disabled={readOnly}
+                disabled={readOnly || !!awaitingPlayerAction}
                 data-testid="deal-btn"
+                title={awaitingPlayerAction ? "Awaiting player action" : undefined}
                 onClick={() => {
                   tapHaptic(deviceSettings.haptics);
                   store.sendVirtual("trigger");
                 }}
               >
-                DEAL
+                {virtualTriggerLabel}
               </button>
               <button
                 type="button"

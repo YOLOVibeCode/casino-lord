@@ -112,7 +112,16 @@ export const blackjackModule: GameModule<
       decks: (rules) => rules.decks,
       penetration: (rules) => rules.penetration,
     },
-    step: blackjackVirtualStep,
+    step(input) {
+      const out = blackjackVirtualStep(input);
+      let session = input.session;
+      for (const event of out.events) {
+        if (event.type === "LIVE_INPUT") {
+          session = (event as unknown as { payload: { virtual?: unknown } }).payload.virtual;
+        }
+      }
+      return { ...out, session };
+    },
   },
 
   animationEvents: blackjackAnimationEvents,

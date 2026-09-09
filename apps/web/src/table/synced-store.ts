@@ -22,6 +22,8 @@ import type {
   PendingPlayerEntry,
   SyncPresence,
   SyncStore,
+  VirtualPendingState,
+  VirtualStatus,
 } from "./sync-store-types.js";
 import type { Listener } from "./store.js";
 
@@ -119,6 +121,8 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   let offlineTimer: ReturnType<typeof setTimeout> | null = null;
   let flushing = false;
   let liveInput: TableEvent | null = null;
+  let virtualStatus: VirtualStatus | null = null;
+  let virtualPending: VirtualPendingState | null = null;
 
   const notify = (): void => {
     for (const l of listeners) l();
@@ -316,6 +320,15 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       liveInput = { seq: latestSeq + 1, at: now(), ...(msg.live as object) } as TableEvent;
     }
 
+    if (msg.virtual && typeof msg.virtual === "object") {
+      const v = msg.virtual as VirtualStatus;
+      virtualStatus = {
+        awaiting: v.awaiting,
+        ...(v.turnPlayerId ? { turnPlayerId: v.turnPlayerId } : {}),
+        ...(v.turnPrompt ? { turnPrompt: v.turnPrompt } : {}),
+      };
+    }
+
     persist();
     notify();
     void flushOfflineQueue();
@@ -363,7 +376,30 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     }
 
     if (msg.op === "event" && msg.event) {
-      applyIncomingEvent(msg.event as TableEvent);
+      const event = msg.event as TableEvent;
+      if (event.type === "VIRTUAL_PENDING") {
+        virtualPending = { kind: event.kind, untilAt: event.untilAt };
+        notify();
+        return;
+      }
+      if (event.type === "LIVE_INPUT") {
+        liveInput = event;
+      }
+      if (event.seq <= 0) {
+        notify();
+        return;
+      }
+      applyIncomingEvent(event);
+      return;
+    }
+
+    if (msg.op === "virtualStatus") {
+      virtualStatus = {
+        awaiting: msg.awaiting as VirtualStatus["awaiting"],
+        ...(typeof msg.turnPlayerId === "string" ? { turnPlayerId: msg.turnPlayerId } : {}),
+        ...(typeof msg.turnPrompt === "string" ? { turnPrompt: msg.turnPrompt } : {}),
+      };
+      notify();
       return;
     }
 
@@ -536,11 +572,18 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     importResults: (results) => {
       for (const data of results) record(data, { quick: true });
     },
-    sendVirtual: (kind) => {
+    sendVirtual: (kind, payload) => {
       if (role === "display" || readOnly) return;
       const clientId = newClientId();
-      socket.emit("message", { op: "virtual", kind, clientId });
+      socket.emit("message", {
+        op: "virtual",
+        kind,
+        clientId,
+        ...(payload !== undefined ? { payload } : {}),
+      });
     },
+    getVirtualStatus: () => virtualStatus,
+    getVirtualPending: () => virtualPending,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
