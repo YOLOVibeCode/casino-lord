@@ -1,5 +1,6 @@
 import type { GameId } from "@casino-lord/core";
 import { baccaratModule, DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
+import { crapsModule, DEFAULT_CRAPS_RULES } from "@casino-lord/game-craps";
 import type { Config } from "./config.js";
 import { GAMES } from "./games.js";
 import type { UntypedModule } from "./module-types.js";
@@ -8,10 +9,12 @@ export type { UntypedModule } from "./module-types.js";
 
 const MODULES: Partial<Record<GameId, UntypedModule>> = {
   baccarat: baccaratModule as UntypedModule,
+  craps: crapsModule as unknown as UntypedModule,
 };
 
 const DEFAULT_RULES: Partial<Record<GameId, unknown>> = {
   baccarat: DEFAULT_BACCARAT_RULES,
+  craps: DEFAULT_CRAPS_RULES,
 };
 
 export function isGameEnabled(config: Config, game: GameId): boolean {

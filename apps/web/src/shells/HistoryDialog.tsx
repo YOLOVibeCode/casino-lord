@@ -18,6 +18,9 @@ export interface HistoryDialogProps {
 function resultSummary(data: unknown): string {
   if (typeof data !== "object" || data === null) return "";
   const r = data as Record<string, unknown>;
+  if (typeof r.total === "number") {
+    return r.hard === true ? `${r.total}H` : String(r.total);
+  }
   if (r.cards === null) return "quick";
   const pt = r.playerTotal;
   const bt = r.bankerTotal;
@@ -129,8 +132,21 @@ export function HistoryDialog({ store, module, rules, onClose, onEdit }: History
               module.ResultDetailView as unknown as ComponentType<{
                 result: unknown;
                 rules: unknown;
+                roll?: unknown;
               }>,
-              { result: selected.data, rules },
+              {
+                result: selected.data,
+                rules,
+                ...(store.game === "craps"
+                  ? {
+                      roll: (
+                        composed.module as {
+                          results?: { id: string }[];
+                        }
+                      ).results?.find((r) => r.id === selected.id),
+                    }
+                  : {}),
+              },
             )}
             <div class="history-dialog__actions">
               <button type="button" data-testid="history-edit-btn" onClick={handleEdit}>
