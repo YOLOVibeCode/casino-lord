@@ -90,6 +90,9 @@ importers:
       '@casino-lord/game-roulette':
         specifier: workspace:*
         version: link:../../packages/game-roulette
+      '@casino-lord/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       preact:
         specifier: ^10.26.0
         version: 10.29.8(preact-render-to-string@6.7.0)

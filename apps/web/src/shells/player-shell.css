@@ -15,9 +15,16 @@
   font-size: 0.95rem;
 }
 
+.player-shell__colour {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 .player-shell__dot {
-  width: 0.6rem;
-  height: 0.6rem;
+  width: 0.5rem;
+  height: 0.5rem;
   border-radius: 50%;
 }
 
@@ -35,22 +42,70 @@
 
 .player-shell__bank {
   margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 .player-shell__code {
   opacity: 0.7;
   font-family: monospace;
+  font-size: 0.85rem;
+}
+
+.player-shell__rebuy {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffd54f;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.player-shell__status {
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .player-shell__main {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
+  overflow-y: auto;
 }
 
-.player-shell__placeholder {
-  opacity: 0.6;
-  font-size: 1.1rem;
+.player-shell__panel {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.player-shell__panel--readonly {
+  pointer-events: none;
+  opacity: 0.95;
+}
+
+.player-shell__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.player-shell__tab {
+  flex: 1;
+  min-height: 2.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.35rem;
+  background: transparent;
+  color: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.player-shell__tab--active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.player-shell__tab--back {
+  flex: 100%;
 }

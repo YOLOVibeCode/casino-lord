@@ -1,0 +1,37 @@
+.chip-tray {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.chip-tray__denom {
+  min-width: 3rem;
+  min-height: 3rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: #333;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip-tray__denom--selected {
+  border-color: #ffd54f;
+  box-shadow: 0 0 0 2px #ffd54f;
+}
+
+.chip-tray__clear {
+  margin-left: auto;
+  min-height: 3rem;
+  padding: 0 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
