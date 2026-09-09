@@ -1,0 +1,28 @@
+.outcome-chips {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.outcome-chips__chip {
+  min-width: 64px;
+  min-height: 64px;
+  padding: 8px 20px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.outcome-chips__chip:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+
+.outcome-chips__chip--pressing {
+  opacity: 0.7;
+  transform: scale(0.96);
+}
