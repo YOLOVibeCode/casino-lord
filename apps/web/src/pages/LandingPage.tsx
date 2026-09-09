@@ -38,7 +38,7 @@ export function LandingPage(_props: { path?: string }) {
     setCreating(true);
     try {
       const result = await createTable(getSyncBaseUrl(), {
-        game: "baccarat",
+        game: selectedGame as "baccarat" | "roulette" | "craps" | "blackjack",
         participation: DEALER_ONLY,
       });
       route(`/created/${result.code}?t=${encodeURIComponent(result.dealerToken)}`);
