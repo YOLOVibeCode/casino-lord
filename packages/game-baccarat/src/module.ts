@@ -24,6 +24,15 @@ import { DealerView } from "./views/DealerView.js";
 import { DisplayView } from "./views/DisplayView.js";
 import { ResultDetailView } from "./views/ResultDetailView.js";
 import { RulesSettingsView } from "./views/RulesSettingsView.js";
+import {
+  baccaratVirtualDecks,
+  baccaratVirtualStep,
+  shoePenetration,
+  type VirtualShoeSession,
+} from "./virtual.js";
+
+let virtualShoeSession: VirtualShoeSession | null = null;
+let virtualSeriesId = "local";
 
 function stubComponent(): Component<Record<string, unknown>> {
   return (() => null) as unknown as Component<Record<string, unknown>>;
@@ -133,5 +142,28 @@ export const baccaratModule: GameModule<
       results: result.hands.map((h) => h.result),
       warnings: result.warnings,
     };
+  },
+
+  virtual: {
+    kind: "shoe",
+    shoe: {
+      decks: baccaratVirtualDecks,
+      penetration: shoePenetration,
+    },
+    step({ state, rules, rng, trigger }) {
+      const out = baccaratVirtualStep({
+        state,
+        rules,
+        rng,
+        trigger,
+        session: virtualShoeSession,
+        seriesId: virtualSeriesId,
+      });
+      virtualShoeSession = out.session;
+      if (out.seriesRollover) {
+        virtualShoeSession = null;
+      }
+      return { events: out.events, awaiting: out.awaiting };
+    },
   },
 };

@@ -7,5 +7,11 @@ export * from "./quick-entry.js";
 export * from "./serialize.js";
 export * from "./roads/index.js";
 export { baccaratModule } from "./module.js";
-export type { BaccaratState } from "./state.js";
+export {
+  baccaratVirtualStep,
+  buildShoe,
+  shoePenetration,
+  type VirtualShoeSession,
+} from "./virtual.js";
+export { initialState, type BaccaratState } from "./state.js";
 export type { BaccaratBetId, BaccaratBetTarget } from "./bet-target.js";
