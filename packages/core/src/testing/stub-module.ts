@@ -66,6 +66,10 @@ export function createStubModule(): GameModule<
       return { results: [], sum: 0 };
     },
 
+    confirm(): null {
+      return null;
+    },
+
     reduce(state: StubState, event: TableEvent, _rules: StubRules): StubState {
       switch (event.type) {
         case "RESULT_RECORDED": {

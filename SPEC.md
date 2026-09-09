@@ -239,9 +239,10 @@ export interface GameModule<Rules, Result, LiveInput, State, BetTarget = unknown
 
   initialState(rules: Rules): State;
   reduce(state: State, event: TableEvent, rules: Rules): State;              // pure
+  confirm(state: State, rules: Rules): { label: string; color?: string; badges?: string[]; enabled: boolean; result: Result | null } | null;
 
   // ---- Views (Preact). Shells provide layout, header, menus, animation layer. ----
-  DealerView: Component<{ state; rules; table: TableMeta; emit: Emit }>;
+  DealerView: Component<{ state; rules; table: TableMeta; emit: Emit; record(result: Result, opts: { quick: boolean }): void }>;
   DisplayView: Component<{ state; rules; table: TableMeta; bets: BetsView; layout: LayoutPreset }>;
   PlayerView: Component<{ state; rules; me: PlayerState; round: BettingRound; place; remove; act }>;
   ResultDetailView: Component<{ result: Result; rules: Rules }>;

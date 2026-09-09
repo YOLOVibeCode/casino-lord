@@ -19,6 +19,14 @@ import type {
 } from "./platform-types.js";
 import type { AnimationEventDef, AnimationTrigger } from "./animation.js";
 
+export interface ConfirmState<Result> {
+  label: string;
+  color?: string;
+  badges?: string[];
+  enabled: boolean;
+  result: Result | null;
+}
+
 export interface GameModule<Rules, Result, LiveInput, State, BetTarget = unknown, Action = never> {
   id: GameId;
   name: string;
@@ -34,8 +42,15 @@ export interface GameModule<Rules, Result, LiveInput, State, BetTarget = unknown
 
   initialState(rules: Rules): State;
   reduce(state: State, event: TableEvent, rules: Rules): State;
+  confirm(state: State, rules: Rules): ConfirmState<Result> | null;
 
-  DealerView: Component<{ state: State; rules: Rules; table: TableMeta; emit: Emit }>;
+  DealerView: Component<{
+    state: State;
+    rules: Rules;
+    table: TableMeta;
+    emit: Emit;
+    record: (result: Result, opts: { quick: boolean }) => void;
+  }>;
   DisplayView: Component<{
     state: State;
     rules: Rules;
