@@ -536,6 +536,11 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     importResults: (results) => {
       for (const data of results) record(data, { quick: true });
     },
+    sendVirtual: (kind) => {
+      if (role === "display" || readOnly) return;
+      const clientId = newClientId();
+      socket.emit("message", { op: "virtual", kind, clientId });
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

@@ -145,7 +145,12 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
       return { ...state, participation: event.participation };
 
     case "SERIES_STARTED":
-      return { ...state, currentSeriesId: event.seriesId };
+      return {
+        ...state,
+        currentSeriesId: event.seriesId,
+        currentSeriesCommit: event.commit ?? null,
+        currentSeriesSeed: null,
+      };
 
     case "PLAYER_JOINED": {
       const players = [...state.players, event.player];
@@ -290,11 +295,16 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
       return reverseSettlementForRound(state, affectedRound.id);
     }
 
+    case "SERIES_ENDED":
+      return {
+        ...state,
+        currentSeriesSeed: event.seed ?? null,
+      };
+
     case "LIVE_INPUT":
     case "ANIMATION_PREVIEW":
     case "SESSION_ENDED":
     case "DEALER_CHANGED":
-    case "SERIES_ENDED":
     case "TURN_ASSIGNED":
     case "PLAYER_ACTION":
       return state;

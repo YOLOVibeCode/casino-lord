@@ -5,6 +5,8 @@ import type { TableEvent } from "./events.js";
 /** Injected randomness for virtual outcomes (SPEC.md §14.2). */
 export interface Rng {
   next(n: number): number;
+  /** Draw counter range consumed by the last `next` call (seeded RNG only). */
+  readonly draws?: { from: number; to: number };
 }
 
 export interface TableMeta {

@@ -97,6 +97,19 @@ export async function reissuePlayerToken(
   return (await response.json()) as ReissuePlayerResponse;
 }
 
+export async function fetchServerFeatures(baseUrl: string): Promise<{ enableVirtual: boolean }> {
+  try {
+    const response = await fetch(`${baseUrl}/healthz`);
+    if (!response.ok) {
+      return { enableVirtual: false };
+    }
+    const data = (await response.json()) as { enableVirtual?: boolean };
+    return { enableVirtual: data.enableVirtual === true };
+  } catch {
+    return { enableVirtual: false };
+  }
+}
+
 export async function fetchVersion(baseUrl: string): Promise<string> {
   try {
     const response = await fetch(`${baseUrl}/version.json`);

@@ -14,6 +14,8 @@ export interface PlatformState {
   bets: PlacedBet[];
   settlements: Record<string, Settlement[]>;
   currentSeriesId: string | null;
+  currentSeriesCommit: string | null;
+  currentSeriesSeed: string | null;
   chipsIssuedTotal: number;
 }
 
@@ -29,6 +31,8 @@ export function initialPlatformState(): PlatformState {
     bets: [],
     settlements: {},
     currentSeriesId: null,
+    currentSeriesCommit: null,
+    currentSeriesSeed: null,
     chipsIssuedTotal: 0,
   };
 }

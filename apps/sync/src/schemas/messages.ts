@@ -30,5 +30,12 @@ export const admitMessageSchema = z.object({
   accept: z.boolean(),
 });
 
+export const virtualMessageSchema = z.object({
+  op: z.literal("virtual"),
+  kind: z.enum(["trigger", "action", "force"]),
+  clientId: z.string().min(1),
+  payload: z.unknown().optional(),
+});
+
 export type JoinMessage = z.infer<typeof joinMessageSchema>;
 export type EventMessage = z.infer<typeof eventMessageSchema>;

@@ -23,6 +23,7 @@ export interface StartTestServerOptions {
   now?: () => string;
   rng?: () => number;
   rateLimiter?: ReturnType<typeof createRateLimiter>;
+  enableVirtual?: boolean;
 }
 
 export async function startTestServer(
@@ -42,7 +43,7 @@ export async function startTestServer(
     TABLE_TTL_HOURS: "6",
     TABLE_RETENTION_DAYS: "30",
     ENABLE_PLAYER_MODE: "true",
-    ENABLE_VIRTUAL: "true",
+    ENABLE_VIRTUAL: options.enableVirtual === false ? "false" : "true",
     MAX_PLAYERS_HARD: "50",
   });
 

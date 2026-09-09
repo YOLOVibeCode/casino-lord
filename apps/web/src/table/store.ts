@@ -36,6 +36,7 @@ export interface TableStore {
   startNewSeries(label?: string, opts?: { auto?: boolean }): void;
   endSession(): void;
   importResults(results: unknown[]): void;
+  sendVirtual(kind: "trigger" | "action" | "force"): void;
   subscribe(listener: Listener): () => void;
 }
 
@@ -190,6 +191,7 @@ export function createTableStore(options: CreateTableOptions): TableStore {
     startNewSeries,
     endSession,
     importResults,
+    sendVirtual: () => undefined,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -298,6 +300,7 @@ export function reopenTableStore(input: {
     importResults: (results) => {
       for (const data of results) record(data, { quick: true });
     },
+    sendVirtual: () => undefined,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

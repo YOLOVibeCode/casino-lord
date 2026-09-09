@@ -15,6 +15,7 @@ vi.mock("../sync/config.js", () => ({
 vi.mock("../sync/api.js", () => ({
   createTable: vi.fn(async () => ({ code: "K7X2PQ", dealerToken: "tok" })),
   getTableMeta: vi.fn(),
+  fetchServerFeatures: vi.fn(async () => ({ enableVirtual: true })),
 }));
 
 import { createTable } from "../sync/api.js";
