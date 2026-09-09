@@ -15,6 +15,7 @@ import type { TableRepository, TableRow } from "../persistence/repository.js";
 import { type AdmitPlayerResult, type JoinPlayerResult, PlayerService } from "./player-service.js";
 import { generateDealerToken, hashToken } from "./token.js";
 import { TableInstance } from "./table-instance.js";
+import { VirtualDealer } from "./virtual-dealer.js";
 
 export interface CreateTableResult {
   code: string;
@@ -38,6 +39,7 @@ export class TableRegistry {
   private readonly now: () => string;
   private readonly rng: () => number;
   private readonly tables = new Map<string, TableInstance>();
+  private readonly virtualDealers = new Map<string, VirtualDealer>();
   private readonly idleTimer: ReturnType<typeof setInterval>;
   private readonly retentionTimer: ReturnType<typeof setInterval>;
 
@@ -92,6 +94,15 @@ export class TableRegistry {
       throw new Error("UNSUPPORTED_GAME");
     }
 
+    if (participation.outcomeSource === "virtual") {
+      if (!this.config.enableVirtual) {
+        throw new Error("VIRTUAL_DISABLED");
+      }
+      if (!module.virtual) {
+        throw new Error("UNSUPPORTED_GAME");
+      }
+    }
+
     const dealerToken = generateDealerToken();
     const dealerTokenHash = hashToken(dealerToken);
     const at = this.now();
@@ -136,8 +147,24 @@ export class TableRegistry {
     }
     this.repository.saveEvent(code, appended.event);
 
+    if (participation.outcomeSource === "virtual") {
+      const seriesId = crypto.randomUUID();
+      const dealer = new VirtualDealer(code, seriesId);
+      this.virtualDealers.set(code, dealer);
+      const seriesEvent = dealer.startSeriesEvent(module.seriesLabel);
+      const seriesAppended = table.appendEvent(seriesEvent, `server-series-${code}`, at);
+      if (seriesAppended.kind !== "new") {
+        throw new Error("unexpected duplicate on series start");
+      }
+      this.repository.saveEvent(code, seriesAppended.event);
+    }
+
     this.tables.set(code, table);
     return { code, dealerToken, table };
+  }
+
+  getVirtualDealer(code: string): VirtualDealer | null {
+    return this.virtualDealers.get(code) ?? null;
   }
 
   persistEvent(code: string, event: TableEvent): void {
@@ -224,6 +251,7 @@ export class TableRegistry {
 
   deleteTable(code: string): void {
     this.tables.delete(code);
+    this.virtualDealers.delete(code);
     this.repository.deleteTable(code);
   }
 

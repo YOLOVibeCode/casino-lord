@@ -30,3 +30,5 @@ export const PLAYER_EVENT_LIMIT = 10;
 export const PLAYER_EVENT_WINDOW_MS = 1_000;
 export const PLAYER_JOIN_LIMIT = 10;
 export const PLAYER_JOIN_WINDOW_MS = 60_000;
+export const VIRTUAL_TRIGGER_LIMIT = 2;
+export const VIRTUAL_TRIGGER_WINDOW_MS = 1_000;

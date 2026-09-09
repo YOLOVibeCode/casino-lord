@@ -67,9 +67,13 @@ export async function buildServer(
   app.get("/healthz", async () => ({
     ok: true,
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
+    enableVirtual: config.enableVirtual,
   }));
 
-  app.get("/games", async () => GAMES);
+  app.get("/games", async () => ({
+    enableVirtual: config.enableVirtual,
+    games: GAMES,
+  }));
 
   const versionPath = join(staticRoot, "version.json");
   if (!existsSync(versionPath)) {

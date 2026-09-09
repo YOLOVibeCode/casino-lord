@@ -8,6 +8,8 @@ import {
   DEALER_EVENT_WINDOW_MS,
   PLAYER_EVENT_LIMIT,
   PLAYER_EVENT_WINDOW_MS,
+  VIRTUAL_TRIGGER_LIMIT,
+  VIRTUAL_TRIGGER_WINDOW_MS,
 } from "../rate-limit.js";
 import { validateInboundEvent } from "../schemas/event-input.js";
 import {
@@ -16,6 +18,7 @@ import {
   joinMessageSchema,
   pingMessageSchema,
   resyncMessageSchema,
+  virtualMessageSchema,
 } from "../schemas/messages.js";
 import type { TableInstance } from "../tables/table-instance.js";
 import type { TableRegistry } from "../tables/registry.js";
@@ -141,6 +144,11 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
 
       if (msg.op === "admit") {
         handleAdmit(socket, msg, state);
+        return;
+      }
+
+      if (msg.op === "virtual") {
+        handleVirtual(socket, msg, state, rateLimiter);
         return;
       }
 
@@ -386,6 +394,22 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
+      const composed = table.getComposed();
+      if (composed.platform.participation.outcomeSource === "virtual") {
+        const eventType = (parsed.data.event as { type?: string }).type;
+        if (
+          st.role === "dealer" &&
+          (eventType === "RESULT_RECORDED" || eventType === "LIVE_INPUT")
+        ) {
+          socket.emit("message", {
+            op: "reject",
+            clientId: parsed.data.clientId,
+            reason: "MIXED_SERIES",
+          });
+          return;
+        }
+      }
+
       const validation = validateInboundEvent(parsed.data.event, st.role, module, st.playerId);
       if (!validation.ok) {
         socket.emit("message", {
@@ -419,6 +443,192 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
       io.to(room(st.code)).emit("message", {
         op: "event",
         event: result.event,
+      });
+    }
+
+    function handleVirtual(
+      socket: Socket,
+      msg: Record<string, unknown>,
+      st: SocketState,
+      limiter: ReturnType<typeof createRateLimiter>,
+    ): void {
+      const parsed = virtualMessageSchema.safeParse(msg);
+      if (!parsed.success || !st.code || !st.role || !st.joined) {
+        return;
+      }
+
+      if (st.role === "display") {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "not authorized",
+        });
+        return;
+      }
+
+      if (st.role === "dealer" && tableIsDemoted(st, socket)) {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "demoted",
+        });
+        return;
+      }
+
+      const table = registry.get(st.code);
+      if (!table) {
+        return;
+      }
+
+      const composed = table.getComposed();
+      if (composed.platform.participation.outcomeSource !== "virtual") {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "NOT_VIRTUAL",
+        });
+        return;
+      }
+
+      if (!config.enableVirtual) {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "VIRTUAL_DISABLED",
+        });
+        return;
+      }
+
+      const virtualDealer = registry.getVirtualDealer(st.code);
+      if (!virtualDealer) {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "NOT_VIRTUAL",
+        });
+        return;
+      }
+
+      const module = getModule(table.game);
+      if (!module?.virtual) {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "UNSUPPORTED_GAME",
+        });
+        return;
+      }
+
+      if (parsed.data.kind === "force" && st.role !== "dealer") {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "not authorized",
+        });
+        return;
+      }
+
+      if (parsed.data.kind === "action") {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "not supported",
+        });
+        return;
+      }
+
+      const turn = module.turn?.(composed.module);
+      if (
+        parsed.data.kind === "trigger" &&
+        st.role === "player" &&
+        turn?.playerId !== st.playerId
+      ) {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "not authorized",
+        });
+        return;
+      }
+
+      if (parsed.data.kind === "trigger" && st.role !== "dealer" && st.role !== "player") {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "not authorized",
+        });
+        return;
+      }
+
+      if (
+        virtualDealer.awaiting === "action" &&
+        parsed.data.kind !== "force" &&
+        st.role !== "dealer"
+      ) {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "awaiting action",
+        });
+        return;
+      }
+
+      if (
+        !limiter.tryConsume(`virtual:${st.code}`, VIRTUAL_TRIGGER_LIMIT, VIRTUAL_TRIGGER_WINDOW_MS)
+      ) {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "rate limit exceeded",
+        });
+        return;
+      }
+
+      let stepEvents;
+      try {
+        stepEvents = virtualDealer.runStep(table, module, "deal");
+      } catch {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "virtual step failed",
+        });
+        return;
+      }
+
+      const revealDelayMs = table.settings.virtual.revealDelayMs;
+      const paced = virtualDealer.paceEvents(stepEvents, new Date().toISOString(), revealDelayMs);
+
+      let lastSeq = table.latestSeq;
+      for (let index = 0; index < paced.length; index++) {
+        const { event, at } = paced[index]!;
+        let body: Omit<TableEvent, "seq" | "at"> = event;
+        const typedEvent = body as TableEvent;
+        if (typedEvent.type === "RESULT_RECORDED") {
+          const latest = table.getComposed();
+          const results = (latest.module as { results?: unknown[] }).results ?? [];
+          body = {
+            type: "RESULT_RECORDED",
+            result: {
+              ...typedEvent.result,
+              id: crypto.randomUUID(),
+              index: results.length,
+              recordedAt: at,
+            },
+          } as Omit<TableEvent, "seq" | "at">;
+        }
+        const result = table.appendEvent(body, `${parsed.data.clientId}:${index}`, at);
+        if (result.kind === "new") {
+          registry.persistEvent(st.code!, result.event);
+          io.to(room(st.code!)).emit("message", { op: "event", event: result.event });
+          lastSeq = result.event.seq;
+        }
+      }
+
+      socket.emit("message", {
+        op: "ack",
+        clientId: parsed.data.clientId,
+        seq: lastSeq,
       });
     }
 

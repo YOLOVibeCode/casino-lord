@@ -60,6 +60,7 @@ describe("buildServer", () => {
     expect(response.json()).toEqual({
       ok: true,
       uptimeSeconds: expect.any(Number),
+      enableVirtual: true,
     });
   });
 
@@ -84,14 +85,18 @@ describe("buildServer", () => {
     } = await buildTestServer();
 
     const response = await app.inject({ method: "GET", url: "/games" });
-    const games = response.json() as Array<{ id: string; enabled: boolean }>;
+    const body = response.json() as {
+      enableVirtual: boolean;
+      games: Array<{ id: string; enabled: boolean }>;
+    };
 
     expect(response.statusCode).toBe(200);
-    expect(games).toHaveLength(4);
-    expect(games.find((game) => game.id === "baccarat")?.enabled).toBe(true);
-    expect(games.find((game) => game.id === "roulette")?.enabled).toBe(true);
-    expect(games.find((game) => game.id === "craps")?.enabled).toBe(true);
-    expect(games.find((game) => game.id === "blackjack")?.enabled).toBe(true);
+    expect(body.enableVirtual).toBe(true);
+    expect(body.games).toHaveLength(4);
+    expect(body.games.find((game) => game.id === "baccarat")?.enabled).toBe(true);
+    expect(body.games.find((game) => game.id === "roulette")?.enabled).toBe(true);
+    expect(body.games.find((game) => game.id === "craps")?.enabled).toBe(true);
+    expect(body.games.find((game) => game.id === "blackjack")?.enabled).toBe(true);
   });
 
   it("serves index.html for SPA routes", async () => {

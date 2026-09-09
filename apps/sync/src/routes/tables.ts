@@ -12,6 +12,7 @@ import {
 import { createTableBodySchema, joinPlayerBodySchema } from "../schemas/event-input.js";
 import { buildExportText } from "../tables/export.js";
 import { buildTableMeta } from "../tables/meta.js";
+import { buildFairnessResponse } from "../tables/fairness.js";
 import { buildSeriesFromEvents, maxExportableSeries } from "../tables/series.js";
 import type { TableRegistry } from "../tables/registry.js";
 
@@ -79,6 +80,9 @@ export function registerTableRoutes(
     } catch (error) {
       if (error instanceof Error && error.message === "UNSUPPORTED_GAME") {
         return reply.code(400).send({ error: "UNSUPPORTED_GAME" });
+      }
+      if (error instanceof Error && error.message === "VIRTUAL_DISABLED") {
+        return reply.code(400).send({ error: "VIRTUAL_DISABLED" });
       }
       throw error;
     }
@@ -234,5 +238,47 @@ export function registerTableRoutes(
     });
 
     return reply.type("text/plain").send(text);
+  });
+
+  app.get("/tables/:code/fairness", async (request, reply) => {
+    const params = request.params as { code: string };
+    const query = request.query as { series?: string };
+    const code = normalizeTableCode(params.code);
+    const table = registry.get(code);
+
+    if (!table) {
+      return reply.code(404).send({ error: "NOT_FOUND" });
+    }
+
+    const composed = table.getComposed();
+    if (composed.platform.participation.outcomeSource !== "virtual") {
+      return reply.code(400).send({ error: "NOT_VIRTUAL" });
+    }
+
+    const seriesNumber = query.series ? Number.parseInt(query.series, 10) : 1;
+    if (!Number.isFinite(seriesNumber) || seriesNumber < 1) {
+      return reply.code(400).send({ error: "invalid series" });
+    }
+
+    const maxSeries = maxExportableSeries([...table.allEvents]);
+    if (seriesNumber > maxSeries) {
+      return reply.code(404).send({ error: "series not found" });
+    }
+
+    const series = buildSeriesFromEvents([...table.allEvents], seriesNumber, table.game);
+    if (!series) {
+      return reply.code(404).send({ error: "series not found" });
+    }
+
+    const dealer = registry.getVirtualDealer(code);
+    const drawsFromDealer = dealer?.getDrawLog().map((d) => ({ from: d.from, to: d.to })) ?? [];
+
+    const response = buildFairnessResponse([...table.allEvents], seriesNumber, code, series.id);
+
+    if (drawsFromDealer.length > response.draws.length) {
+      return reply.send({ ...response, draws: drawsFromDealer });
+    }
+
+    return reply.send(response);
   });
 }

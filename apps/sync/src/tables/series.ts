@@ -59,12 +59,20 @@ export function buildSeriesFromEvents<R>(
 
   void game;
 
+  const endEvent = slice.find((e) => e.type === "SERIES_ENDED");
+
   return {
     id: seriesId,
     number: seriesNumber,
     startedAt,
     ...(startEvent?.type === "SERIES_STARTED" && startEvent.label !== undefined
       ? { label: startEvent.label }
+      : {}),
+    ...(startEvent?.type === "SERIES_STARTED" && startEvent.commit !== undefined
+      ? { commit: startEvent.commit }
+      : {}),
+    ...(endEvent?.type === "SERIES_ENDED" && endEvent.seed !== undefined
+      ? { seed: endEvent.seed }
       : {}),
     results,
     rounds: [],
