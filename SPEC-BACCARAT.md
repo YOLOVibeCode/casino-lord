@@ -302,7 +302,7 @@ B P P T Bb P Pp B B B
 With cards: `outcome[pairs]:player_cards/banker_cards`, cards as rank+suit (suit optional), `10` written `T`.
 
 ```
-B:7H,KS/4D,5C  P:2,3,9/6,7  T:8,8/9,7  Bb:QH,QD/AS,3C,4H
+B:7H,KS/4D,5C  P:2,3,9/6,7,K  Tp:8,8/9,7  Bb:2H,3S,3C/KD,KH,9S
 ```
 
 Import recomputes every carded hand through the engine; mismatches block unless forced.
