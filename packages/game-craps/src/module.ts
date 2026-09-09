@@ -1,4 +1,3 @@
-import type { Component } from "preact";
 import type { GameModule, Series } from "@casino-lord/core";
 import { actionSchema, crapsPlayerActions, type CrapsAction } from "./actions.js";
 import { deriveCrapsAnimations, crapsAnimationEvents } from "./animations.js";
@@ -24,11 +23,8 @@ import { crapsVirtualStep } from "./virtual.js";
 import { DealerView } from "./views/DealerView.js";
 import { DisplayView } from "./views/DisplayView.js";
 import { ResultDetailView } from "./views/ResultDetailView.js";
+import { PlayerView } from "./views/PlayerView.js";
 import { RulesSettingsView } from "./views/RulesSettingsView.js";
-
-function stubComponent(): Component<Record<string, unknown>> {
-  return (() => null) as unknown as Component<Record<string, unknown>>;
-}
 
 export const crapsModule: GameModule<
   CrapsRules,
@@ -70,7 +66,7 @@ export const crapsModule: GameModule<
     CrapsBetTarget,
     CrapsAction
   >["DisplayView"],
-  PlayerView: stubComponent() as unknown as GameModule<
+  PlayerView: PlayerView as unknown as GameModule<
     CrapsRules,
     CrapsResult,
     CrapsLiveInput,
