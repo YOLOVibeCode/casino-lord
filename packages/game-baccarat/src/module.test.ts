@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { assertReplayDeterministic, type TableEvent } from "@casino-lord/core";
+import {
+  assertReplayDeterministic,
+  DEFAULT_TABLE_SETTINGS,
+  replay,
+  type TableEvent,
+} from "@casino-lord/core";
 import { baccaratModule } from "./module.js";
 import { DEFAULT_BACCARAT_RULES } from "./rules.js";
 import { importText } from "./serialize.js";
@@ -136,6 +141,42 @@ describe("baccaratModule", () => {
     }
     expect(state.results).toHaveLength(59);
     expect(state.roads.bigRoad.cols).toBeGreaterThan(0);
+  });
+
+  it("SETTINGS_CHANGED mid-shoe dragonThreshold replays deterministically", () => {
+    const settings = { ...DEFAULT_TABLE_SETTINGS, rules: DEFAULT_BACCARAT_RULES };
+    const quick = (outcome: "P" | "B" | "T") => ({
+      cards: null,
+      outcome,
+      playerTotal: null,
+      bankerTotal: null,
+      playerPair: false,
+      bankerPair: false,
+      natural: false,
+    });
+    const events: TableEvent[] = [
+      ev(1, atIso(1), {
+        type: "TABLE_CREATED",
+        game: "baccarat",
+        participation: settings.participation,
+        settings,
+      }),
+      ev(2, atIso(2), { type: "SERIES_STARTED", seriesId: "s1" }),
+      ev(3, atIso(3), { type: "RESULT_RECORDED", result: resultEnvelope("h0", 0, quick("B")) }),
+      ev(4, atIso(4), { type: "RESULT_RECORDED", result: resultEnvelope("h1", 1, quick("P")) }),
+      ev(5, atIso(5), {
+        type: "SETTINGS_CHANGED",
+        patch: { rules: { dragonThreshold: 8 } },
+      }),
+      ev(6, atIso(6), { type: "RESULT_RECORDED", result: resultEnvelope("h2", 2, quick("B")) }),
+    ];
+
+    expect(() =>
+      assertReplayDeterministic(events, baccaratModule, DEFAULT_BACCARAT_RULES),
+    ).not.toThrow();
+
+    const state = replay(events, baccaratModule, DEFAULT_BACCARAT_RULES);
+    expect(state.module.dragonThreshold).toBe(8);
   });
 
   it("importSeries returns error on invalid text", () => {
