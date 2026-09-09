@@ -1,0 +1,18 @@
+.display-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.display-page--error {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.display-page__waiting {
+  background: #ff9800;
+  color: #000;
+  text-align: center;
+  padding: 0.5rem;
+  font-weight: 600;
+}

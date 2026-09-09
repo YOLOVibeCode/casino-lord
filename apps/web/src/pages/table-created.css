@@ -1,0 +1,41 @@
+.table-created {
+  max-width: 40rem;
+  margin: 2rem auto;
+  padding: 1rem;
+  text-align: center;
+}
+
+.table-created__code {
+  font-size: 2.5rem;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  margin: 1rem 0 2rem;
+}
+
+.table-created__qrs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.table-created__qrs img {
+  max-width: 100%;
+  height: auto;
+  margin: 0.5rem 0;
+}
+
+.table-created__qrs a {
+  display: block;
+  margin-top: 0.5rem;
+}
+
+.table-created__home {
+  display: inline-block;
+  margin-top: 2rem;
+}
+
+@media (max-width: 600px) {
+  .table-created__qrs {
+    grid-template-columns: 1fr;
+  }
+}

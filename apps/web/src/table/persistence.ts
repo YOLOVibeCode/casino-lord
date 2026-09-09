@@ -2,8 +2,9 @@ import type { GameId, TableEvent } from "@casino-lord/core";
 import { isPersistedEvent } from "@casino-lord/core";
 
 const DB_NAME = "casino-lord";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = "tables";
+const OFFLINE_STORE = "offline-queue";
 
 export interface StoredTable {
   code: string;
@@ -12,7 +13,7 @@ export interface StoredTable {
   updatedAt: string;
 }
 
-function openDb(): Promise<IDBDatabase> {
+export function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onerror = () => reject(request.error);
@@ -21,6 +22,9 @@ function openDb(): Promise<IDBDatabase> {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE, { keyPath: "code" });
+      }
+      if (!db.objectStoreNames.contains(OFFLINE_STORE)) {
+        db.createObjectStore(OFFLINE_STORE, { keyPath: "code" });
       }
     };
   });

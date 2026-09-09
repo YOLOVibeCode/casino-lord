@@ -4,6 +4,9 @@ import type { ComponentType } from "preact";
 import type { ResultEnvelope } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
+import { QrDialog } from "../sync/QrDialog.js";
+import { tableUrl } from "../sync/urls.js";
+import { isSyncStore } from "../table/sync-store-types.js";
 import type { TableStore } from "../table/store.js";
 import { useStore } from "../hooks/use-store.js";
 import { buildExportText } from "../table/export.js";
@@ -22,7 +25,7 @@ export interface DealerShellProps {
   onNewTable?: () => void;
 }
 
-type ActiveDialog = "settings" | "history" | "calculator" | null;
+type ActiveDialog = "settings" | "history" | "calculator" | "qr" | null;
 
 export function DealerShell({
   store,
@@ -215,6 +218,24 @@ export function DealerShell({
         }
       : undefined;
 
+  const syncStore = isSyncStore(store) ? store : null;
+  const connectionState = syncStore?.getConnectionState() ?? null;
+  const readOnly = syncStore?.isReadOnly() ?? false;
+  const dotClass =
+    connectionState === "offline"
+      ? "dealer-shell__dot dealer-shell__dot--offline"
+      : connectionState === "reconnecting"
+        ? "dealer-shell__dot dealer-shell__dot--reconnecting"
+        : "dealer-shell__dot";
+  const dotTitle =
+    connectionState === "connected"
+      ? "Connected"
+      : connectionState === "reconnecting"
+        ? "Reconnecting"
+        : connectionState === "offline"
+          ? "Offline"
+          : "Local / Solo";
+
   return (
     <div class="dealer-shell" data-testid="dealer-shell">
       <header class="dealer-shell__header">
@@ -229,7 +250,7 @@ export function DealerShell({
           </button>
         ) : (
           <>
-            <span class="dealer-shell__dot" title="Local / Solo" />
+            <span class={dotClass} title={dotTitle} data-testid="connection-dot" />
             <span>{store.code}</span>
             <span>·</span>
             <span>
@@ -268,7 +289,7 @@ export function DealerShell({
           type="button"
           class="dealer-shell__btn"
           onClick={handleUndo}
-          disabled={!!editingEnvelope}
+          disabled={!!editingEnvelope || readOnly}
           data-testid="undo-btn"
         >
           {undoArmed ? `Tap again to undo Hand ${undoHand}` : "UNDO"}
@@ -277,7 +298,7 @@ export function DealerShell({
           type="button"
           class="dealer-shell__btn dealer-shell__btn--confirm"
           style={confirmStyle}
-          disabled={!confirmState?.enabled}
+          disabled={!confirmState?.enabled || readOnly}
           onClick={startConfirmDelay}
           data-testid="confirm-btn"
         >
@@ -389,8 +410,16 @@ export function DealerShell({
               >
                 Calculator
               </button>
-              <button type="button" disabled>
-                Show QR (coming soon)
+              <button
+                type="button"
+                disabled={!syncStore}
+                data-testid="menu-show-qr"
+                onClick={() => {
+                  setActiveDialog("qr");
+                  setMenuOpen(false);
+                }}
+              >
+                Show QR
               </button>
             </div>
           )}
@@ -424,6 +453,24 @@ export function DealerShell({
           store={store}
           module={module}
           rules={rules}
+          onClose={() => setActiveDialog(null)}
+        />
+      )}
+      {activeDialog === "qr" && syncStore && (
+        <QrDialog
+          entries={[
+            {
+              label: "Display",
+              url: tableUrl(`/display/${store.code}`),
+            },
+            {
+              label: "Dealer",
+              url: tableUrl(
+                `/dealer/${store.code}?t=${encodeURIComponent(syncStore.getDealerToken() ?? "")}`,
+              ),
+              warning: "Anyone with this link can control the table.",
+            },
+          ]}
           onClose={() => setActiveDialog(null)}
         />
       )}

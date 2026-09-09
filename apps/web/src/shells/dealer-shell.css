@@ -34,6 +34,14 @@
   background: #4caf50;
 }
 
+.dealer-shell__dot--reconnecting {
+  background: #ff9800;
+}
+
+.dealer-shell__dot--offline {
+  background: #f44336;
+}
+
 .dealer-shell__module {
   flex: 1;
   min-height: 8rem;

@@ -12,6 +12,10 @@ COPY apps apps
 COPY scripts scripts
 
 RUN pnpm install --frozen-lockfile
+ARG VITE_SYNC_URL=/
+ARG RAILWAY_GIT_COMMIT_SHA=
+ENV VITE_SYNC_URL=$VITE_SYNC_URL
+ENV RAILWAY_GIT_COMMIT_SHA=$RAILWAY_GIT_COMMIT_SHA
 RUN pnpm build && pnpm stamp
 RUN pnpm deploy --filter sync --prod --legacy /prod/sync
 

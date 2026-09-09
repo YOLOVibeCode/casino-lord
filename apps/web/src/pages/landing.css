@@ -65,3 +65,54 @@
   color: var(--text-muted);
   font-size: 0.875rem;
 }
+
+.landing__sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.landing__sheet {
+  background: var(--panel-bg);
+  border: 1px solid var(--gold-hairline);
+  border-radius: 8px;
+  padding: 1.5rem;
+  max-width: 24rem;
+  width: 90vw;
+}
+
+.landing__sheet fieldset {
+  border: none;
+  margin: 1rem 0;
+  padding: 0;
+}
+
+.landing__option {
+  display: block;
+  margin: 0.5rem 0;
+}
+
+.landing__option--disabled {
+  opacity: 0.5;
+}
+
+.landing__error {
+  color: #e57373;
+  font-size: 0.875rem;
+}
+
+.landing__dealer-join {
+  margin-top: 1rem;
+}
+
+.landing__sheet-close {
+  margin-top: 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
