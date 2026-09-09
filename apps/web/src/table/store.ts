@@ -1,7 +1,7 @@
 import {
-  applyEvent,
   DEFAULT_TABLE_SETTINGS,
-  initialPlatformState,
+  replay,
+  resolveEffectiveRules,
   stableStringify,
   tableCodeFrom,
   type ComposedState,
@@ -23,6 +23,7 @@ export interface TableStore {
   readonly game: GameId;
   readonly events: readonly TableEvent[];
   getComposed(): ComposedState<unknown>;
+  getRules(): unknown;
   getTableMeta(): ReturnType<typeof buildTableMeta>;
   emit: (body: TableEventInput) => void;
   record(result: unknown, opts: { quick: boolean }): void;
@@ -90,23 +91,13 @@ export function createTableStore(options: CreateTableOptions): TableStore {
     label: module.seriesLabel,
   });
 
-  const recompute = (tableCode: string): ComposedState<unknown> => {
-    let composed: ComposedState<unknown> = {
-      module: module.initialState(rules),
-      platform: initialPlatformState(),
-    };
-    for (const event of events) {
-      if (event.type === "TABLE_CREATED") {
-        composed = applyEvent(composed, event, module, rules);
-        composed = { ...composed, platform: { ...composed.platform, code: tableCode } };
-        continue;
-      }
-      composed = applyEvent(composed, event, module, rules);
-    }
-    return composed;
-  };
+  const getComposed = (): ComposedState<unknown> =>
+    replay(events, module, rules, { code, includeEphemeral: true });
 
-  const getComposed = (): ComposedState<unknown> => recompute(code);
+  const getRules = (): unknown => {
+    const composed = getComposed();
+    return resolveEffectiveRules(rules, composed.platform.settings.rules);
+  };
 
   const getTableMeta = () => {
     const composed = getComposed();
@@ -178,6 +169,7 @@ export function createTableStore(options: CreateTableOptions): TableStore {
       return events;
     },
     getComposed,
+    getRules,
     getTableMeta,
     emit,
     record,
@@ -223,23 +215,13 @@ export function reopenTableStore(input: {
     return event;
   };
 
-  const recompute = (tableCode: string): ComposedState<unknown> => {
-    let composed: ComposedState<unknown> = {
-      module: module.initialState(rules),
-      platform: initialPlatformState(),
-    };
-    for (const event of events) {
-      if (event.type === "TABLE_CREATED") {
-        composed = applyEvent(composed, event, module, rules);
-        composed = { ...composed, platform: { ...composed.platform, code: tableCode } };
-        continue;
-      }
-      composed = applyEvent(composed, event, module, rules);
-    }
-    return composed;
-  };
+  const getComposed = (): ComposedState<unknown> =>
+    replay(events, module, rules, { code, includeEphemeral: true });
 
-  const getComposed = (): ComposedState<unknown> => recompute(code);
+  const getRules = (): unknown => {
+    const composed = getComposed();
+    return resolveEffectiveRules(rules, composed.platform.settings.rules);
+  };
 
   const getTableMeta = () => {
     const composed = getComposed();
@@ -278,6 +260,7 @@ export function reopenTableStore(input: {
       return events;
     },
     getComposed,
+    getRules,
     getTableMeta,
     emit,
     record,

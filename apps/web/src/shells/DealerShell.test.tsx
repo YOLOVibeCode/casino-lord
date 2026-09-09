@@ -28,6 +28,7 @@ describe("DealerShell", () => {
         module={module}
         rules={STUB_RULES}
         deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceSettingsChange={() => {}}
       />,
     );
 

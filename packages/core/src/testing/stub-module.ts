@@ -28,6 +28,7 @@ export interface StubResultEntry {
 export interface StubState {
   results: StubResultEntry[];
   sum: number;
+  appliedThreshold: number;
 }
 
 function recomputeSum(results: StubResultEntry[]): number {
@@ -62,40 +63,45 @@ export function createStubModule(): GameModule<
     liveInputSchema: emptySchema<StubLiveInput>(),
     betTargetSchema: emptySchema<unknown>(),
 
-    initialState(): StubState {
-      return { results: [], sum: 0 };
+    initialState(rules: StubRules): StubState {
+      return { results: [], sum: 0, appliedThreshold: rules.threshold };
     },
 
     confirm(): null {
       return null;
     },
 
-    reduce(state: StubState, event: TableEvent, _rules: StubRules): StubState {
+    reduce(state: StubState, event: TableEvent, rules: StubRules): StubState {
+      const withThreshold = (next: Omit<StubState, "appliedThreshold">): StubState => ({
+        ...next,
+        appliedThreshold: rules.threshold,
+      });
+
       switch (event.type) {
         case "RESULT_RECORDED": {
           const data = event.result.data as StubResult;
           const results = [...state.results, { id: event.result.id, value: data.value }];
-          return { results, sum: recomputeSum(results) };
+          return withThreshold({ results, sum: recomputeSum(results) });
         }
         case "RESULT_EDITED": {
           const data = event.result.data as StubResult;
           const idx = state.results.findIndex((r) => r.id === event.result.id);
-          if (idx < 0) return state;
+          if (idx < 0) return withThreshold(state);
           const results = state.results.map((r, i) =>
             i === idx ? { id: event.result.id, value: data.value } : r,
           );
-          return { results, sum: recomputeSum(results) };
+          return withThreshold({ results, sum: recomputeSum(results) });
         }
         case "RESULT_DELETED": {
           const results = state.results.filter((r) => r.id !== event.resultId);
-          return { results, sum: recomputeSum(results) };
+          return withThreshold({ results, sum: recomputeSum(results) });
         }
         case "RESULT_UNDONE": {
           const results = state.results.filter((r) => r.id !== event.resultId);
-          return { results, sum: recomputeSum(results) };
+          return withThreshold({ results, sum: recomputeSum(results) });
         }
         default:
-          return state;
+          return withThreshold(state);
       }
     },
 

@@ -1,0 +1,104 @@
+.history-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.history-dialog {
+  background: var(--surface-elevated, #1a1a2e);
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+  width: min(440px, 95vw);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--text, #eee);
+}
+
+.history-dialog__header {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border, #333);
+}
+
+.history-dialog__list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.history-dialog__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: none;
+  border-bottom: 1px solid var(--border, #333);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-dialog__row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.history-dialog__index {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, #aaa);
+  min-width: 2rem;
+}
+
+.history-dialog__outcome {
+  font-weight: 700;
+  width: 1.5rem;
+  text-align: center;
+  border-radius: 4px;
+}
+
+.history-dialog__outcome--P {
+  color: #2563eb;
+}
+
+.history-dialog__outcome--B {
+  color: #e5322d;
+}
+
+.history-dialog__outcome--T {
+  color: #16a34a;
+}
+
+.history-dialog__detail {
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.history-dialog__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.history-dialog__actions button {
+  flex: 1;
+  padding: 0.5rem;
+}
+
+.history-dialog__badges {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  font-size: 0.7rem;
+}
+
+.history-dialog__badge {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+}
