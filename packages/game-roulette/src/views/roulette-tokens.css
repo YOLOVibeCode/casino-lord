@@ -1,0 +1,11 @@
+.roulette-display {
+  --roulette-red: #d7263d;
+  --roulette-black: #111318;
+  --roulette-black-chip: #2a2d34;
+  --roulette-green: #1e8f4e;
+  --roulette-void: #6b7280;
+  --roulette-gold: #d4af37;
+  --roulette-panel: #0f1412;
+  --roulette-text: #f5f5f5;
+  color: var(--roulette-text);
+}

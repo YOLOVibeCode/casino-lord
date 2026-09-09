@@ -19,6 +19,10 @@ import { rouletteStats } from "./stats.js";
 import type { RouletteBetTarget } from "./bet-target.js";
 import type { RouletteLiveInput, RouletteResult } from "./types.js";
 import { virtualWheelStep } from "./virtual.js";
+import { DealerView } from "./views/DealerView.js";
+import { DisplayView } from "./views/DisplayView.js";
+import { ResultDetailView } from "./views/ResultDetailView.js";
+import { RulesSettingsView } from "./views/RulesSettingsView.js";
 
 function stubComponent(): Component<Record<string, unknown>> {
   return (() => null) as unknown as Component<Record<string, unknown>>;
@@ -46,13 +50,13 @@ export const rouletteModule: GameModule<
   reduce,
   confirm: rouletteConfirm,
 
-  DealerView: stubComponent() as GameModule<
+  DealerView: DealerView as unknown as GameModule<
     RouletteRules,
     RouletteResult,
     RouletteLiveInput,
     RouletteState
   >["DealerView"],
-  DisplayView: stubComponent() as GameModule<
+  DisplayView: DisplayView as unknown as GameModule<
     RouletteRules,
     RouletteResult,
     RouletteLiveInput,
@@ -64,13 +68,13 @@ export const rouletteModule: GameModule<
     RouletteLiveInput,
     RouletteState
   >["PlayerView"],
-  ResultDetailView: stubComponent() as GameModule<
+  ResultDetailView: ResultDetailView as unknown as GameModule<
     RouletteRules,
     RouletteResult,
     RouletteLiveInput,
     RouletteState
   >["ResultDetailView"],
-  RulesSettingsView: stubComponent() as GameModule<
+  RulesSettingsView: RulesSettingsView as unknown as GameModule<
     RouletteRules,
     RouletteResult,
     RouletteLiveInput,
