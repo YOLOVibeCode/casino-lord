@@ -6,14 +6,20 @@ import { measureRoadPath } from "./measure-path.js";
 
 describe("measureRoadPath", () => {
   it("maps big road grid cells to overlay-relative centres", () => {
-    const overlay = document.createElement("div");
-    overlay.style.width = "400px";
-    overlay.style.height = "300px";
-    document.body.appendChild(overlay);
+    // Mirror the real DOM: the overlay and the board are siblings under the shell.
+    const shell = document.createElement("div");
+    shell.className = "display-shell";
+    document.body.appendChild(shell);
 
+    const board = document.createElement("div");
+    shell.appendChild(board);
     const bigRoad = document.createElement("div");
     bigRoad.setAttribute("data-testid", "big-road");
-    overlay.appendChild(bigRoad);
+    board.appendChild(bigRoad);
+
+    const overlay = document.createElement("div");
+    overlay.className = "display-shell__animation-overlay";
+    shell.appendChild(overlay);
 
     const cell = document.createElement("div");
     cell.setAttribute("data-row", "1");
@@ -38,6 +44,6 @@ describe("measureRoadPath", () => {
     const points = measureRoadPath(overlay, [{ x: 2, y: 1 }]);
     expect(points[0]).toEqual({ x: 130, y: 90 });
 
-    document.body.removeChild(overlay);
+    document.body.removeChild(shell);
   });
 });

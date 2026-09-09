@@ -6,7 +6,11 @@ export interface Point {
 export function measureRoadPath(overlayRoot: HTMLElement, gridPath: Point[]): Point[] {
   if (gridPath.length === 0) return [];
 
-  const bigRoad = overlayRoot.querySelector('[data-testid="big-road"]');
+  // The overlay is a sibling of the board, not its parent: search from the
+  // enclosing shell so the real Big Road cells are found.
+  const scope: ParentNode =
+    overlayRoot.closest(".display-shell") ?? overlayRoot.parentElement ?? overlayRoot;
+  const bigRoad = scope.querySelector('[data-testid="big-road"]');
   if (!bigRoad) return fallbackCentre(overlayRoot, gridPath.length);
 
   const overlayRect = overlayRoot.getBoundingClientRect();
