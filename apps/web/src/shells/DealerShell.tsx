@@ -14,9 +14,16 @@ export interface DealerShellProps {
   module: UntypedGameModule;
   rules: unknown;
   deviceSettings: DeviceSettings;
+  onNewTable?: () => void;
 }
 
-export function DealerShell({ store, module, rules, deviceSettings }: DealerShellProps) {
+export function DealerShell({
+  store,
+  module,
+  rules,
+  deviceSettings,
+  onNewTable,
+}: DealerShellProps) {
   useStore(store);
   const composed = store.getComposed();
   const table = store.getTableMeta();
@@ -241,6 +248,19 @@ export function DealerShell({ store, module, rules, deviceSettings }: DealerShel
           </button>
           {menuOpen && (
             <div class="dealer-shell__menu-panel">
+              {onNewTable && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("Start a new table?")) {
+                      onNewTable();
+                      setMenuOpen(false);
+                    }
+                  }}
+                >
+                  New Table
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
