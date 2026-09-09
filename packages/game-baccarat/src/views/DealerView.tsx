@@ -20,6 +20,20 @@ const QUICK_CHIPS = [
 
 const SUIT_GLYPH: Record<string, string> = { S: "♠", H: "♥", D: "♦", C: "♣" };
 
+const SUIT_NAMES: Record<Suit, string> = {
+  S: "spades",
+  H: "hearts",
+  D: "diamonds",
+  C: "clubs",
+};
+
+const RANK_NAMES: Partial<Record<Rank, string>> = {
+  A: "Ace",
+  J: "Jack",
+  Q: "Queen",
+  K: "King",
+};
+
 function isRedSuit(suit: Suit | null): boolean {
   return suit === "H" || suit === "D";
 }
@@ -37,6 +51,26 @@ function slotTitle(slot: SlotId): string {
 
 function isThirdCardSlot(slot: SlotId): boolean {
   return slot === "P3" || slot === "B3";
+}
+
+function formatCardContents(card: Card): string {
+  const rank = RANK_NAMES[card.rank] ?? card.rank;
+  if (!card.suit) return rank;
+  return `${rank} of ${SUIT_NAMES[card.suit]}`;
+}
+
+function slotAriaLabel(
+  slot: SlotId,
+  card: Card | undefined,
+  opts: { enabled: boolean; isNext: boolean; isDraw: boolean },
+): string {
+  const side = slot.startsWith("P") ? "Player" : "Banker";
+  const num = slot[1];
+  const parts = [`${side} card ${num}`, card ? formatCardContents(card) : "empty"];
+  if (opts.isDraw) parts.push("draw required");
+  if (opts.isNext) parts.push("next");
+  if (!opts.enabled && !card) parts.push("not allowed by rules");
+  return parts.join(", ");
 }
 
 export interface DealerViewProps {
@@ -62,7 +96,7 @@ export function DealerView({
   const [pickerSlot, setPickerSlot] = useState<SlotId | null>(null);
   const [pairMenuOutcome, setPairMenuOutcome] = useState<Outcome | null>(null);
   const [stickySuit, setStickySuit] = useState<Suit | null>(null);
-  const prevSlotCountRef = useRef(Object.keys(liveSlots).length);
+  const prevResultsCountRef = useRef(state.results.length);
 
   const openPicker = useCallback((slot: SlotId) => {
     setPickerSlot(slot);
@@ -115,14 +149,14 @@ export function DealerView({
   }, [pickerSlot, liveSlots, emitSlots, closePicker]);
 
   useEffect(() => {
-    const prev = prevSlotCountRef.current;
-    const curr = Object.keys(liveSlots).length;
-    prevSlotCountRef.current = curr;
+    const prev = prevResultsCountRef.current;
+    const curr = state.results.length;
+    prevResultsCountRef.current = curr;
 
-    if (autoAdvance && prev > 0 && curr === 0) {
+    if (autoAdvance && curr > prev) {
       setTimeout(() => openPicker("P1"), 0);
     }
-  }, [liveSlots, autoAdvance, openPicker]);
+  }, [state.results.length, autoAdvance, openPicker]);
 
   const handleQuickTap = useCallback(
     (id: string) => {
@@ -140,6 +174,14 @@ export function DealerView({
       );
     },
     [record],
+  );
+
+  const activateQuickEntry = useCallback(
+    (id: string) => {
+      closePicker();
+      handleQuickTap(id);
+    },
+    [closePicker, handleQuickTap],
   );
 
   const handleQuickLongPress = useCallback((id: string) => {
@@ -167,19 +209,17 @@ export function DealerView({
   );
 
   useEffect(() => {
-    if (pickerOpen) return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toUpperCase();
       if (key === "P" || key === "B" || key === "T") {
         e.preventDefault();
-        handleQuickTap(key);
+        activateQuickEntry(key);
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [pickerOpen, handleQuickTap]);
+  }, [activateQuickEntry]);
 
   const slotError = (slot: SlotId): string | undefined =>
     handState.errors.find((err) => err.slot === slot)?.message;
@@ -208,6 +248,7 @@ export function DealerView({
         type="button"
         class={classes}
         data-testid={`slot-${slot}`}
+        aria-label={slotAriaLabel(slot, card, { enabled, isNext, isDraw })}
         disabled={!enabled}
         onClick={() => enabled && openPicker(slot)}
       >
@@ -258,7 +299,7 @@ export function DealerView({
       <div class="dealer-view__quick-entry">
         <OutcomeChips
           chips={QUICK_CHIPS}
-          onTap={handleQuickTap}
+          onTap={activateQuickEntry}
           onLongPress={handleQuickLongPress}
         />
         {pairMenuOutcome && (

@@ -104,6 +104,18 @@ describe("CardPicker", () => {
     expect(onCommit).toHaveBeenCalled();
   });
 
+  it("exposes accessible names on rank buttons", () => {
+    renderPicker();
+    expect(screen.getByTestId("rank-K").getAttribute("aria-label")).toBe("King, value 0");
+    expect(screen.getByTestId("rank-7").getAttribute("aria-label")).toBe("7, value 7");
+  });
+
+  it("exposes accessible names on suit buttons", () => {
+    renderPicker();
+    expect(screen.getByTestId("suit-S").getAttribute("aria-label")).toBe("Spades");
+    expect(screen.getByTestId("suit-H").getAttribute("aria-label")).toBe("Hearts");
+  });
+
   it("blocks commit when blocked prop is set", () => {
     const { onCommit } = renderPicker({
       blocked: "Shoe limit reached (416 cards)",
