@@ -46,4 +46,21 @@ describe("inside bet settlement", () => {
     expect(win.outcome).toBe("win");
     expect(win.profit).toBe(600);
   });
+
+  it("settles every inside target shape against every pocket", () => {
+    for (const rules of [
+      DEFAULT_ROULETTE_RULES,
+      { ...DEFAULT_ROULETTE_RULES, wheel: "american" as const },
+    ]) {
+      const pockets = wheelPockets(rules);
+      for (const target of allInsideTargets(rules)) {
+        const betType = target.kind;
+        for (const pocket of pockets) {
+          const s = settleOne(betType, 100, pocket, rules, target);
+          const wins = pocketInTarget(pocket, target, rules);
+          expect(s.outcome).toBe(wins ? "win" : "lose");
+        }
+      }
+    }
+  });
 });
