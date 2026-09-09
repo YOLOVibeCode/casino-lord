@@ -6,6 +6,7 @@ import { SoloPage } from "./pages/SoloPage.js";
 import { SyncErrorPage } from "./pages/SyncErrorPage.js";
 import { PlayPage } from "./pages/PlayPage.js";
 import { TableCreatedPage } from "./pages/TableCreatedPage.js";
+import { VerifyPage } from "./pages/VerifyPage.js";
 
 export function App() {
   return (
@@ -18,6 +19,7 @@ export function App() {
         <DisplayPage path="/display/:code" />
         <TableCreatedPage path="/created/:code" />
         <SyncErrorPage path="/sync-error" />
+        <VerifyPage path="/verify" />
       </Router>
     </LocationProvider>
   );

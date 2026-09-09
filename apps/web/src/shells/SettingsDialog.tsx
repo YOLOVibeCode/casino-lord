@@ -17,7 +17,7 @@ export interface SettingsDialogProps {
   onClose: () => void;
 }
 
-type Tab = "rules" | "device" | "animations" | "bank";
+type Tab = "rules" | "device" | "animations" | "bank" | "virtual";
 
 export function SettingsDialog({
   store,
@@ -29,7 +29,8 @@ export function SettingsDialog({
 }: SettingsDialogProps) {
   const [tab, setTab] = useState<Tab>("rules");
   const [localDevice, setLocalDevice] = useState<DeviceSettings>(deviceSettings);
-  const tableSettings = store.getComposed().platform.settings;
+  const composed = store.getComposed();
+  const tableSettings = composed.platform.settings;
 
   const handleRulesChange = (patch: Record<string, unknown>): void => {
     const merged = { ...(rules as Record<string, unknown>), ...patch };
@@ -67,6 +68,16 @@ export function SettingsDialog({
             >
               Bank &amp; Betting
             </button>
+            {composed.platform.participation.outcomeSource === "virtual" && (
+              <button
+                type="button"
+                class={`settings-dialog__tab${tab === "virtual" ? " settings-dialog__tab--active" : ""}`}
+                data-testid="tab-virtual"
+                onClick={() => setTab("virtual")}
+              >
+                Virtual
+              </button>
+            )}
             <button
               type="button"
               class={`settings-dialog__tab${tab === "animations" ? " settings-dialog__tab--active" : ""}`}
@@ -98,6 +109,12 @@ export function SettingsDialog({
             )}
           {tab === "bank" && (
             <BankBettingSettingsForm
+              settings={tableSettings}
+              onPatch={(patch) => store.emit({ type: "SETTINGS_CHANGED", patch })}
+            />
+          )}
+          {tab === "virtual" && (
+            <VirtualSettingsForm
               settings={tableSettings}
               onPatch={(patch) => store.emit({ type: "SETTINGS_CHANGED", patch })}
             />
@@ -246,6 +263,108 @@ function BankBettingSettingsForm({
             onChange={(e) => patchBank({ autoBuyIn: (e.target as HTMLInputElement).checked })}
           />{" "}
           Auto buy-in on join
+        </label>
+      </div>
+    </>
+  );
+}
+
+function VirtualSettingsForm({
+  settings,
+  onPatch,
+}: {
+  settings: TableSettings;
+  onPatch: (patch: Partial<TableSettings>) => void;
+}) {
+  const patchVirtual = (patch: Partial<TableSettings["virtual"]>) => {
+    onPatch({ virtual: { ...settings.virtual, ...patch } });
+  };
+
+  return (
+    <>
+      <div class="settings-dialog__field">
+        <label>
+          Reveal delay (ms)
+          <input
+            type="number"
+            min={0}
+            data-testid="virtual-reveal-delay"
+            value={settings.virtual.revealDelayMs}
+            onChange={(e) =>
+              patchVirtual({ revealDelayMs: Number((e.target as HTMLInputElement).value) })
+            }
+          />
+        </label>
+      </div>
+      <div class="settings-dialog__field">
+        <label>
+          Dice tumble (ms)
+          <input
+            type="number"
+            min={0}
+            data-testid="virtual-dice-tumble"
+            value={settings.virtual.diceTumbleMs}
+            onChange={(e) =>
+              patchVirtual({ diceTumbleMs: Number((e.target as HTMLInputElement).value) })
+            }
+          />
+        </label>
+      </div>
+      <div class="settings-dialog__field">
+        <label>
+          Wheel spin (ms)
+          <input
+            type="number"
+            min={0}
+            data-testid="virtual-wheel-spin"
+            value={settings.virtual.wheelSpinMs}
+            onChange={(e) =>
+              patchVirtual({ wheelSpinMs: Number((e.target as HTMLInputElement).value) })
+            }
+          />
+        </label>
+      </div>
+      <div class="settings-dialog__field">
+        <label>
+          Action timer (sec)
+          <input
+            type="number"
+            min={0}
+            data-testid="virtual-action-timer"
+            value={settings.virtual.actionTimerSec}
+            onChange={(e) =>
+              patchVirtual({ actionTimerSec: Number((e.target as HTMLInputElement).value) })
+            }
+          />
+        </label>
+      </div>
+      <div class="settings-dialog__field">
+        <label>
+          Shooter rotation
+          <select
+            data-testid="virtual-shooter-rotation"
+            value={settings.virtual.shooterRotation}
+            onChange={(e) =>
+              patchVirtual({
+                shooterRotation: (e.target as HTMLSelectElement).value as
+                  "join_order" | "dealer_assigns",
+              })
+            }
+          >
+            <option value="join_order">Join order</option>
+            <option value="dealer_assigns">Dealer assigns</option>
+          </select>
+        </label>
+      </div>
+      <div class="settings-dialog__checks">
+        <label>
+          <input
+            type="checkbox"
+            data-testid="virtual-auto-trigger"
+            checked={settings.virtual.autoTrigger}
+            onChange={(e) => patchVirtual({ autoTrigger: (e.target as HTMLInputElement).checked })}
+          />{" "}
+          Auto deal/spin when bets close
         </label>
       </div>
     </>

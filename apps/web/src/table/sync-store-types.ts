@@ -19,9 +19,22 @@ export interface SyncPresence {
   players: PlayerPresenceEntry[];
 }
 
+export interface VirtualStatus {
+  awaiting: "none" | "action" | "trigger";
+  turnPlayerId?: string;
+  turnPrompt?: string;
+}
+
+export interface VirtualPendingState {
+  kind: "dice" | "shoe" | "wheel";
+  untilAt: string;
+}
+
 export interface SyncStore extends TableStore {
   getConnectionState(): ConnectionState;
   getPresence(): SyncPresence;
+  getVirtualStatus(): VirtualStatus | null;
+  getVirtualPending(): VirtualPendingState | null;
   isReadOnly(): boolean;
   getRejectReason(): string | null;
   takeover(): void;
