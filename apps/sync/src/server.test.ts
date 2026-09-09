@@ -91,7 +91,7 @@ describe("buildServer", () => {
     expect(games.find((game) => game.id === "baccarat")?.enabled).toBe(true);
     expect(games.find((game) => game.id === "roulette")?.enabled).toBe(true);
     expect(games.find((game) => game.id === "craps")?.enabled).toBe(true);
-    expect(games.find((game) => game.id === "blackjack")?.enabled).toBe(false);
+    expect(games.find((game) => game.id === "blackjack")?.enabled).toBe(true);
   });
 
   it("serves index.html for SPA routes", async () => {
