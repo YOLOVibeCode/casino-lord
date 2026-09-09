@@ -62,9 +62,11 @@ describe("virtual dealer", () => {
 
   it("dealer virtual trigger deals paced LIVE_INPUT then RESULT_RECORDED", async () => {
     const server = await boot();
+    const revealDelayMs = 120;
     const { code, dealerToken } = await createTableViaRest(server.url, {
       game: "baccarat",
       participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
+      settings: { virtual: { revealDelayMs } },
     });
 
     const display = connectClient(server.url);
@@ -77,20 +79,26 @@ describe("virtual dealer", () => {
     dealer.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
     await waitForMessage(dealer, (m) => m.op === "joined");
 
-    const received: Array<{ type: string; source?: string }> = [];
+    const received: Array<{ type: string; source?: string; arrivedAt: number }> = [];
     display.on("message", (msg) => {
       if (msg.op === "event") {
         received.push({
           type: msg.event.type,
+          arrivedAt: Date.now(),
           ...(msg.event.type === "LIVE_INPUT" ? { source: msg.event.source } : {}),
           ...(msg.event.type === "RESULT_RECORDED" ? { source: msg.event.result.source } : {}),
         });
       }
     });
 
+    const triggeredAt = Date.now();
     dealer.emit("message", { op: "virtual", kind: "trigger", clientId: "v1" });
-    await waitForMessage(dealer, (m) => m.op === "ack" && m.clientId === "v1");
+    // A second trigger while the reveal sequence is in flight is refused (§14.4).
+    dealer.emit("message", { op: "virtual", kind: "trigger", clientId: "v2" });
+    const busy = await waitForMessage(dealer, (m) => m.op === "reject" && m.clientId === "v2");
+    expect(busy.reason).toBe("DEALING");
 
+    await waitForMessage(dealer, (m) => m.op === "ack" && m.clientId === "v1");
     await new Promise((r) => setTimeout(r, 50));
 
     const live = received.filter((e) => e.type === "LIVE_INPUT");
@@ -99,6 +107,16 @@ describe("virtual dealer", () => {
     expect(live.length).toBeLessThanOrEqual(6);
     expect(live.every((e) => e.source === "system")).toBe(true);
     expect(result?.source).toBe("virtual");
+
+    // Reveals arrive spaced in time, not in one burst: the whole sequence takes
+    // at least (n − 1) × revealDelayMs, and the ack comes after the last event.
+    const span = live[live.length - 1]!.arrivedAt - triggeredAt;
+    expect(span).toBeGreaterThanOrEqual((live.length - 1) * revealDelayMs - 20);
+    for (let i = 1; i < live.length; i++) {
+      expect(live[i]!.arrivedAt - live[i - 1]!.arrivedAt).toBeGreaterThanOrEqual(
+        revealDelayMs - 20,
+      );
+    }
 
     display.close();
     dealer.close();

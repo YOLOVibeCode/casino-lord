@@ -53,6 +53,9 @@ export class VirtualDealer {
     return this.state.seriesId;
   }
 
+  /** True while a paced reveal sequence is still being emitted (§14.4). */
+  dealing = false;
+
   get awaiting(): "none" | "action" | "trigger" {
     return this.state.awaiting;
   }

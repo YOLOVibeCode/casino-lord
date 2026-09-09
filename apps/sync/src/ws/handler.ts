@@ -573,6 +573,15 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
+      if (virtualDealer.dealing) {
+        socket.emit("message", {
+          op: "reject",
+          clientId: parsed.data.clientId,
+          reason: "DEALING",
+        });
+        return;
+      }
+
       if (
         !limiter.tryConsume(`virtual:${st.code}`, VIRTUAL_TRIGGER_LIMIT, VIRTUAL_TRIGGER_WINDOW_MS)
       ) {
@@ -597,15 +606,48 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
       }
 
       const revealDelayMs = table.settings.virtual.revealDelayMs;
-      const paced = virtualDealer.paceEvents(stepEvents, new Date().toISOString(), revealDelayMs);
+      const startedAt = Date.now();
+      const paced = virtualDealer.paceEvents(
+        stepEvents,
+        new Date(startedAt).toISOString(),
+        revealDelayMs,
+      );
 
-      let lastSeq = table.latestSeq;
-      for (let index = 0; index < paced.length; index++) {
-        const { event, at } = paced[index]!;
+      // SPEC.md §14.4: reveals are emitted spaced by revealDelayMs so every
+      // display animates on arrival; the ack follows the last event.
+      const code = st.code;
+      const clientId = parsed.data.clientId;
+      const liveTable = table;
+      virtualDealer.dealing = true;
+      void (async () => {
+        let lastSeq = liveTable.latestSeq;
+        try {
+          for (let index = 0; index < paced.length; index++) {
+            const { event, at } = paced[index]!;
+            const wait = Date.parse(at) - Date.now();
+            if (wait > 0) {
+              await new Promise((r) => setTimeout(r, wait));
+            }
+            if (registry.get(code) !== liveTable) {
+              return;
+            }
+            lastSeq = appendPaced(event, at, index) ?? lastSeq;
+          }
+        } finally {
+          virtualDealer.dealing = false;
+        }
+        socket.emit("message", { op: "ack", clientId, seq: lastSeq });
+      })();
+
+      function appendPaced(
+        event: Omit<TableEvent, "seq" | "at">,
+        at: string,
+        index: number,
+      ): number | undefined {
         let body: Omit<TableEvent, "seq" | "at"> = event;
         const typedEvent = body as TableEvent;
         if (typedEvent.type === "RESULT_RECORDED") {
-          const latest = table.getComposed();
+          const latest = liveTable.getComposed();
           const results = (latest.module as { results?: unknown[] }).results ?? [];
           body = {
             type: "RESULT_RECORDED",
@@ -617,19 +659,14 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
             },
           } as Omit<TableEvent, "seq" | "at">;
         }
-        const result = table.appendEvent(body, `${parsed.data.clientId}:${index}`, at);
+        const result = liveTable.appendEvent(body, `${clientId}:${index}`, at);
         if (result.kind === "new") {
-          registry.persistEvent(st.code!, result.event);
-          io.to(room(st.code!)).emit("message", { op: "event", event: result.event });
-          lastSeq = result.event.seq;
+          registry.persistEvent(code, result.event);
+          io.to(room(code)).emit("message", { op: "event", event: result.event });
+          return result.event.seq;
         }
+        return undefined;
       }
-
-      socket.emit("message", {
-        op: "ack",
-        clientId: parsed.data.clientId,
-        seq: lastSeq,
-      });
     }
 
     function tableIsDemoted(st: SocketState, sock: Socket): boolean {
