@@ -1,6 +1,13 @@
 .dealer-page {
-  min-height: 100%;
-  padding: 0.5rem;
+  min-height: 100dvh;
+  padding: 0;
+}
+
+@media (min-width: 769px) {
+  .dealer-page {
+    min-height: 100%;
+    padding: 0.5rem;
+  }
 }
 
 .dealer-page--error {

@@ -3,6 +3,30 @@
   padding: 0.75rem;
 }
 
+@media (max-width: 768px) {
+  .solo {
+    padding: 0;
+  }
+
+  .solo__toolbar {
+    margin-bottom: 0;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .solo__dealer {
+    min-height: 100dvh;
+  }
+
+  .solo__panes {
+    gap: 0;
+    min-height: auto;
+  }
+
+  .solo__display {
+    display: none;
+  }
+}
+
 .solo__toolbar {
   display: flex;
   gap: 1rem;

@@ -4,6 +4,7 @@ import type { ComponentType } from "preact";
 import { buildBetsView, type ResultEnvelope } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
+import { tapHaptic } from "../settings/haptics.js";
 import { useBettingRound } from "../betting/use-betting-round.js";
 import { QrDialog } from "../sync/QrDialog.js";
 import { tableUrl } from "../sync/urls.js";
@@ -31,6 +32,8 @@ export interface DealerShellProps {
 
 type ActiveDialog = "settings" | "history" | "calculator" | "qr" | "players" | "bank" | null;
 
+const ROTATE_HINT_KEY = "casino-lord:dealer-rotate-hint-dismissed";
+
 export function DealerShell({
   store,
   module,
@@ -51,7 +54,11 @@ export function DealerShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
   const [editingEnvelope, setEditingEnvelope] = useState<ResultEnvelope<unknown> | null>(null);
-  const [undoBlockedMsg, setUndoBlockedMsg] = useState<string | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [toastKind, setToastKind] = useState<"error" | "info">("error");
+  const [rotateHintDismissed, setRotateHintDismissed] = useState(
+    () => sessionStorage.getItem(ROTATE_HINT_KEY) === "1",
+  );
 
   const settings = composed.platform.settings;
   const undoCheck = store.canUndoLastResult();
@@ -68,6 +75,19 @@ export function DealerShell({
   const [confirming, setConfirming] = useState(false);
   const [confirmProgress, setConfirmProgress] = useState(0);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((message: string, kind: "error" | "info" = "error") => {
+    setToastMsg(message);
+    setToastKind(kind);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastMsg(null), 4000);
+  }, []);
+
+  const dismissToast = useCallback(() => {
+    setToastMsg(null);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
   const confirmTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const confirmStarted = useRef(0);
 
@@ -85,9 +105,7 @@ export function DealerShell({
 
   const executeConfirm = useCallback(() => {
     if (!confirmState?.enabled || !confirmState.result) return;
-    if (deviceSettings.haptics && typeof navigator.vibrate === "function") {
-      navigator.vibrate(10);
-    }
+    tapHaptic(deviceSettings.haptics);
     const clearLiveInput =
       module.id === "craps"
         ? { type: "LIVE_INPUT" as const, payload: { a: null, b: null }, source: "dealer" as const }
@@ -145,9 +163,7 @@ export function DealerShell({
 
     const check = store.canUndoLastResult();
     if (!check.ok) {
-      setUndoBlockedMsg(check.reason ?? "Undo blocked.");
-      if (undoTimer.current) clearTimeout(undoTimer.current);
-      undoTimer.current = setTimeout(() => setUndoBlockedMsg(null), 4000);
+      showToast(check.reason ?? "Undo blocked.");
       return;
     }
 
@@ -179,9 +195,15 @@ export function DealerShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [confirmState?.enabled, handleUndo, startConfirmDelay]);
 
+  const dismissRotateHint = useCallback(() => {
+    sessionStorage.setItem(ROTATE_HINT_KEY, "1");
+    setRotateHintDismissed(true);
+  }, []);
+
   useEffect(
     () => () => {
       if (undoTimer.current) clearTimeout(undoTimer.current);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
       clearConfirmTimer();
     },
     [clearConfirmTimer],
@@ -264,6 +286,16 @@ export function DealerShell({
   const syncStore = isSyncStore(store) ? store : null;
   const connectionState = syncStore?.getConnectionState() ?? null;
   const readOnly = syncStore?.isReadOnly() ?? false;
+
+  const handleConfirmClick = useCallback(() => {
+    if (readOnly) return;
+    if (!confirmState?.enabled || !confirmState.result) {
+      showToast("Complete the hand before confirming.", "info");
+      return;
+    }
+    startConfirmDelay();
+  }, [confirmState, readOnly, showToast, startConfirmDelay]);
+
   const dotClass =
     connectionState === "offline"
       ? "dealer-shell__dot dealer-shell__dot--offline"
@@ -281,6 +313,15 @@ export function DealerShell({
 
   return (
     <div class="dealer-shell" data-testid="dealer-shell">
+      {!rotateHintDismissed && (
+        <div class="dealer-shell__rotate-hint" data-testid="rotate-hint" role="status">
+          <span>Rotate to portrait for the best dealer experience.</span>
+          <button type="button" aria-label="Dismiss" onClick={dismissRotateHint}>
+            ✕
+          </button>
+        </div>
+      )}
+
       <header class="dealer-shell__header">
         {editingEnvelope ? (
           <button
@@ -338,195 +379,222 @@ export function DealerShell({
             record: store.record,
             autoAdvance: deviceSettings.autoAdvance,
             expressMode: deviceSettings.expressMode,
+            haptics: deviceSettings.haptics,
             editMode,
           })}
         </div>
       )}
 
-      {undoBlockedMsg && (
-        <div class="dealer-shell__undo-blocked" data-testid="undo-blocked">
-          {undoBlockedMsg}
-        </div>
-      )}
+      <div class="dealer-shell__bottom" data-testid="dealer-bottom-bar">
+        {toastMsg && (
+          <div
+            class={`dealer-shell__toast${toastKind === "info" ? " dealer-shell__toast--info" : ""}`}
+            data-testid="dealer-toast"
+            role="alert"
+          >
+            <span>{toastMsg}</span>
+            <button
+              type="button"
+              class="dealer-shell__toast-dismiss"
+              aria-label="Dismiss"
+              onClick={dismissToast}
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
-      <div class="dealer-shell__actions">
-        {virtualTable ? (
-          <>
-            <button
-              type="button"
-              class="dealer-shell__btn dealer-shell__btn--confirm"
-              disabled={readOnly}
-              data-testid="deal-btn"
-              onClick={() => store.sendVirtual("trigger")}
-            >
-              DEAL
-            </button>
-            <button
-              type="button"
-              class="dealer-shell__btn"
-              disabled={readOnly}
-              data-testid="force-btn"
-              onClick={() => store.sendVirtual("force")}
-            >
-              Force
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              class="dealer-shell__btn"
-              onClick={handleUndo}
-              disabled={!!editingEnvelope || readOnly || !undoCheck.ok}
-              data-testid="undo-btn"
-              title={undoCheck.reason}
-            >
-              {undoArmed ? `Tap again to undo Hand ${undoHand}` : "UNDO"}
-            </button>
-            <button
-              type="button"
-              class="dealer-shell__btn dealer-shell__btn--confirm"
-              style={confirmStyle}
-              disabled={!confirmState?.enabled || readOnly}
-              onClick={startConfirmDelay}
-              data-testid="confirm-btn"
-            >
-              {confirming && (
-                <span
-                  class="dealer-shell__confirm-progress"
-                  style={{ transform: `scaleX(${confirmProgress})` }}
-                />
-              )}
-              <span>
-                {editingEnvelope ? "✓ SAVE EDIT" : (confirmState?.label ?? "CONFIRM")}
-                {confirmState?.badges && (
-                  <span class="dealer-shell__badges"> · {confirmState.badges.join(" · ")}</span>
-                )}
-              </span>
-            </button>
-            {confirming && (
-              <button type="button" class="dealer-shell__btn" onClick={clearConfirmTimer}>
-                Cancel
+        <div class="dealer-shell__toolbar">
+          {playerModeOn && (
+            <>
+              <button
+                type="button"
+                class="dealer-shell__tool-btn"
+                data-testid="players-btn"
+                disabled={!syncStore}
+                aria-label="Players"
+                onClick={() => setActiveDialog("players")}
+              >
+                👥
               </button>
-            )}
-          </>
-        )}
-      </div>
-
-      <footer class="dealer-shell__footer">
-        {playerModeOn && (
-          <>
+              <button
+                type="button"
+                class="dealer-shell__tool-btn"
+                disabled={!bankHouse}
+                title={bankHouse ? "Bank" : "House bank not enabled"}
+                data-testid="bank-btn"
+                aria-label="Bank"
+                onClick={() => setActiveDialog("bank")}
+              >
+                🏦
+              </button>
+            </>
+          )}
+          <div class="dealer-shell__menu">
             <button
               type="button"
-              data-testid="players-btn"
-              disabled={!syncStore}
-              onClick={() => setActiveDialog("players")}
+              class="dealer-shell__tool-btn"
+              aria-label="Menu"
+              onClick={() => setMenuOpen((o) => !o)}
             >
-              👥
+              ⚙
             </button>
-            <button
-              type="button"
-              disabled={!bankHouse}
-              title={bankHouse ? "Bank" : "House bank not enabled"}
-              data-testid="bank-btn"
-              onClick={() => setActiveDialog("bank")}
-            >
-              🏦
-            </button>
-          </>
-        )}
-        <div class="dealer-shell__menu">
-          <button type="button" aria-label="Menu" onClick={() => setMenuOpen((o) => !o)}>
-            ⚙
-          </button>
-          {menuOpen && (
-            <div class="dealer-shell__menu-panel">
-              {onNewTable && (
+            {menuOpen && (
+              <div class="dealer-shell__menu-panel">
+                {onNewTable && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Start a new table?")) {
+                        onNewTable();
+                        setMenuOpen(false);
+                      }
+                    }}
+                  >
+                    New Table
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm("Start a new table?")) {
-                      onNewTable();
+                    if (window.confirm(`Start new ${module.seriesLabel}?`)) {
+                      store.startNewSeries();
                       setMenuOpen(false);
                     }
                   }}
                 >
-                  New Table
+                  New {module.seriesLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("End session?")) {
+                      store.endSession();
+                      setMenuOpen(false);
+                    }
+                  }}
+                >
+                  End Session
+                </button>
+                <button type="button" onClick={() => void handleExport()}>
+                  Export
+                </button>
+                <button type="button" onClick={handleImport}>
+                  Import
+                </button>
+                <button
+                  type="button"
+                  data-testid="menu-settings"
+                  onClick={() => {
+                    setActiveDialog("settings");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Settings
+                </button>
+                <button
+                  type="button"
+                  data-testid="menu-history"
+                  onClick={() => {
+                    setActiveDialog("history");
+                    setMenuOpen(false);
+                  }}
+                >
+                  History
+                </button>
+                <button
+                  type="button"
+                  data-testid="menu-calculator"
+                  onClick={() => {
+                    setActiveDialog("calculator");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Calculator
+                </button>
+                <button
+                  type="button"
+                  disabled={!syncStore}
+                  data-testid="menu-show-qr"
+                  onClick={() => {
+                    setActiveDialog("qr");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Show QR
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div class="dealer-shell__actions">
+          {virtualTable ? (
+            <>
+              <button
+                type="button"
+                class="dealer-shell__btn dealer-shell__btn--confirm"
+                disabled={readOnly}
+                data-testid="deal-btn"
+                onClick={() => {
+                  tapHaptic(deviceSettings.haptics);
+                  store.sendVirtual("trigger");
+                }}
+              >
+                DEAL
+              </button>
+              <button
+                type="button"
+                class="dealer-shell__btn"
+                disabled={readOnly}
+                data-testid="force-btn"
+                onClick={() => store.sendVirtual("force")}
+              >
+                Force
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                class="dealer-shell__btn"
+                onClick={handleUndo}
+                disabled={!!editingEnvelope || readOnly || !undoCheck.ok}
+                data-testid="undo-btn"
+                title={undoCheck.reason}
+              >
+                {undoArmed ? `Tap again to undo Hand ${undoHand}` : "UNDO"}
+              </button>
+              <button
+                type="button"
+                class={`dealer-shell__btn dealer-shell__btn--confirm${!confirmState?.enabled || readOnly ? " dealer-shell__btn--disabled" : ""}`}
+                style={confirmStyle}
+                aria-disabled={!confirmState?.enabled || readOnly}
+                onClick={handleConfirmClick}
+                data-testid="confirm-btn"
+              >
+                {confirming && (
+                  <span
+                    class="dealer-shell__confirm-progress"
+                    style={{ transform: `scaleX(${confirmProgress})` }}
+                  />
+                )}
+                <span>
+                  {editingEnvelope ? "✓ SAVE EDIT" : (confirmState?.label ?? "CONFIRM")}
+                  {confirmState?.badges && (
+                    <span class="dealer-shell__badges"> · {confirmState.badges.join(" · ")}</span>
+                  )}
+                </span>
+              </button>
+              {confirming && (
+                <button type="button" class="dealer-shell__btn" onClick={clearConfirmTimer}>
+                  Cancel
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm(`Start new ${module.seriesLabel}?`)) {
-                    store.startNewSeries();
-                    setMenuOpen(false);
-                  }
-                }}
-              >
-                New {module.seriesLabel}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm("End session?")) {
-                    store.endSession();
-                    setMenuOpen(false);
-                  }
-                }}
-              >
-                End Session
-              </button>
-              <button type="button" onClick={() => void handleExport()}>
-                Export
-              </button>
-              <button type="button" onClick={handleImport}>
-                Import
-              </button>
-              <button
-                type="button"
-                data-testid="menu-settings"
-                onClick={() => {
-                  setActiveDialog("settings");
-                  setMenuOpen(false);
-                }}
-              >
-                Settings
-              </button>
-              <button
-                type="button"
-                data-testid="menu-history"
-                onClick={() => {
-                  setActiveDialog("history");
-                  setMenuOpen(false);
-                }}
-              >
-                History
-              </button>
-              <button
-                type="button"
-                data-testid="menu-calculator"
-                onClick={() => {
-                  setActiveDialog("calculator");
-                  setMenuOpen(false);
-                }}
-              >
-                Calculator
-              </button>
-              <button
-                type="button"
-                disabled={!syncStore}
-                data-testid="menu-show-qr"
-                onClick={() => {
-                  setActiveDialog("qr");
-                  setMenuOpen(false);
-                }}
-              >
-                Show QR
-              </button>
-            </div>
+            </>
           )}
         </div>
-      </footer>
+      </div>
 
       {activeDialog === "bank" && bankHouse && (
         <BankPanel
