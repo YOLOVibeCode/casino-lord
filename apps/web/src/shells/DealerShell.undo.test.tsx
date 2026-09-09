@@ -64,6 +64,6 @@ describe("DealerShell undo blocking", () => {
     );
 
     fireEvent.click(screen.getByTestId("undo-btn"));
-    expect(screen.getByTestId("undo-blocked").textContent).toMatch(/next round/i);
+    expect(screen.getByTestId("dealer-toast").textContent).toMatch(/next round/i);
   });
 });

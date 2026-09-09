@@ -20,8 +20,8 @@
 }
 
 .dealer-view__slot {
-  min-width: 2.75rem;
-  min-height: 3.25rem;
+  min-width: 48px;
+  min-height: 48px;
   border: 1px solid var(--bj-border, rgba(255, 255, 255, 0.2));
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.25);
@@ -57,6 +57,8 @@
 }
 
 .dealer-view__seat-tab {
+  min-height: 48px;
+  min-width: 48px;
   padding: 0.35rem 0.65rem;
   border: 1px solid var(--bj-border, rgba(255, 255, 255, 0.2));
   border-radius: 4px;
@@ -97,6 +99,8 @@
 }
 
 .dealer-view__action {
+  min-height: 48px;
+  min-width: 48px;
   padding: 0.35rem 0.65rem;
   border: 1px solid var(--bj-border, rgba(255, 255, 255, 0.2));
   border-radius: 4px;

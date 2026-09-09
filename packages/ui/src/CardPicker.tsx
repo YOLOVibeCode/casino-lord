@@ -58,6 +58,7 @@ export interface CardPickerProps {
   onStickySuitChange?: (suit: string | null) => void;
   onCommit: (card: PickedCard) => void;
   onRemove: () => void;
+  onUndoLast?: () => void;
   onClose: () => void;
 }
 
@@ -82,6 +83,7 @@ export function CardPicker({
   onStickySuitChange,
   onCommit,
   onRemove,
+  onUndoLast,
   onClose,
 }: CardPickerProps) {
   const [selectedRank, setSelectedRank] = useState<string | null>(initialCard?.rank ?? null);
@@ -312,6 +314,16 @@ export function CardPicker({
         </div>
 
         <div class="card-picker__actions">
+          {onUndoLast && (
+            <button
+              type="button"
+              class="card-picker__btn card-picker__btn--undo"
+              onClick={onUndoLast}
+              data-testid="card-picker-undo-last"
+            >
+              Undo last
+            </button>
+          )}
           <button
             type="button"
             class="card-picker__btn card-picker__btn--remove"

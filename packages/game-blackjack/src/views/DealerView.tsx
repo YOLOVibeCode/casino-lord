@@ -1,7 +1,7 @@
 import { CardPicker, OutcomeChips } from "@casino-lord/ui";
 import type { PickedCard } from "@casino-lord/ui";
 import type { Emit, TableMeta } from "@casino-lord/core";
-import { useCallback, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { rankPoints } from "../cards.js";
 import { canSplit, handValue } from "../engine.js";
 import { parseQuickDealerToken } from "../quick-entry.js";
@@ -67,15 +67,32 @@ export interface DealerViewProps {
   table: TableMeta;
   emit: Emit;
   record: (result: BlackjackResult, opts: { quick: boolean }) => void;
+  autoAdvance?: boolean;
   expressMode?: boolean;
+  haptics?: boolean;
 }
 
-export function DealerView({ state, rules, emit, record, expressMode = true }: DealerViewProps) {
+function tapHaptic(enabled: boolean): void {
+  if (enabled && typeof navigator.vibrate === "function") {
+    navigator.vibrate(10);
+  }
+}
+
+export function DealerView({
+  state,
+  rules,
+  emit,
+  record,
+  autoAdvance = true,
+  expressMode = true,
+  haptics = false,
+}: DealerViewProps) {
   const { liveInput, roundEvaluation } = state;
   const [activeSeat, setActiveSeat] = useState<Seat>(1);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
   const [stickySuit, setStickySuit] = useState<Suit | null>(null);
+  const prevResultsCountRef = useRef(state.rounds.length);
 
   const emitLive = useCallback(
     (next: BlackjackLiveInput) => {
@@ -133,8 +150,55 @@ export function DealerView({ state, rules, emit, record, expressMode = true }: D
     setPickerTarget(null);
   };
 
+  useEffect(() => {
+    const prev = prevResultsCountRef.current;
+    const curr = state.rounds.length;
+    prevResultsCountRef.current = curr;
+    if (autoAdvance && curr > prev) {
+      setTimeout(() => openPicker({ kind: "dealer", index: 0 }), 0);
+    }
+  }, [state.rounds.length, autoAdvance]);
+
+  const handleUndoLast = () => {
+    tapHaptic(haptics);
+    if (liveInput.dealer.length > 0) {
+      const index = liveInput.dealer.length - 1;
+      const dealer = liveInput.dealer.slice(0, -1);
+      patchLive({ dealer });
+      openPicker({ kind: "dealer", index: Math.max(0, index - 1) });
+      return;
+    }
+    for (let seat = 7; seat >= 1; seat--) {
+      const s = seat as Seat;
+      const hands = liveInput.seats[s];
+      if (!hands?.length) continue;
+      for (let hi = hands.length - 1; hi >= 0; hi--) {
+        const hand = hands[hi]!;
+        if (hand.cards.length > 0) {
+          const cardIndex = hand.cards.length - 1;
+          const nextHands = [...hands];
+          const nextHand = { ...hand, cards: hand.cards.slice(0, -1) };
+          nextHands[hi] = nextHand;
+          patchLive({ seats: { ...liveInput.seats, [s]: nextHands } });
+          openPicker({
+            kind: "seat",
+            seat: s,
+            handIndex: hi,
+            cardIndex: Math.max(0, cardIndex - 1),
+          });
+          return;
+        }
+      }
+    }
+  };
+
+  const hasAnyCards =
+    liveInput.dealer.length > 0 ||
+    Object.values(liveInput.seats).some((hands) => hands?.some((h) => h.cards.length > 0));
+
   const handleCommit = (picked: PickedCard) => {
     if (!pickerTarget) return;
+    tapHaptic(haptics);
     const card = toCard(picked);
 
     if (pickerTarget.kind === "dealer") {
@@ -453,6 +517,7 @@ export function DealerView({ state, rules, emit, record, expressMode = true }: D
         onStickySuitChange={(suit) => setStickySuit(suit as Suit | null)}
         onCommit={handleCommit}
         onRemove={handleRemove}
+        {...(hasAnyCards ? { onUndoLast: handleUndoLast } : {})}
         onClose={closePicker}
       />
     </div>

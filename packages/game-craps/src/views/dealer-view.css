@@ -50,6 +50,8 @@
 
 .dealer-view__mode-toggle,
 .dealer-view__seven-out {
+  min-height: 48px;
+  min-width: 48px;
   padding: 0.5rem 0.75rem;
   border-radius: 0.375rem;
   border: 1px solid var(--craps-border);

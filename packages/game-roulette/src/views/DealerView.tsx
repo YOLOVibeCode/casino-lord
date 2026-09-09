@@ -31,6 +31,13 @@ export interface DealerViewProps {
   table: TableMeta;
   emit: Emit;
   record: (result: RouletteResult, opts: { quick: boolean }) => void;
+  haptics?: boolean;
+}
+
+function tapHaptic(enabled: boolean): void {
+  if (enabled && typeof navigator.vibrate === "function") {
+    navigator.vibrate(10);
+  }
 }
 
 function hintLine(state: RouletteState, rules: RouletteRules): string {
@@ -66,7 +73,7 @@ function recentSpins(state: RouletteState, limit = 6): typeof state.history {
   return [...state.history].slice(-limit).reverse();
 }
 
-export function DealerView({ state, rules, emit, record }: DealerViewProps) {
+export function DealerView({ state, rules, emit, record, haptics = false }: DealerViewProps) {
   const emitPending = useCallback(
     (pocket: Pocket | null) => {
       emit({
@@ -84,6 +91,7 @@ export function DealerView({ state, rules, emit, record }: DealerViewProps) {
         emitPending(null);
         return;
       }
+      tapHaptic(haptics);
       const resolved = fromGridPocket(pocket);
       if (rules.autoConfirm) {
         record({ pocket: resolved }, { quick: false });
@@ -92,7 +100,7 @@ export function DealerView({ state, rules, emit, record }: DealerViewProps) {
       }
       emitPending(resolved);
     },
-    [emitPending, record, rules.autoConfirm],
+    [emitPending, record, rules.autoConfirm, haptics],
   );
 
   const handleNoSpin = useCallback(() => {
@@ -117,46 +125,50 @@ export function DealerView({ state, rules, emit, record }: DealerViewProps) {
         {hintLine(state, rules)}
       </p>
 
-      <NumberGrid
-        wheel={rules.wheel}
-        selected={toGridPocket(state.livePending)}
-        onSelect={handleSelect}
-        requireConfirm={false}
-      />
-
-      <div class="dealer-view__quick">
-        <button
-          type="button"
-          class="dealer-view__no-spin"
-          style={{ background: NO_SPIN_CHIP.color }}
-          aria-label={NO_SPIN_CHIP.ariaLabel}
-          data-testid="outcome-chip-no-spin"
-          onClick={handleNoSpin}
-        >
-          {NO_SPIN_CHIP.label}
-        </button>
+      <div class="dealer-view__felt">
+        <NumberGrid
+          wheel={rules.wheel}
+          selected={toGridPocket(state.livePending)}
+          onSelect={handleSelect}
+          requireConfirm={false}
+        />
       </div>
 
-      <div class="dealer-view__history" data-testid="dealer-history-strip">
-        <span class="dealer-view__history-label">Last:</span>
-        {recentSpins(state).map((spin, i) => {
-          if (spin.pocket === null) {
+      <div class="dealer-view__footer">
+        <div class="dealer-view__quick">
+          <button
+            type="button"
+            class="dealer-view__no-spin"
+            style={{ background: NO_SPIN_CHIP.color }}
+            aria-label={NO_SPIN_CHIP.ariaLabel}
+            data-testid="outcome-chip-no-spin"
+            onClick={handleNoSpin}
+          >
+            {NO_SPIN_CHIP.label}
+          </button>
+        </div>
+
+        <div class="dealer-view__history" data-testid="dealer-history-strip">
+          <span class="dealer-view__history-label">Last:</span>
+          {recentSpins(state).map((spin, i) => {
+            if (spin.pocket === null) {
+              return (
+                <span key={`void-${i}`} class="dealer-view__chip dealer-view__chip--void">
+                  —
+                </span>
+              );
+            }
+            const color = pocketColorClass(spin.pocket, rules);
             return (
-              <span key={`void-${i}`} class="dealer-view__chip dealer-view__chip--void">
-                —
+              <span
+                key={`${String(spin.pocket)}-${i}`}
+                class={`dealer-view__chip dealer-view__chip--${color}`}
+              >
+                {formatPocket(spin.pocket)}
               </span>
             );
-          }
-          const color = pocketColorClass(spin.pocket, rules);
-          return (
-            <span
-              key={`${String(spin.pocket)}-${i}`}
-              class={`dealer-view__chip dealer-view__chip--${color}`}
-            >
-              {formatPocket(spin.pocket)}
-            </span>
-          );
-        })}
+          })}
+        </div>
       </div>
     </div>
   );

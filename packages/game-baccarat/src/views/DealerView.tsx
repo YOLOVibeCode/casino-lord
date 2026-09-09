@@ -11,6 +11,7 @@ import "./dealer-view.css";
 
 const PLAYER_SLOTS: SlotId[] = ["P1", "P2", "P3"];
 const BANKER_SLOTS: SlotId[] = ["B1", "B2", "B3"];
+const DEAL_ORDER: SlotId[] = ["P1", "B1", "P2", "B2", "P3", "B3"];
 
 const QUICK_CHIPS = [
   { id: "P", label: "P", color: "#2563eb", ariaLabel: "Quick entry Player win" },
@@ -87,7 +88,22 @@ export interface DealerViewProps {
   record: (result: BaccaratResult, opts: { quick: boolean }) => void;
   autoAdvance?: boolean;
   expressMode?: boolean;
+  haptics?: boolean;
   editMode?: DealerEditMode;
+}
+
+function tapHaptic(enabled: boolean): void {
+  if (enabled && typeof navigator.vibrate === "function") {
+    navigator.vibrate(10);
+  }
+}
+
+function lastFilledSlot(slots: Partial<Record<SlotId, Card>>): SlotId | null {
+  let last: SlotId | null = null;
+  for (const slot of DEAL_ORDER) {
+    if (slots[slot]) last = slot;
+  }
+  return last;
 }
 
 export function DealerView({
@@ -97,6 +113,7 @@ export function DealerView({
   record,
   autoAdvance = true,
   expressMode = true,
+  haptics = false,
   editMode,
 }: DealerViewProps) {
   const { handState, liveSlots } = state;
@@ -151,9 +168,20 @@ export function DealerView({
     [emit],
   );
 
+  const handleUndoLast = useCallback(() => {
+    const last = lastFilledSlot(liveSlots);
+    if (!last) return;
+    tapHaptic(haptics);
+    const next = { ...liveSlots };
+    delete next[last];
+    emitSlots(next);
+    openPicker(last);
+  }, [liveSlots, emitSlots, openPicker, haptics]);
+
   const handleCommit = useCallback(
     (card: { rank: string; suit: string | null }) => {
       if (!pickerSlot) return;
+      tapHaptic(haptics);
       if (card.suit) setStickySuit(card.suit as Suit);
       const next = {
         ...liveSlots,
@@ -169,7 +197,7 @@ export function DealerView({
         }
       }
     },
-    [pickerSlot, liveSlots, emitSlots, closePicker, autoAdvance, rules, openPicker],
+    [pickerSlot, liveSlots, emitSlots, closePicker, autoAdvance, rules, openPicker, haptics],
   );
 
   const handleRemove = useCallback(() => {
@@ -381,6 +409,7 @@ export function DealerView({
         onStickySuitChange={(suit) => setStickySuit(suit as Suit | null)}
         onCommit={handleCommit}
         onRemove={handleRemove}
+        {...(Object.keys(liveSlots).length > 0 ? { onUndoLast: handleUndoLast } : {})}
         onClose={closePicker}
       />
     </div>

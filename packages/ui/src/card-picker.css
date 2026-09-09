@@ -152,6 +152,7 @@
   cursor: pointer;
 }
 
+.card-picker__btn--undo,
 .card-picker__btn--remove {
   background: #3a3a3a;
   color: #f5f5f5;
