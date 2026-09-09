@@ -22,3 +22,7 @@ export * from "./settings.js";
 export * from "./merge-settings.js";
 export * from "./table-code.js";
 export * from "./types.js";
+export * from "./crypto/sha256.js";
+export * from "./crypto/hmac.js";
+export * from "./rng.js";
+export * from "./fairness.js";
