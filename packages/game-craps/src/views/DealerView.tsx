@@ -40,6 +40,13 @@ export interface DealerViewProps {
   record: (result: CrapsResult, opts: { quick: boolean }) => void;
   autoAdvance?: boolean;
   expressMode?: boolean;
+  haptics?: boolean;
+}
+
+function tapHaptic(enabled: boolean): void {
+  if (enabled && typeof navigator.vibrate === "function") {
+    navigator.vibrate(10);
+  }
 }
 
 export function DealerView({
@@ -49,6 +56,7 @@ export function DealerView({
   emit,
   record,
   expressMode = true,
+  haptics = false,
 }: DealerViewProps) {
   const { liveInput, phase, point, shooter } = state;
   const [totalMode, setTotalMode] = useState(false);
@@ -66,16 +74,18 @@ export function DealerView({
 
   const handleDieA = useCallback(
     (face: DieFace) => {
+      tapHaptic(haptics);
       emitLive(face, liveInput.b);
     },
-    [emitLive, liveInput.b],
+    [emitLive, liveInput.b, haptics],
   );
 
   const handleDieB = useCallback(
     (face: DieFace) => {
+      tapHaptic(haptics);
       emitLive(liveInput.a, face);
     },
-    [emitLive, liveInput.a],
+    [emitLive, liveInput.a, haptics],
   );
 
   const handleClear = useCallback(() => {
