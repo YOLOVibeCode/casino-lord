@@ -18,6 +18,7 @@ import { initialState, type BaccaratState } from "./state.js";
 import { baccaratStats } from "./stats.js";
 import type { BaccaratLiveInput, BaccaratResult } from "./types.js";
 import { exportHand, importText, type ImportedHand } from "./serialize.js";
+import { baccaratConfirm } from "./confirm.js";
 import { formatOutcomeToken } from "./quick-entry.js";
 
 function stubComponent(): Component<Record<string, unknown>> {
@@ -61,6 +62,7 @@ export const baccaratModule: GameModule<
 
   initialState,
   reduce,
+  confirm: baccaratConfirm,
 
   DealerView: stubComponent() as GameModule<
     BaccaratRules,

@@ -1,0 +1,27 @@
+:root {
+  --felt-top: #0b3d2e;
+  --felt-bottom: #062418;
+  --panel-bg: #0f1412;
+  --gold-hairline: rgba(184, 148, 90, 0.4);
+  --gold-accent: #d4af37;
+  --color-player: #2f6fe4;
+  --color-banker: #e5322d;
+  --color-tie: #2bb673;
+  --text-primary: #f5f5f0;
+  --text-muted: rgba(245, 245, 240, 0.65);
+  --font-size-base: clamp(14px, 1.2vmin, 24px);
+}
+
+html {
+  font-size: var(--font-size-base);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

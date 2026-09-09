@@ -1,0 +1,35 @@
+.solo {
+  min-height: 100vh;
+  padding: 0.75rem;
+}
+
+.solo__toolbar {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.solo__panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  min-height: calc(100vh - 4rem);
+}
+
+@media (max-width: 768px) {
+  .solo__panes {
+    grid-template-columns: 1fr;
+  }
+}
+
+.solo__dealer,
+.solo__display {
+  min-height: 20rem;
+}
+
+.solo--error {
+  padding: 2rem;
+  text-align: center;
+}

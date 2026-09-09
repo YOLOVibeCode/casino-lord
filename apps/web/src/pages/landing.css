@@ -1,0 +1,67 @@
+.landing {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.landing__title {
+  color: var(--gold-accent);
+  margin: 0 0 0.5rem;
+}
+
+.landing__subtitle {
+  color: var(--text-muted);
+  margin: 0 0 2rem;
+}
+
+.landing__games {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.landing__card {
+  padding: 1rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--gold-hairline);
+  border-radius: 8px;
+}
+
+.landing__card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.landing__soon {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.landing__host-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.landing__host-actions button {
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  border: 1px solid var(--gold-hairline);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.landing__host-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.landing__sync-note {
+  width: 100%;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
