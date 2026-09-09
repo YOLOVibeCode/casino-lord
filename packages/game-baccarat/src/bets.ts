@@ -33,12 +33,8 @@ export const baccaratBets: BetCatalogue<
           id: "banker",
           label: "BANKER",
           lifecycle: "round",
-          pays: (rules) => {
-            if (rules.bankerCommission === 0) {
-              return { num: 1, den: 1 };
-            }
-            return { num: 1, den: 1 };
-          },
+          pays: () => ({ num: 1, den: 1 }),
+          profit: (amount, rules) => Math.floor(amount * (1 - rules.bankerCommission)),
           note: commissionNote,
         },
         {

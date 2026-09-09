@@ -1,5 +1,5 @@
 import { CardPicker, OutcomeChips } from "@casino-lord/ui";
-import type { Emit, TableMeta } from "@casino-lord/core";
+import type { Emit, ResultEnvelope, TableMeta } from "@casino-lord/core";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { cardValue } from "../cards.js";
 import { evaluateHand } from "../engine.js";
@@ -73,6 +73,12 @@ function slotAriaLabel(
   return parts.join(", ");
 }
 
+export interface DealerEditMode {
+  envelope: ResultEnvelope<BaccaratResult>;
+  onConfirm: (result: BaccaratResult) => void;
+  onQuickEdit: (result: BaccaratResult) => void;
+}
+
 export interface DealerViewProps {
   state: BaccaratState;
   rules: BaccaratRules;
@@ -81,6 +87,7 @@ export interface DealerViewProps {
   record: (result: BaccaratResult, opts: { quick: boolean }) => void;
   autoAdvance?: boolean;
   expressMode?: boolean;
+  editMode?: DealerEditMode;
 }
 
 export function DealerView({
@@ -90,6 +97,7 @@ export function DealerView({
   record,
   autoAdvance = true,
   expressMode = true,
+  editMode,
 }: DealerViewProps) {
   const { handState, liveSlots } = state;
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -97,6 +105,30 @@ export function DealerView({
   const [pairMenuOutcome, setPairMenuOutcome] = useState<Outcome | null>(null);
   const [stickySuit, setStickySuit] = useState<Suit | null>(null);
   const prevResultsCountRef = useRef(state.results.length);
+  const editLoadedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!editMode) {
+      editLoadedRef.current = null;
+      return;
+    }
+    if (editLoadedRef.current === editMode.envelope.id) return;
+    editLoadedRef.current = editMode.envelope.id;
+    const cards = editMode.envelope.data.cards;
+    if (cards && Object.keys(cards).length > 0) {
+      emit({
+        type: "LIVE_INPUT",
+        payload: { slots: cards },
+        source: "dealer",
+      } as Parameters<Emit>[0]);
+    } else {
+      emit({
+        type: "LIVE_INPUT",
+        payload: { slots: {} },
+        source: "dealer",
+      } as Parameters<Emit>[0]);
+    }
+  }, [editMode, emit]);
 
   const openPicker = useCallback((slot: SlotId) => {
     setPickerSlot(slot);
@@ -149,6 +181,7 @@ export function DealerView({
   }, [pickerSlot, liveSlots, emitSlots, closePicker]);
 
   useEffect(() => {
+    if (editMode) return;
     const prev = prevResultsCountRef.current;
     const curr = state.results.length;
     prevResultsCountRef.current = curr;
@@ -156,24 +189,33 @@ export function DealerView({
     if (autoAdvance && curr > prev) {
       setTimeout(() => openPicker("P1"), 0);
     }
-  }, [state.results.length, autoAdvance, openPicker]);
+  }, [state.results.length, autoAdvance, openPicker, editMode]);
+
+  const submitQuickResult = useCallback(
+    (outcome: Outcome, playerPair: boolean, bankerPair: boolean) => {
+      const result: BaccaratResult = {
+        cards: null,
+        outcome,
+        playerTotal: null,
+        bankerTotal: null,
+        playerPair,
+        bankerPair,
+        natural: false,
+      };
+      if (editMode) {
+        editMode.onQuickEdit(result);
+        return;
+      }
+      record(result, { quick: true });
+    },
+    [editMode, record],
+  );
 
   const handleQuickTap = useCallback(
     (id: string) => {
-      record(
-        {
-          cards: null,
-          outcome: id as Outcome,
-          playerTotal: null,
-          bankerTotal: null,
-          playerPair: false,
-          bankerPair: false,
-          natural: false,
-        },
-        { quick: true },
-      );
+      submitQuickResult(id as Outcome, false, false);
     },
-    [record],
+    [submitQuickResult],
   );
 
   const activateQuickEntry = useCallback(
@@ -191,21 +233,10 @@ export function DealerView({
   const handlePairRecord = useCallback(
     (playerPair: boolean, bankerPair: boolean) => {
       if (!pairMenuOutcome) return;
-      record(
-        {
-          cards: null,
-          outcome: pairMenuOutcome,
-          playerTotal: null,
-          bankerTotal: null,
-          playerPair,
-          bankerPair,
-          natural: false,
-        },
-        { quick: true },
-      );
+      submitQuickResult(pairMenuOutcome, playerPair, bankerPair);
       setPairMenuOutcome(null);
     },
-    [pairMenuOutcome, record],
+    [pairMenuOutcome, submitQuickResult],
   );
 
   useEffect(() => {
