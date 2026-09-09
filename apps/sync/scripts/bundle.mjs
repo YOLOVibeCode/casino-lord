@@ -9,8 +9,6 @@ const outfile = resolve(outdir, "main.js");
 
 mkdirSync(outdir, { recursive: true });
 
-const externalPrefixes = ["@fastify/", "preact/"];
-
 await esbuild.build({
   absWorkingDir: packageRoot,
   entryPoints: ["src/main.ts"],
