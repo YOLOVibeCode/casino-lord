@@ -11,6 +11,7 @@
   "dependencies": {
     "@casino-lord/core": "workspace:*",
     "@casino-lord/game-baccarat": "workspace:*",
+    "@casino-lord/game-blackjack": "workspace:*",
     "preact": "^10.26.0",
     "preact-iso": "^2.9.2",
     "qrcode": "^1.5.4",
