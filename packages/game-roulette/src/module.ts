@@ -1,4 +1,3 @@
-import type { Component } from "preact";
 import type { GameModule, Series } from "@casino-lord/core";
 import { deriveRouletteAnimations, rouletteAnimationEvents } from "./animations.js";
 import { rouletteBets } from "./bets.js";
@@ -22,11 +21,8 @@ import { virtualWheelStep } from "./virtual.js";
 import { DealerView } from "./views/DealerView.js";
 import { DisplayView } from "./views/DisplayView.js";
 import { ResultDetailView } from "./views/ResultDetailView.js";
+import { PlayerView } from "./views/PlayerView.js";
 import { RulesSettingsView } from "./views/RulesSettingsView.js";
-
-function stubComponent(): Component<Record<string, unknown>> {
-  return (() => null) as unknown as Component<Record<string, unknown>>;
-}
 
 export const rouletteModule: GameModule<
   RouletteRules,
@@ -62,7 +58,7 @@ export const rouletteModule: GameModule<
     RouletteLiveInput,
     RouletteState
   >["DisplayView"],
-  PlayerView: stubComponent() as GameModule<
+  PlayerView: PlayerView as unknown as GameModule<
     RouletteRules,
     RouletteResult,
     RouletteLiveInput,
