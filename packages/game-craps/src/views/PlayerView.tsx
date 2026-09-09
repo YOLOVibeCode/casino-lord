@@ -17,6 +17,7 @@ import {
   canTakeDown,
   isShooter,
   lookupBetDef,
+  normalizeViewState,
   stakeOnPoint,
   travelledComeOnPoint,
 } from "./player-view-helpers.js";
@@ -259,7 +260,16 @@ function HistoryStrip({ rolls }: { rolls: RollRecord[] }) {
   );
 }
 
-export function PlayerView({ state, rules, me, round, place, remove, act }: PlayerViewProps) {
+export function PlayerView({
+  state: rawState,
+  rules,
+  me,
+  round,
+  place,
+  remove,
+  act,
+}: PlayerViewProps) {
+  const state = normalizeViewState(rawState);
   const amount = useStake();
   const [selectedBetId, setSelectedBetId] = useState<string | null>(null);
   const roundId = round.id;

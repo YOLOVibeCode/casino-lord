@@ -103,6 +103,12 @@ describe("PlayerView", () => {
     vi.unstubAllGlobals();
   });
 
+  it("renders when shooter state is not yet initialized", () => {
+    const state = { ...initialState(), shooter: undefined as unknown as CrapsState["shooter"] };
+    renderPlayerView({ state });
+    expect(screen.getByTestId("craps-player-view")).toBeTruthy();
+  });
+
   it("renders status line and place grid", () => {
     renderPlayerView();
     expect(screen.getByTestId("player-status").textContent).toContain("PUCK");

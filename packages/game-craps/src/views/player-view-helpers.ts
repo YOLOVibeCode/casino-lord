@@ -3,8 +3,14 @@ import type { BetDef } from "@casino-lord/core";
 import { crapsBets } from "../bets.js";
 import type { CrapsBetId } from "../bet-target.js";
 import type { CrapsBetTarget } from "../bet-target.js";
+import { emptyShooterState } from "../state.js";
 import type { CrapsRules } from "../rules.js";
 import type { CrapsState, Point } from "../types.js";
+
+export function normalizeViewState(state: CrapsState): CrapsState {
+  if (state.shooter) return state;
+  return { ...state, shooter: emptyShooterState() };
+}
 
 export type PlacePayload = Omit<PlacedBet<CrapsBetTarget>, "id" | "placedAt">;
 
