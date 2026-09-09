@@ -11,7 +11,7 @@ import { isSyncStore } from "../table/sync-store-types.js";
 import type { TableStore } from "../table/store.js";
 import { useStore } from "../hooks/use-store.js";
 import { buildExportText } from "../table/export.js";
-import { countSeries, currentSeriesStartedAt } from "../table/meta.js";
+import { countSeries, currentSeriesCommit, currentSeriesStartedAt } from "../table/meta.js";
 import { BankPanel } from "./BankPanel.js";
 import { BettingBar } from "./BettingBar.js";
 import { SettingsDialog } from "./SettingsDialog.js";
@@ -43,7 +43,9 @@ export function DealerShell({
   const composed = store.getComposed();
   const table = store.getTableMeta();
   const playerModeOn = composed.platform.participation.playerMode === "on";
+  const virtualTable = composed.platform.participation.outcomeSource === "virtual";
   const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
+  const seriesCommit = virtualTable ? currentSeriesCommit(store.events) : null;
   const confirmState = module.confirm(composed.module, rules);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -302,6 +304,11 @@ export function DealerShell({
               {module.resultLabel} {table.resultIndex}
             </span>
             {playerModeOn && <span class="dealer-shell__player-count">👥 {table.playerCount}</span>}
+            {virtualTable && seriesCommit && (
+              <span class="dealer-shell__virtual-badge" data-testid="virtual-commit">
+                VIRTUAL · FAIR · {seriesCommit.slice(0, 8)}
+              </span>
+            )}
           </>
         )}
       </header>
@@ -318,21 +325,23 @@ export function DealerShell({
         />
       )}
 
-      <div class="dealer-shell__module">
-        {createElement(module.DealerView as unknown as ComponentType<Record<string, unknown>>, {
-          state: composed.module,
-          rules,
-          table,
-          emit: (body: Parameters<typeof store.emit>[0]) => {
-            if (body.type === "LIVE_INPUT") betting.onDealerEntry();
-            store.emit(body);
-          },
-          record: store.record,
-          autoAdvance: deviceSettings.autoAdvance,
-          expressMode: deviceSettings.expressMode,
-          editMode,
-        })}
-      </div>
+      {!virtualTable && (
+        <div class="dealer-shell__module">
+          {createElement(module.DealerView as unknown as ComponentType<Record<string, unknown>>, {
+            state: composed.module,
+            rules,
+            table,
+            emit: (body: Parameters<typeof store.emit>[0]) => {
+              if (body.type === "LIVE_INPUT") betting.onDealerEntry();
+              store.emit(body);
+            },
+            record: store.record,
+            autoAdvance: deviceSettings.autoAdvance,
+            expressMode: deviceSettings.expressMode,
+            editMode,
+          })}
+        </div>
+      )}
 
       {undoBlockedMsg && (
         <div class="dealer-shell__undo-blocked" data-testid="undo-blocked">
@@ -341,41 +350,66 @@ export function DealerShell({
       )}
 
       <div class="dealer-shell__actions">
-        <button
-          type="button"
-          class="dealer-shell__btn"
-          onClick={handleUndo}
-          disabled={!!editingEnvelope || readOnly || !undoCheck.ok}
-          data-testid="undo-btn"
-          title={undoCheck.reason}
-        >
-          {undoArmed ? `Tap again to undo Hand ${undoHand}` : "UNDO"}
-        </button>
-        <button
-          type="button"
-          class="dealer-shell__btn dealer-shell__btn--confirm"
-          style={confirmStyle}
-          disabled={!confirmState?.enabled || readOnly}
-          onClick={startConfirmDelay}
-          data-testid="confirm-btn"
-        >
-          {confirming && (
-            <span
-              class="dealer-shell__confirm-progress"
-              style={{ transform: `scaleX(${confirmProgress})` }}
-            />
-          )}
-          <span>
-            {editingEnvelope ? "✓ SAVE EDIT" : (confirmState?.label ?? "CONFIRM")}
-            {confirmState?.badges && (
-              <span class="dealer-shell__badges"> · {confirmState.badges.join(" · ")}</span>
+        {virtualTable ? (
+          <>
+            <button
+              type="button"
+              class="dealer-shell__btn dealer-shell__btn--confirm"
+              disabled={readOnly}
+              data-testid="deal-btn"
+              onClick={() => store.sendVirtual("trigger")}
+            >
+              DEAL
+            </button>
+            <button
+              type="button"
+              class="dealer-shell__btn"
+              disabled={readOnly}
+              data-testid="force-btn"
+              onClick={() => store.sendVirtual("force")}
+            >
+              Force
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              class="dealer-shell__btn"
+              onClick={handleUndo}
+              disabled={!!editingEnvelope || readOnly || !undoCheck.ok}
+              data-testid="undo-btn"
+              title={undoCheck.reason}
+            >
+              {undoArmed ? `Tap again to undo Hand ${undoHand}` : "UNDO"}
+            </button>
+            <button
+              type="button"
+              class="dealer-shell__btn dealer-shell__btn--confirm"
+              style={confirmStyle}
+              disabled={!confirmState?.enabled || readOnly}
+              onClick={startConfirmDelay}
+              data-testid="confirm-btn"
+            >
+              {confirming && (
+                <span
+                  class="dealer-shell__confirm-progress"
+                  style={{ transform: `scaleX(${confirmProgress})` }}
+                />
+              )}
+              <span>
+                {editingEnvelope ? "✓ SAVE EDIT" : (confirmState?.label ?? "CONFIRM")}
+                {confirmState?.badges && (
+                  <span class="dealer-shell__badges"> · {confirmState.badges.join(" · ")}</span>
+                )}
+              </span>
+            </button>
+            {confirming && (
+              <button type="button" class="dealer-shell__btn" onClick={clearConfirmTimer}>
+                Cancel
+              </button>
             )}
-          </span>
-        </button>
-        {confirming && (
-          <button type="button" class="dealer-shell__btn" onClick={clearConfirmTimer}>
-            Cancel
-          </button>
+          </>
         )}
       </div>
 

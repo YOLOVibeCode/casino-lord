@@ -1,7 +1,7 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { useLocation } from "preact-iso";
 import { isValidTableCode, normalizeTableCode, type Participation } from "@casino-lord/core";
-import { createTable, getTableMeta } from "../sync/api.js";
+import { createTable, fetchServerFeatures, getTableMeta } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
 import { loadDealerToken } from "../sync/dealer-token.js";
 import { GAMES } from "../table/games.js";
@@ -21,6 +21,15 @@ export function LandingPage(_props: { path?: string }) {
   const [lookup, setLookup] = useState<{ code: string; game: string } | null>(null);
   const [withPlayers, setWithPlayers] = useState(false);
   const [houseBank, setHouseBank] = useState(true);
+  const [outcomeVirtual, setOutcomeVirtual] = useState(false);
+  const [enableVirtual, setEnableVirtual] = useState(false);
+
+  useEffect(() => {
+    if (!syncConfigured) return;
+    void fetchServerFeatures(getSyncBaseUrl()).then((features) => {
+      setEnableVirtual(features.enableVirtual);
+    });
+  }, [syncConfigured]);
 
   const closeSheet = () => {
     setSheet(null);
@@ -33,13 +42,14 @@ export function LandingPage(_props: { path?: string }) {
     if (!syncConfigured) return;
     setCreating(true);
     try {
+      const outcomeSource = outcomeVirtual && enableVirtual ? "virtual" : "physical";
       const participation: Participation = withPlayers
         ? {
             playerMode: "on",
             bank: houseBank ? "house" : "none",
-            outcomeSource: "physical",
+            outcomeSource,
           }
-        : { playerMode: "off", bank: "none", outcomeSource: "physical" };
+        : { playerMode: "off", bank: "none", outcomeSource };
       const result = await createTable(getSyncBaseUrl(), {
         game: selectedGame as "baccarat" | "roulette" | "craps" | "blackjack",
         participation,
@@ -188,6 +198,35 @@ export function LandingPage(_props: { path?: string }) {
                       />
                       House bank (issue play chips)
                     </label>
+                  )}
+                </fieldset>
+                <fieldset>
+                  <legend>Outcome</legend>
+                  <label class="landing__option">
+                    <input
+                      type="radio"
+                      name="outcome"
+                      data-testid="outcome-physical"
+                      checked={!outcomeVirtual}
+                      onChange={() => setOutcomeVirtual(false)}
+                    />
+                    Physical
+                  </label>
+                  <label class="landing__option">
+                    <input
+                      type="radio"
+                      name="outcome"
+                      data-testid="outcome-virtual"
+                      checked={outcomeVirtual}
+                      disabled={!enableVirtual}
+                      onChange={() => setOutcomeVirtual(true)}
+                    />
+                    Virtual
+                  </label>
+                  {!enableVirtual && (
+                    <p class="landing__sync-note" data-testid="virtual-disabled-note">
+                      Virtual outcomes are disabled on this server.
+                    </p>
                   )}
                 </fieldset>
                 {joinError && <p class="landing__error">{joinError}</p>}

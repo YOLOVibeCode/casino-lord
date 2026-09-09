@@ -24,6 +24,7 @@ import { AnimationLayer } from "../animation/AnimationLayer.js";
 import { animationSound } from "../animation/sound.js";
 import { useAnimationRuntime } from "../animation/useAnimationRuntime.js";
 import { useStore } from "../hooks/use-store.js";
+import { currentSeriesCommit } from "../table/meta.js";
 import { BettingStrip } from "./BettingStrip.js";
 import { LeaderboardInterstitial } from "./LeaderboardInterstitial.js";
 import "./display-shell.css";
@@ -49,6 +50,8 @@ export function DisplayShell({
   const composed = store.getComposed();
   const table = store.getTableMeta();
   const playerModeOn = composed.platform.participation.playerMode === "on";
+  const virtualTable = composed.platform.participation.outcomeSource === "virtual";
+  const seriesCommit = virtualTable ? currentSeriesCommit(store.events) : null;
   const joiningOpen = composed.platform.settings.players?.joiningOpen ?? false;
   const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
   const showBankrolls = bankHouse && composed.platform.settings.players.showBankrolls;
@@ -212,6 +215,11 @@ export function DisplayShell({
         <span>
           {module.seriesLabel} {table.seriesNumber}
         </span>
+        {virtualTable && seriesCommit && (
+          <span class="display-shell__virtual-badge" data-testid="virtual-commit">
+            VIRTUAL · FAIR · {seriesCommit.slice(0, 8)}
+          </span>
+        )}
         <div class="display-shell__stats">
           {stats.map((row) => (
             <span key={row.label}>
