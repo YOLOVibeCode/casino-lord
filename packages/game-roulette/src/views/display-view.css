@@ -1,0 +1,132 @@
+.display-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--roulette-panel);
+  min-height: 100%;
+}
+
+.display-view__header {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.display-view__body {
+  display: grid;
+  grid-template-columns: minmax(4rem, 0.15fr) 1fr minmax(10rem, 0.35fr);
+  gap: 1rem;
+  flex: 1;
+  align-items: start;
+}
+
+.display-view__section-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  margin-bottom: 0.35rem;
+}
+
+.display-view__history-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.display-view__chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border-radius: 0.35rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.display-view__chip--red {
+  background: var(--roulette-red);
+}
+
+.display-view__chip--black {
+  background: var(--roulette-black);
+  box-shadow: inset 0 0 0 1px var(--roulette-black-chip);
+}
+
+.display-view__chip--green {
+  background: var(--roulette-green);
+}
+
+.display-view__chip--void {
+  background: var(--roulette-void);
+  color: #e5e7eb;
+}
+
+.display-view__wheel-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wheel-graphic {
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+}
+
+.display-view__stats-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.display-view__hotcold {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.display-view__hotcold-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.25rem;
+}
+
+.display-view__hotcold-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  padding: 0.15rem 0;
+}
+
+.display-view__percentages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.display-view--results-focus .display-view__body {
+  grid-template-columns: minmax(8rem, 0.45fr) minmax(6rem, 0.25fr) minmax(8rem, 0.3fr);
+}
+
+.display-view--wheel-focus .display-view__body {
+  grid-template-columns: minmax(3rem, 0.1fr) minmax(12rem, 0.55fr) minmax(8rem, 0.35fr);
+}
+
+.display-view--wheel-focus .wheel-graphic {
+  max-width: 360px;
+}
+
+.display-view--portrait .display-view__body {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto auto;
+}
+
+.display-view--portrait .display-view__history-col {
+  flex-direction: row;
+  flex-wrap: wrap;
+}

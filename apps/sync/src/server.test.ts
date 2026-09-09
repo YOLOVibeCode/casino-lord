@@ -89,12 +89,9 @@ describe("buildServer", () => {
     expect(response.statusCode).toBe(200);
     expect(games).toHaveLength(4);
     expect(games.find((game) => game.id === "baccarat")?.enabled).toBe(true);
+    expect(games.find((game) => game.id === "roulette")?.enabled).toBe(true);
     expect(games.find((game) => game.id === "craps")?.enabled).toBe(true);
-    expect(
-      games
-        .filter((game) => game.id !== "baccarat" && game.id !== "craps")
-        .every((game) => !game.enabled),
-    ).toBe(true);
+    expect(games.find((game) => game.id === "blackjack")?.enabled).toBe(false);
   });
 
   it("serves index.html for SPA routes", async () => {

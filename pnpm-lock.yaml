@@ -32,6 +32,9 @@ importers:
       '@casino-lord/game-craps':
         specifier: workspace:*
         version: link:../../packages/game-craps
+      '@casino-lord/game-roulette':
+        specifier: workspace:*
+        version: link:../../packages/game-roulette
       '@fastify/static':
         specifier: ^8.1.0
         version: 8.3.0
@@ -78,6 +81,9 @@ importers:
       '@casino-lord/game-craps':
         specifier: workspace:*
         version: link:../../packages/game-craps
+      '@casino-lord/game-roulette':
+        specifier: workspace:*
+        version: link:../../packages/game-roulette
       preact:
         specifier: ^10.26.0
         version: 10.29.8(preact-render-to-string@6.7.0)
@@ -196,10 +202,19 @@ importers:
       '@casino-lord/core':
         specifier: workspace:*
         version: link:../core
+      '@casino-lord/ui':
+        specifier: workspace:*
+        version: link:../ui
       zod:
         specifier: ^3.24.0
         version: 3.25.76
     devDependencies:
+      '@testing-library/preact':
+        specifier: ^3.2.4
+        version: 3.2.4(preact@10.29.8)
+      jsdom:
+        specifier: ^26.0.0
+        version: 26.1.0
       preact:
         specifier: ^10.26.0
         version: 10.29.8(preact-render-to-string@6.7.0)
