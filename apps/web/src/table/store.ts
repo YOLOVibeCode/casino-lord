@@ -1,4 +1,5 @@
 import {
+  canUndoResult,
   DEFAULT_TABLE_SETTINGS,
   replay,
   resolveEffectiveRules,
@@ -10,6 +11,7 @@ import {
   type TableEvent,
   type TableEventType,
 } from "@casino-lord/core";
+import { buildResultEnvelope } from "../betting/build-result-envelope.js";
 import { saveTableEvents } from "./persistence.js";
 import { buildTableMeta } from "./meta.js";
 import type { UntypedGameModule } from "./module-types.js";
@@ -27,6 +29,7 @@ export interface TableStore {
   getTableMeta(): ReturnType<typeof buildTableMeta>;
   emit: (body: TableEventInput) => void;
   record(result: unknown, opts: { quick: boolean }): void;
+  canUndoLastResult(): { ok: boolean; reason?: string };
   undoLastResult(): void;
   editResult(result: ResultEnvelope<unknown>): void;
   deleteResult(resultId: string): void;
@@ -110,21 +113,27 @@ export function createTableStore(options: CreateTableOptions): TableStore {
 
   const record = (result: unknown, opts: { quick: boolean }): void => {
     const composed = getComposed();
-    const results = (composed.module as { results?: unknown[] }).results;
-    const index = Array.isArray(results) ? results.length : 0;
-    const envelope: ResultEnvelope<unknown> = {
+    const envelope = buildResultEnvelope(composed, result, {
       id: id(),
-      index,
-      recordedAt: now(),
+      now: now(),
       quick: opts.quick,
-      source: "physical",
-      by: "dealer",
-      data: result,
-    };
+    });
     append({ type: "RESULT_RECORDED", result: envelope });
   };
 
+  const canUndoLastResult = (): { ok: boolean; reason?: string } => {
+    const composed = getComposed();
+    const results = (composed.module as { results?: { id: string }[] }).results;
+    if (!Array.isArray(results) || results.length === 0) {
+      return { ok: false, reason: "No result to undo." };
+    }
+    const last = results[results.length - 1]!;
+    return canUndoResult(composed.platform, last.id);
+  };
+
   const undoLastResult = (): void => {
+    const check = canUndoLastResult();
+    if (!check.ok) return;
     const composed = getComposed();
     const results = (composed.module as { results?: { id: string }[] }).results;
     if (!Array.isArray(results) || results.length === 0) return;
@@ -174,6 +183,7 @@ export function createTableStore(options: CreateTableOptions): TableStore {
     getTableMeta,
     emit,
     record,
+    canUndoLastResult,
     undoLastResult,
     editResult,
     deleteResult,
@@ -234,20 +244,22 @@ export function reopenTableStore(input: {
   };
   const record = (result: unknown, opts: { quick: boolean }): void => {
     const composed = getComposed();
-    const results = (composed.module as { results?: unknown[] }).results;
-    const index = Array.isArray(results) ? results.length : 0;
-    append({
-      type: "RESULT_RECORDED",
-      result: {
-        id: idGen(),
-        index,
-        recordedAt: now(),
-        quick: opts.quick,
-        source: "physical",
-        by: "dealer",
-        data: result,
-      },
+    const envelope = buildResultEnvelope(composed, result, {
+      id: idGen(),
+      now: now(),
+      quick: opts.quick,
     });
+    append({ type: "RESULT_RECORDED", result: envelope });
+  };
+
+  const canUndoLastResult = (): { ok: boolean; reason?: string } => {
+    const composed = getComposed();
+    const results = (composed.module as { results?: { id: string }[] }).results;
+    if (!Array.isArray(results) || results.length === 0) {
+      return { ok: false, reason: "No result to undo." };
+    }
+    const last = results[results.length - 1]!;
+    return canUndoResult(composed.platform, last.id);
   };
 
   return {
@@ -265,7 +277,10 @@ export function reopenTableStore(input: {
     getTableMeta,
     emit,
     record,
+    canUndoLastResult,
     undoLastResult: () => {
+      const check = canUndoLastResult();
+      if (!check.ok) return;
       const composed = getComposed();
       const results = (composed.module as { results?: { id: string }[] }).results;
       if (!Array.isArray(results) || results.length === 0) return;

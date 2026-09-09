@@ -1,0 +1,29 @@
+.betting-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-bottom: 1px solid var(--gold-hairline);
+  background: rgba(212, 175, 55, 0.08);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.betting-bar__status {
+  font-weight: 600;
+  color: var(--accent, #c9a227);
+}
+
+.betting-bar__countdown {
+  opacity: 0.85;
+}
+
+.betting-bar__side {
+  opacity: 0.9;
+}

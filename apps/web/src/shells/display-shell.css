@@ -87,6 +87,42 @@
   font-size: 0.875rem;
 }
 
+.display-shell__players {
+  position: absolute;
+  top: 3.5rem;
+  right: 0.75rem;
+  width: 10rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--gold-hairline);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  z-index: 2;
+}
+
+.display-shell__players-title {
+  font-weight: 600;
+  color: var(--gold-accent);
+  margin-bottom: 0.35rem;
+}
+
+.display-shell__players-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.display-shell__players-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+}
+
+.display-shell__player-bankroll {
+  color: var(--gold-accent);
+}
+
 .display-shell__animation-overlay {
   position: fixed;
   inset: 0;

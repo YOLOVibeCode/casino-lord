@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { useLocation } from "preact-iso";
-import { isValidTableCode, normalizeTableCode } from "@casino-lord/core";
+import { isValidTableCode, normalizeTableCode, type Participation } from "@casino-lord/core";
 import { createTable, getTableMeta } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
 import { loadDealerToken } from "../sync/dealer-token.js";
@@ -8,12 +8,6 @@ import { GAMES } from "../table/games.js";
 import "./landing.css";
 
 type SheetMode = "create" | "join" | null;
-
-const DEALER_ONLY = {
-  playerMode: "off" as const,
-  bank: "none" as const,
-  outcomeSource: "physical" as const,
-};
 
 export function LandingPage(_props: { path?: string }) {
   const { route } = useLocation();
@@ -25,6 +19,8 @@ export function LandingPage(_props: { path?: string }) {
   const [dealerTokenInput, setDealerTokenInput] = useState("");
   const [creating, setCreating] = useState(false);
   const [lookup, setLookup] = useState<{ code: string; game: string } | null>(null);
+  const [withPlayers, setWithPlayers] = useState(false);
+  const [houseBank, setHouseBank] = useState(true);
 
   const closeSheet = () => {
     setSheet(null);
@@ -37,9 +33,16 @@ export function LandingPage(_props: { path?: string }) {
     if (!syncConfigured) return;
     setCreating(true);
     try {
+      const participation: Participation = withPlayers
+        ? {
+            playerMode: "on",
+            bank: houseBank ? "house" : "none",
+            outcomeSource: "physical",
+          }
+        : { playerMode: "off", bank: "none", outcomeSource: "physical" };
       const result = await createTable(getSyncBaseUrl(), {
         game: selectedGame as "baccarat" | "roulette" | "craps" | "blackjack",
-        participation: DEALER_ONLY,
+        participation,
       });
       route(`/created/${result.code}?t=${encodeURIComponent(result.dealerToken)}`);
     } catch {
@@ -158,13 +161,34 @@ export function LandingPage(_props: { path?: string }) {
                 <fieldset>
                   <legend>Participation</legend>
                   <label class="landing__option">
-                    <input type="radio" name="participation" checked readOnly />
+                    <input
+                      type="radio"
+                      name="participation"
+                      checked={!withPlayers}
+                      onChange={() => setWithPlayers(false)}
+                    />
                     Dealer only
                   </label>
-                  <label class="landing__option landing__option--disabled">
-                    <input type="radio" disabled />
-                    With players (coming soon)
+                  <label class="landing__option">
+                    <input
+                      type="radio"
+                      name="participation"
+                      checked={withPlayers}
+                      onChange={() => setWithPlayers(true)}
+                    />
+                    With players
                   </label>
+                  {withPlayers && (
+                    <label class="landing__option landing__option--nested">
+                      <input
+                        type="checkbox"
+                        data-testid="house-bank-checkbox"
+                        checked={houseBank}
+                        onChange={(e) => setHouseBank((e.target as HTMLInputElement).checked)}
+                      />
+                      House bank (issue play chips)
+                    </label>
+                  )}
                 </fieldset>
                 {joinError && <p class="landing__error">{joinError}</p>}
                 <button type="button" disabled={creating} onClick={() => void handleCreate()}>

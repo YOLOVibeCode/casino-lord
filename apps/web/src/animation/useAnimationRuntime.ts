@@ -1,4 +1,5 @@
 import { replay, type AnimationTrigger, type TableEvent } from "@casino-lord/core";
+import { derivePlatformAnimations } from "./platform-triggers.js";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { DeviceSettings } from "../settings/device-settings.js";
 import type { UntypedGameModule } from "../table/module-types.js";
@@ -25,7 +26,11 @@ const PREVIEW_VARS: Record<string, string | number> = {
 const ANIMATION_EVENT_TYPES = new Set([
   "RESULT_RECORDED",
   "SERIES_STARTED",
+  "SERIES_ENDED",
   "RESULT_UNDONE",
+  "BETS_OPENED",
+  "BETS_CLOSED",
+  "SESSION_ENDED",
   "ANIMATION_PREVIEW",
 ]);
 
@@ -240,10 +245,12 @@ export function useAnimationRuntime({
         includeEphemeral: true,
       });
 
-      const triggers = module.deriveAnimations(prevComposed.module, nextComposed.module, event);
+      const gameTriggers = module.deriveAnimations(prevComposed.module, nextComposed.module, event);
+      const platformTriggers = derivePlatformAnimations(prevComposed, nextComposed, event);
+      const triggers = [...gameTriggers, ...platformTriggers];
       if (triggers.length === 0) return;
 
-      const timeline = buildAnimationTimeline(triggers, module.animationEvents, {
+      const timeline = buildAnimationTimeline(triggers, allEventDefs, {
         prefersReducedMotion: prefersReducedMotion(),
         resolvePreset: (eventId) => resolvePreset(eventId, module, tableSettings),
       });
