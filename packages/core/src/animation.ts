@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 export type AnimationStyle =
   | "none"
   | "flash"
@@ -13,20 +11,6 @@ export type AnimationStyle =
   | "spin"
   | "chips";
 
-export const animationStyleSchema = z.enum([
-  "none",
-  "flash",
-  "burst",
-  "sweep",
-  "banner",
-  "particles",
-  "trail",
-  "dragon",
-  "shake",
-  "spin",
-  "chips",
-]);
-
 export interface AnimationPreset {
   enabled: boolean;
   style: AnimationStyle;
@@ -38,20 +22,6 @@ export interface AnimationPreset {
   soundVolume: number;
   blockBoardUpdate: boolean;
 }
-
-export const animationPresetSchema = z.object({
-  enabled: z.boolean(),
-  style: animationStyleSchema,
-  durationMs: z.number().int().min(200).max(4000),
-  intensity: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-  color: z.string().optional(),
-  text: z.string().optional(),
-  sound: z.string().nullable().optional(),
-  soundVolume: z.number().min(0).max(1),
-  blockBoardUpdate: z.boolean(),
-});
-
-export const animationOverridesSchema = z.record(z.string(), animationPresetSchema);
 
 export interface AnimationEventDef {
   id: string;

@@ -1,5 +1,5 @@
 import type { AnimationPreset, AnimationStyle, TableSettings } from "@casino-lord/core";
-import { animationPresetSchema } from "@casino-lord/core";
+import { animationPresetSchema } from "../animation/preset-schema.js";
 import type { z } from "zod";
 import { useState } from "preact/hooks";
 import {

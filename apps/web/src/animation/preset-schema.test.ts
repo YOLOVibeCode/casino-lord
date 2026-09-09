@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { animationPresetSchema } from "./animation.js";
+import { animationPresetSchema } from "./preset-schema.js";
 
 describe("animationPresetSchema", () => {
   const valid = {

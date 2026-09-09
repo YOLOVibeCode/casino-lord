@@ -135,14 +135,13 @@ importers:
         version: 6.4.3(@types/node@22.20.1)(tsx@4.23.13)
 
   packages/core:
-    dependencies:
-      zod:
-        specifier: ^3.24.0
-        version: 3.25.76
     devDependencies:
       preact:
         specifier: ^10.26.0
         version: 10.29.8(preact-render-to-string@6.7.0)
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
 
   packages/game-baccarat:
     dependencies:
