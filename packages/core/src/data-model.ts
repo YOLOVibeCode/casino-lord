@@ -50,6 +50,7 @@ export interface BettingRound {
   status: "open" | "closed" | "settled";
   openedAt: string;
   closedAt?: string;
+  closesAt?: string;
   resultId?: string;
 }
 

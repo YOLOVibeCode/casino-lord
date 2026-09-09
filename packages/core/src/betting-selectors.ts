@@ -65,9 +65,7 @@ export function buildBetsView<Rules, Result, LiveInput, State, BetTarget, Action
   const summaries = round
     ? module.bets.summary(roundBets as PlacedBet<BetTarget>[], moduleState)
     : [];
-  const openRoundIds = new Set(
-    state.rounds.filter((r) => r.status === "open").map((r) => r.id),
-  );
+  const openRoundIds = new Set(state.rounds.filter((r) => r.status === "open").map((r) => r.id));
   const openBets = state.bets.filter((b) => openRoundIds.has(b.roundId));
   return { round, summaries, openBets };
 }
@@ -91,16 +89,17 @@ export function getSettlementTicker(state: PlatformState, roundId: string): stri
   return parts.join(" · ");
 }
 
-export function canUndoResult(state: PlatformState, resultId: string): { ok: boolean; reason?: string } {
+export function canUndoResult(
+  state: PlatformState,
+  resultId: string,
+): { ok: boolean; reason?: string } {
   if (state.participation.bank !== "house") return { ok: true };
 
   const affectedRound = state.rounds.find((r) => r.resultId === resultId);
   if (!affectedRound) return { ok: true };
 
   const affectedIndex = state.rounds.findIndex((r) => r.id === affectedRound.id);
-  const laterRoundIds = new Set(
-    state.rounds.slice(affectedIndex + 1).map((r) => r.id),
-  );
+  const laterRoundIds = new Set(state.rounds.slice(affectedIndex + 1).map((r) => r.id));
   const hasLaterBets = state.bets.some((b) => laterRoundIds.has(b.roundId));
   if (hasLaterBets) {
     return {
@@ -119,15 +118,11 @@ export function sortPlayers(
   const copy = [...players.filter((p) => p.status !== "removed")];
   switch (sort) {
     case "bankroll":
-      return copy.sort(
-        (a, b) => getBankroll(state, b.id) - getBankroll(state, a.id),
-      );
+      return copy.sort((a, b) => getBankroll(state, b.id) - getBankroll(state, a.id));
     case "seat":
       return copy.sort((a, b) => (a.seat ?? 999) - (b.seat ?? 999));
     case "joined":
-      return copy.sort(
-        (a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime(),
-      );
+      return copy.sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
   }
 }
 
@@ -138,7 +133,10 @@ export interface LeaderboardEntry {
   net: number;
 }
 
-export function buildLeaderboard(state: PlatformState, buyInByPlayer: Record<string, number>): LeaderboardEntry[] {
+export function buildLeaderboard(
+  state: PlatformState,
+  buyInByPlayer: Record<string, number>,
+): LeaderboardEntry[] {
   return state.players
     .filter((p) => p.status !== "removed")
     .map((p) => ({

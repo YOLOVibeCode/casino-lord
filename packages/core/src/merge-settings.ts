@@ -32,6 +32,22 @@ export function mergeTableSettings(
     next.rules = { ...baseRules, ...patchRules };
   }
 
+  if (patch.players !== undefined) {
+    next.players = { ...current.players, ...patch.players };
+  }
+
+  if (patch.bank !== undefined) {
+    next.bank = { ...current.bank, ...patch.bank };
+  }
+
+  if (patch.betting !== undefined) {
+    next.betting = { ...current.betting, ...patch.betting };
+  }
+
+  if (patch.virtual !== undefined) {
+    next.virtual = { ...current.virtual, ...patch.virtual };
+  }
+
   if (patch.animations !== undefined) {
     next.animations = mergeAnimationOverrides(current.animations, patch.animations);
   }

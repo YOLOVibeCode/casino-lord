@@ -49,8 +49,8 @@ describe("betting selectors", () => {
       ],
       settlements: {
         r1: [
-          { betId: "b1", outcome: "win", returned: 200, profit: 100 },
-          { betId: "b2", outcome: "lose", returned: 0, profit: -100 },
+          { betId: "b1", outcome: "win" as const, returned: 200, profit: 100 },
+          { betId: "b2", outcome: "lose" as const, returned: 0, profit: -100 },
         ],
       },
     };
@@ -61,7 +61,11 @@ describe("betting selectors", () => {
   it("blocks undo when later round has bets", () => {
     const state = {
       ...initialPlatformState(),
-      participation: { playerMode: "on", bank: "house", outcomeSource: "physical" as const },
+      participation: {
+        playerMode: "on" as const,
+        bank: "house" as const,
+        outcomeSource: "physical" as const,
+      },
       rounds: [
         {
           id: "r1",
