@@ -1,0 +1,144 @@
+.animation-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.animation-layer__flash {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 0 transparent;
+  animation: animation-flash var(--anim-duration, 1s) ease-out forwards;
+}
+
+.animation-layer__flash--1 {
+  --flash-spread: 12px;
+}
+
+.animation-layer__flash--2 {
+  --flash-spread: 24px;
+}
+
+.animation-layer__flash--3 {
+  --flash-spread: 36px;
+}
+
+@keyframes animation-flash {
+  0% {
+    box-shadow: inset 0 0 var(--flash-spread, 12px) var(--anim-color, #d4af37);
+  }
+  100% {
+    box-shadow: inset 0 0 0 transparent;
+  }
+}
+
+.animation-layer__sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--anim-color, #d4af37) 70%, transparent),
+    transparent
+  );
+  animation: animation-sweep var(--anim-duration, 1s) ease-in-out forwards;
+}
+
+@keyframes animation-sweep {
+  0% {
+    left: -20%;
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+.animation-layer__banner {
+  position: absolute;
+  left: 50%;
+  top: 18%;
+  transform: translateX(-50%);
+  padding: 0.75rem 1.5rem;
+  font-size: clamp(1.5rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--anim-color, #d4af37);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--anim-color, #d4af37) 60%, transparent);
+  animation: animation-banner var(--anim-duration, 1s) ease-out forwards;
+}
+
+@keyframes animation-banner {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-24px);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-12px);
+  }
+}
+
+.animation-layer__canvas,
+.animation-layer__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.animation-layer__dragon-head {
+  fill: var(--anim-color, #d4af37);
+  filter: drop-shadow(0 0 8px var(--anim-color, #d4af37));
+}
+
+.animation-layer__path-glow {
+  fill: none;
+  stroke: var(--anim-color, #d4af37);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px var(--anim-color, #d4af37));
+}
+
+@keyframes animation-path-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.display-shell__module--shake {
+  animation: animation-shake var(--anim-duration, 0.5s) ease-in-out;
+}
+
+@keyframes animation-shake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-6px, 2px);
+  }
+  40% {
+    transform: translate(6px, -2px);
+  }
+  60% {
+    transform: translate(-4px, -2px);
+  }
+  80% {
+    transform: translate(4px, 2px);
+  }
+}
