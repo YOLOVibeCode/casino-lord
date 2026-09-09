@@ -1,4 +1,5 @@
 import type { LayoutPreset } from "@casino-lord/core";
+import { browserStorage, type StorageLike } from "./storage.js";
 
 export interface DeviceSettings {
   layoutId: string;
@@ -24,10 +25,10 @@ export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
   fullScreen: false,
 };
 
-export function loadDeviceSettings(): DeviceSettings {
-  if (typeof localStorage === "undefined") return { ...DEFAULT_DEVICE_SETTINGS };
+export function loadDeviceSettings(store: StorageLike | null = browserStorage()): DeviceSettings {
+  if (!store) return { ...DEFAULT_DEVICE_SETTINGS };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = store.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_DEVICE_SETTINGS };
     return { ...DEFAULT_DEVICE_SETTINGS, ...(JSON.parse(raw) as Partial<DeviceSettings>) };
   } catch {
@@ -35,9 +36,12 @@ export function loadDeviceSettings(): DeviceSettings {
   }
 }
 
-export function saveDeviceSettings(settings: DeviceSettings): void {
-  if (typeof localStorage === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+export function saveDeviceSettings(
+  settings: DeviceSettings,
+  store: StorageLike | null = browserStorage(),
+): void {
+  if (!store) return;
+  store.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
 export function resolveLayout(layouts: LayoutPreset[], layoutId: string): LayoutPreset {

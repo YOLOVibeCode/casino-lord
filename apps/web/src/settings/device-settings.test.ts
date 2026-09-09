@@ -1,25 +1,45 @@
-/**
- * @vitest-environment jsdom
- */
 import { describe, expect, it, beforeEach } from "vitest";
+import type { StorageLike } from "./storage.js";
 import {
   DEFAULT_DEVICE_SETTINGS,
   loadDeviceSettings,
   saveDeviceSettings,
 } from "./device-settings.js";
 
+function createMemoryStore(): StorageLike {
+  const data = new Map<string, string>();
+  return {
+    getItem: (key) => data.get(key) ?? null,
+    setItem: (key, value) => {
+      data.set(key, value);
+    },
+  };
+}
+
 describe("device settings", () => {
+  let store: StorageLike;
+
   beforeEach(() => {
-    localStorage.clear();
+    store = createMemoryStore();
   });
 
   it("returns defaults when nothing stored", () => {
-    expect(loadDeviceSettings()).toEqual(DEFAULT_DEVICE_SETTINGS);
+    expect(loadDeviceSettings(store)).toEqual(DEFAULT_DEVICE_SETTINGS);
   });
 
-  it("round-trips through localStorage", () => {
+  it("round-trips through storage", () => {
     const custom = { ...DEFAULT_DEVICE_SETTINGS, confirmDelayMs: 1500, layoutId: "classic" };
-    saveDeviceSettings(custom);
-    expect(loadDeviceSettings()).toEqual(custom);
+    saveDeviceSettings(custom, store);
+    expect(loadDeviceSettings(store)).toEqual(custom);
+  });
+
+  it("returns defaults for corrupt JSON", () => {
+    store.setItem("casino-lord:device-settings", "{not json");
+    expect(loadDeviceSettings(store)).toEqual(DEFAULT_DEVICE_SETTINGS);
+  });
+
+  it("no-ops save and returns defaults when store is null", () => {
+    expect(loadDeviceSettings(null)).toEqual(DEFAULT_DEVICE_SETTINGS);
+    expect(() => saveDeviceSettings(DEFAULT_DEVICE_SETTINGS, null)).not.toThrow();
   });
 });
