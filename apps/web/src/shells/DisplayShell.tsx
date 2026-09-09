@@ -16,6 +16,8 @@ import type { DeviceSettings } from "../settings/device-settings.js";
 import { resolveLayout } from "../settings/device-settings.js";
 import { fetchVersion } from "../sync/api.js";
 import { QrBadge } from "../sync/QrBadge.js";
+import { isSyncConfigured } from "../sync/config.js";
+import { tableUrl } from "../sync/urls.js";
 import { isSyncStore } from "../table/sync-store-types.js";
 import type { TableStore } from "../table/store.js";
 import { AnimationLayer } from "../animation/AnimationLayer.js";
@@ -47,8 +49,11 @@ export function DisplayShell({
   const composed = store.getComposed();
   const table = store.getTableMeta();
   const playerModeOn = composed.platform.participation.playerMode === "on";
+  const joiningOpen = composed.platform.settings.players?.joiningOpen ?? false;
   const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
-  const showBankrolls = composed.platform.settings.players.showBankrolls;
+  const showBankrolls = bankHouse && composed.platform.settings.players.showBankrolls;
+  const playUrl =
+    playerModeOn && joiningOpen && isSyncConfigured() ? tableUrl(`/play/${store.code}`) : undefined;
   const layout = resolveLayout(module.layouts, deviceSettings.layoutId);
   const stats = module.stats(composed.module, rules);
   const settings = composed.platform.settings;
@@ -161,7 +166,7 @@ export function DisplayShell({
   const topByBankroll = [...leaderboard].sort((a, b) => b.bankroll - a.bankroll).slice(0, 3);
   const topByNet = [...leaderboard].sort((a, b) => b.net - a.net).slice(0, 3);
   const sortedPlayers = sortPlayers(
-    composed.platform.players,
+    composed.platform.players.filter((p) => p.status !== "removed"),
     composed.platform,
     settings.players.playersSort,
   );
@@ -215,6 +220,7 @@ export function DisplayShell({
           ))}
         </div>
         {displayQrUrl && <QrBadge url={displayQrUrl} />}
+        {playUrl && <QrBadge url={playUrl} title="Join QR" />}
       </header>
 
       {dealerHint && (
@@ -248,18 +254,26 @@ export function DisplayShell({
 
       {playerModeOn && sortedPlayers.length > 0 && (
         <aside class="display-shell__players" data-testid="players-panel">
-          <div class="display-shell__players-title">PLAYERS</div>
+          <h3 class="display-shell__players-title">PLAYERS</h3>
           <ul class="display-shell__players-list">
-            {sortedPlayers.map((p) => (
-              <li key={p.id} data-testid={`player-row-${p.id}`}>
-                <span class="display-shell__player-name">{p.name}</span>
-                {bankHouse && showBankrolls && (
-                  <span class="display-shell__player-bankroll" data-testid="player-bankroll">
-                    {getBankroll(composed.platform, p.id).toLocaleString()}
-                  </span>
-                )}
-              </li>
-            ))}
+            {sortedPlayers.map((p) => {
+              const connected = syncStore
+                ?.getPresence()
+                .players.some((entry) => entry.id === p.id && entry.connected);
+              const away = p.status === "away" || (syncStore ? !connected : false);
+              return (
+                <li key={p.id} class="display-shell__player-row" data-testid={`player-row-${p.id}`}>
+                  <span class="display-shell__player-dot" style={{ background: p.color }} />
+                  <span class="display-shell__player-name">{p.name}</span>
+                  {away && <span class="display-shell__player-away">away</span>}
+                  {showBankrolls && (
+                    <span class="display-shell__player-bankroll" data-testid="player-bankroll">
+                      {getBankroll(composed.platform, p.id).toLocaleString()}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </aside>
       )}

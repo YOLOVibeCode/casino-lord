@@ -106,6 +106,43 @@ export function waitForMessage<T = Record<string, unknown>>(
   });
 }
 
+export const PLAYER_MODE_PARTICIPATION = {
+  playerMode: "on" as const,
+  bank: "none" as const,
+  outcomeSource: "physical" as const,
+};
+
+export async function createPlayerModeTable(url: string): Promise<{
+  code: string;
+  dealerToken: string;
+}> {
+  return createTableViaRest(url, {
+    game: "baccarat",
+    participation: PLAYER_MODE_PARTICIPATION,
+  });
+}
+
+export async function joinPlayerViaRest(
+  url: string,
+  code: string,
+  body: { name: string; color: string },
+): Promise<{ playerId: string; playerToken: string; pending: boolean }> {
+  const response = await fetch(`${url}/tables/${code}/players`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `join player failed: ${response.status}`);
+  }
+  return (await response.json()) as {
+    playerId: string;
+    playerToken: string;
+    pending: boolean;
+  };
+}
+
 export async function createTableViaRest(
   url: string,
   body: Record<string, unknown> = {

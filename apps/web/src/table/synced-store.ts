@@ -12,11 +12,17 @@ import { buildResultEnvelope } from "../betting/build-result-envelope.js";
 import { io, type Socket } from "socket.io-client";
 import { newClientId } from "../sync/client-id.js";
 import { saveDealerToken } from "../sync/dealer-token.js";
+import { savePlayerToken } from "../sync/player-token.js";
 import { buildTableMeta } from "./meta.js";
 import type { UntypedGameModule } from "./module-types.js";
 import { enqueueOfflineEvent, peekOfflineQueue, shiftOfflineQueue } from "./offline-queue.js";
 import { loadTable, saveTableEvents } from "./persistence.js";
-import type { ConnectionState, SyncPresence, SyncStore } from "./sync-store-types.js";
+import type {
+  ConnectionState,
+  PendingPlayerEntry,
+  SyncPresence,
+  SyncStore,
+} from "./sync-store-types.js";
 import type { Listener } from "./store.js";
 
 type TableEventInput = { type: TableEventType } & Record<string, unknown>;
@@ -28,7 +34,7 @@ interface PendingEmit {
 
 export interface CreateSyncedStoreOptions {
   code: string;
-  role: "dealer" | "display";
+  role: "dealer" | "display" | "player";
   token?: string;
   syncUrl: string;
   module: UntypedGameModule;
@@ -106,7 +112,9 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   let readOnly = false;
   let rejectReason: string | null = null;
   let connectionState: ConnectionState = "reconnecting";
-  let presence: SyncPresence = { dealers: 0, displays: 0 };
+  let presence: SyncPresence = { dealers: 0, displays: 0, players: [] };
+  let playerId: string | null = null;
+  let pendingPlayers: PendingPlayerEntry[] = [];
   const pending = new Map<string, PendingEmit>();
   let offlineTimer: ReturnType<typeof setTimeout> | null = null;
   let flushing = false;
@@ -209,7 +217,8 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   const isOnline = (): boolean => joined && connectionState === "connected" && !flushing;
 
   const sendPersistedEvent = async (body: TableEventInput): Promise<void> => {
-    if (role !== "dealer" || readOnly) return;
+    if (role === "display" || readOnly) return;
+    if (role === "dealer" && readOnly) return;
 
     rejectReason = null;
     const clientId = newClientId();
@@ -267,7 +276,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       role,
       sinceSeq,
     };
-    if (role === "dealer" && token) payload.token = token;
+    if ((role === "dealer" || role === "player") && token) payload.token = token;
     if (takeoverJoin) payload.takeover = true;
     socket.emit("message", payload);
   };
@@ -288,6 +297,20 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     }
 
     if (typeof msg.seq === "number") latestSeq = Math.max(latestSeq, msg.seq);
+
+    if (typeof msg.playerId === "string") {
+      playerId = msg.playerId;
+    }
+
+    if (Array.isArray(msg.pending)) {
+      pendingPlayers = msg.pending
+        .filter((p): p is PendingPlayerEntry => {
+          return (
+            typeof p === "object" && p !== null && typeof (p as PendingPlayerEntry).id === "string"
+          );
+        })
+        .map((p) => ({ id: p.id, name: p.name, color: p.color }));
+    }
 
     if (msg.live && typeof msg.live === "object") {
       liveInput = { seq: latestSeq + 1, at: now(), ...(msg.live as object) } as TableEvent;
@@ -349,18 +372,40 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       return;
     }
 
-    if (msg.op === "reject" && typeof msg.clientId === "string") {
-      rollbackPending(msg.clientId);
+    if (msg.op === "reject") {
+      if (typeof msg.clientId === "string") {
+        rollbackPending(msg.clientId);
+      }
       rejectReason = String(msg.reason ?? "rejected");
       notify();
       return;
     }
 
     if (msg.op === "presence") {
+      const rawPlayers = Array.isArray(msg.players) ? msg.players : [];
       presence = {
         dealers: Number(msg.dealers ?? 0),
         displays: Number(msg.displays ?? 0),
+        players: rawPlayers
+          .filter((p): p is { id: string; connected: boolean } => {
+            return (
+              typeof p === "object" && p !== null && typeof (p as { id?: unknown }).id === "string"
+            );
+          })
+          .map((p) => ({ id: p.id, connected: Boolean(p.connected) })),
       };
+      notify();
+      return;
+    }
+
+    if (msg.op === "pending" && Array.isArray(msg.players)) {
+      pendingPlayers = msg.players
+        .filter((p): p is PendingPlayerEntry => {
+          return (
+            typeof p === "object" && p !== null && typeof (p as PendingPlayerEntry).id === "string"
+          );
+        })
+        .map((p) => ({ id: p.id, name: p.name, color: p.color }));
       notify();
       return;
     }
@@ -389,6 +434,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     });
 
   if (role === "dealer" && token) saveDealerToken(code, token);
+  if (role === "player" && token) savePlayerToken(code, token);
 
   const getEventsForReplay = (): TableEvent[] => {
     const list = [...events];
@@ -410,7 +456,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   };
 
   const emitLive = (body: TableEventInput): void => {
-    if (role !== "dealer" || readOnly) return;
+    if (role === "display" || readOnly) return;
     if (body.type === "LIVE_INPUT") {
       liveInput = { seq: latestSeq + 1, at: now(), ...body } as TableEvent;
       notify();
@@ -508,7 +554,13 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       socket.disconnect();
       listeners.clear();
     },
-    getDealerToken: () => token ?? null,
+    getDealerToken: () => (role === "dealer" ? (token ?? null) : null),
+    getPlayerId: () => playerId,
+    getPendingPlayers: () => pendingPlayers,
+    sendAdmit: (targetPlayerId, accept) => {
+      if (role !== "dealer" || readOnly) return;
+      socket.emit("message", { op: "admit", playerId: targetPlayerId, accept });
+    },
   };
 
   testSockets.set(store, socket);

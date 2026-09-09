@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import type { GameId, Participation, TableEvent } from "@casino-lord/core";
-import type { TableRepository, TableRow } from "./repository.js";
+import type { PlayerRow, TableRepository, TableRow } from "./repository.js";
 
 function parseParticipation(json: string): Participation {
   return JSON.parse(json) as Participation;
@@ -25,6 +25,17 @@ export function createSqliteRepository(dbPath: string): TableRepository {
       json TEXT NOT NULL,
       PRIMARY KEY (code, seq)
     );
+    CREATE TABLE IF NOT EXISTS players (
+      code TEXT NOT NULL,
+      playerId TEXT NOT NULL,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL,
+      tokenHash TEXT NOT NULL,
+      joinedAt TEXT NOT NULL,
+      pending INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (code, playerId)
+    );
+    CREATE INDEX IF NOT EXISTS idx_players_token ON players (code, tokenHash);
   `);
 
   const insertTable = db.prepare(`
@@ -57,6 +68,45 @@ export function createSqliteRepository(dbPath: string): TableRepository {
   `);
 
   const hasCodeStmt = db.prepare(`SELECT 1 FROM tables WHERE code = ? LIMIT 1`);
+
+  const insertPlayer = db.prepare(`
+    INSERT INTO players (code, playerId, name, color, tokenHash, joinedAt, pending)
+    VALUES (@code, @playerId, @name, @color, @tokenHash, @joinedAt, @pending)
+  `);
+
+  const getPlayerStmt = db.prepare(`
+    SELECT * FROM players WHERE code = ? AND playerId = ?
+  `);
+
+  const getPlayersByCodeStmt = db.prepare(`SELECT * FROM players WHERE code = ?`);
+
+  const findPlayerByTokenStmt = db.prepare(`
+    SELECT * FROM players WHERE code = ? AND tokenHash = ?
+  `);
+
+  const updatePlayerTokenStmt = db.prepare(`
+    UPDATE players SET tokenHash = @tokenHash WHERE code = @code AND playerId = @playerId
+  `);
+
+  const setPlayerPendingStmt = db.prepare(`
+    UPDATE players SET pending = @pending WHERE code = @code AND playerId = @playerId
+  `);
+
+  const deletePlayerStmt = db.prepare(`DELETE FROM players WHERE code = ? AND playerId = ?`);
+
+  const deletePlayersByCodeStmt = db.prepare(`DELETE FROM players WHERE code = ?`);
+
+  function playerFromRecord(record: Record<string, unknown>): PlayerRow {
+    return {
+      code: String(record.code),
+      playerId: String(record.playerId),
+      name: String(record.name),
+      color: String(record.color),
+      tokenHash: String(record.tokenHash),
+      joinedAt: String(record.joinedAt),
+      pending: Number(record.pending) === 1,
+    };
+  }
 
   function rowFromRecord(record: Record<string, unknown>): TableRow {
     return {
@@ -92,6 +142,7 @@ export function createSqliteRepository(dbPath: string): TableRepository {
     },
 
     deleteTable(code: string): void {
+      deletePlayersByCodeStmt.run(code);
       deleteEventsStmt.run(code);
       deleteTableStmt.run(code);
     },
@@ -121,6 +172,50 @@ export function createSqliteRepository(dbPath: string): TableRepository {
 
     hasCode(code: string): boolean {
       return hasCodeStmt.get(code) !== undefined;
+    },
+
+    savePlayer(row: PlayerRow): void {
+      insertPlayer.run({
+        code: row.code,
+        playerId: row.playerId,
+        name: row.name,
+        color: row.color,
+        tokenHash: row.tokenHash,
+        joinedAt: row.joinedAt,
+        pending: row.pending ? 1 : 0,
+      });
+    },
+
+    getPlayer(code: string, playerId: string): PlayerRow | null {
+      const record = getPlayerStmt.get(code, playerId) as Record<string, unknown> | undefined;
+      return record ? playerFromRecord(record) : null;
+    },
+
+    getPlayersByCode(code: string): PlayerRow[] {
+      const records = getPlayersByCodeStmt.all(code) as Record<string, unknown>[];
+      return records.map(playerFromRecord);
+    },
+
+    findPlayerByTokenHash(code: string, tokenHash: string): PlayerRow | null {
+      const record = findPlayerByTokenStmt.get(code, tokenHash) as
+        Record<string, unknown> | undefined;
+      return record ? playerFromRecord(record) : null;
+    },
+
+    updatePlayerToken(code: string, playerId: string, tokenHash: string): void {
+      updatePlayerTokenStmt.run({ code, playerId, tokenHash });
+    },
+
+    setPlayerPending(code: string, playerId: string, pending: boolean): void {
+      setPlayerPendingStmt.run({ code, playerId, pending: pending ? 1 : 0 });
+    },
+
+    deletePlayer(code: string, playerId: string): void {
+      deletePlayerStmt.run(code, playerId);
+    },
+
+    deletePlayersByCode(code: string): void {
+      deletePlayersByCodeStmt.run(code);
     },
   };
 }

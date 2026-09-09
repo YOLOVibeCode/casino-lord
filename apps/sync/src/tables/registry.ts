@@ -12,6 +12,7 @@ import { randomBytes } from "node:crypto";
 import type { Config } from "../config.js";
 import { getModule, isGameEnabled, resolveRules } from "../modules.js";
 import type { TableRepository, TableRow } from "../persistence/repository.js";
+import { type AdmitPlayerResult, type JoinPlayerResult, PlayerService } from "./player-service.js";
 import { generateDealerToken, hashToken } from "./token.js";
 import { TableInstance } from "./table-instance.js";
 
@@ -33,6 +34,7 @@ export interface TableRegistryDeps {
 export class TableRegistry {
   private readonly config: Config;
   private readonly repository: TableRepository;
+  private readonly playerService: PlayerService;
   private readonly now: () => string;
   private readonly rng: () => number;
   private readonly tables = new Map<string, TableInstance>();
@@ -42,6 +44,7 @@ export class TableRegistry {
   constructor(deps: TableRegistryDeps) {
     this.config = deps.config;
     this.repository = deps.repository;
+    this.playerService = new PlayerService(this.config, this.repository);
     this.now = deps.now ?? (() => new Date().toISOString());
     this.rng = deps.rng ?? (() => randomBytes(4).readUInt32BE(0));
 
@@ -150,6 +153,73 @@ export class TableRegistry {
       return false;
     }
     return hashToken(token) === row.dealerTokenHash;
+  }
+
+  joinPlayer(code: string, name: string, color: string): JoinPlayerResult | { error: string } {
+    const table = this.get(code);
+    if (!table) {
+      return { error: "NOT_FOUND" };
+    }
+    const at = this.now();
+    const result = this.playerService.joinPlayer(table, name, color, at);
+    if ("error" in result) {
+      return result;
+    }
+    if (result.event) {
+      this.persistEvent(code, result.event);
+    }
+    table.touch(at);
+    this.repository.updateLastSeen(code, at);
+    return result;
+  }
+
+  admitPlayer(code: string, playerId: string, accept: boolean): AdmitPlayerResult {
+    const table = this.get(code);
+    if (!table) {
+      return { ok: false, error: "NOT_FOUND" };
+    }
+    const at = this.now();
+    const result = this.playerService.admitPlayer(table, playerId, accept, at);
+    if (result.ok && result.event) {
+      this.persistEvent(code, result.event);
+    }
+    if (result.ok) {
+      table.touch(at);
+      this.repository.updateLastSeen(code, at);
+    }
+    return result;
+  }
+
+  reissuePlayerToken(
+    code: string,
+    playerId: string,
+  ): { playerToken: string; disconnectedSocketIds: string[] } | null {
+    const table = this.get(code);
+    if (!table) {
+      return null;
+    }
+    const result = this.playerService.reissueToken(table, playerId);
+    if (!result) {
+      return null;
+    }
+    const disconnectedSocketIds = table.disconnectPlayerSockets(playerId);
+    return { playerToken: result.playerToken, disconnectedSocketIds };
+  }
+
+  verifyPlayerToken(code: string, token: string) {
+    const table = this.get(code);
+    if (!table) {
+      return null;
+    }
+    return this.playerService.verifyPlayerToken(table, token);
+  }
+
+  getPendingPlayers(code: string) {
+    return this.playerService.getPendingPlayers(code);
+  }
+
+  pendingPayload(code: string) {
+    return this.playerService.pendingPayload(code);
   }
 
   deleteTable(code: string): void {

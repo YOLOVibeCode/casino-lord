@@ -11,9 +11,11 @@ export function TableCreatedPage(_props: { path?: string }) {
   const token = query.t ?? "";
   const [displayQr, setDisplayQr] = useState("");
   const [dealerQr, setDealerQr] = useState("");
+  const [playQr, setPlayQr] = useState("");
 
   const displayUrl = tableUrl(`/display/${code}`);
   const dealerUrl = tableUrl(`/dealer/${code}?t=${encodeURIComponent(token)}`);
+  const playUrl = tableUrl(`/play/${code}`);
 
   useEffect(() => {
     if (token) saveDealerToken(code, token);
@@ -22,16 +24,21 @@ export function TableCreatedPage(_props: { path?: string }) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [d, r] = await Promise.all([qrDataUrl(displayUrl), qrDataUrl(dealerUrl)]);
+      const [d, r, p] = await Promise.all([
+        qrDataUrl(displayUrl),
+        qrDataUrl(dealerUrl),
+        qrDataUrl(playUrl),
+      ]);
       if (!cancelled) {
         setDisplayQr(d);
         setDealerQr(r);
+        setPlayQr(p);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [displayUrl, dealerUrl]);
+  }, [displayUrl, dealerUrl, playUrl]);
 
   return (
     <main class="table-created" data-testid="table-created-page">
@@ -53,6 +60,13 @@ export function TableCreatedPage(_props: { path?: string }) {
           {dealerQr && <img src={dealerQr} alt="Dealer QR" data-testid="dealer-qr" />}
           <a href={dealerUrl} data-testid="open-dealer">
             Open Dealer here
+          </a>
+        </section>
+        <section>
+          <h2>Join (Player)</h2>
+          {playQr && <img src={playQr} alt="Join QR" data-testid="play-qr" />}
+          <a href={playUrl} data-testid="open-play">
+            Open Join here
           </a>
         </section>
       </div>

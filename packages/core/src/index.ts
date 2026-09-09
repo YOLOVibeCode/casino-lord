@@ -15,6 +15,7 @@ export * from "./events.js";
 export * from "./game-module.js";
 export * from "./platform-reducer.js";
 export * from "./platform-state.js";
+export * from "./player-colors.js";
 export * from "./platform-types.js";
 export * from "./replay.js";
 export * from "./settings.js";

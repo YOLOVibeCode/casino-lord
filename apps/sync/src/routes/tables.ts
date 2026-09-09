@@ -1,9 +1,15 @@
-import { normalizeTableCode, validateParticipation } from "@casino-lord/core";
+import { normalizeTableCode, validateParticipation, type TableEvent } from "@casino-lord/core";
 import type { FastifyInstance } from "fastify";
 import { getModule } from "../modules.js";
 import type { RateLimiter } from "../rate-limit.js";
-import { createRateLimiter, TABLE_CREATE_LIMIT, TABLE_CREATE_WINDOW_MS } from "../rate-limit.js";
-import { createTableBodySchema } from "../schemas/event-input.js";
+import {
+  createRateLimiter,
+  PLAYER_JOIN_LIMIT,
+  PLAYER_JOIN_WINDOW_MS,
+  TABLE_CREATE_LIMIT,
+  TABLE_CREATE_WINDOW_MS,
+} from "../rate-limit.js";
+import { createTableBodySchema, joinPlayerBodySchema } from "../schemas/event-input.js";
 import { buildExportText } from "../tables/export.js";
 import { buildTableMeta } from "../tables/meta.js";
 import { buildSeriesFromEvents, maxExportableSeries } from "../tables/series.js";
@@ -30,6 +36,9 @@ function parseBearer(authHeader: string | undefined): string | null {
 export interface RegisterTableRoutesOptions {
   registry: TableRegistry;
   rateLimiter?: RateLimiter;
+  notifyPending?: (code: string) => void;
+  broadcastEvent?: (code: string, event: TableEvent) => void;
+  disconnectSockets?: (socketIds: string[]) => void;
 }
 
 export function registerTableRoutes(
@@ -92,6 +101,7 @@ export function registerTableRoutes(
 
     const meta = buildTableMeta(composed, [...table.allEvents], module, composed.module);
     const presence = table.presence();
+    const playerCount = composed.platform.players.filter((p) => p.status === "active").length;
 
     return reply.send({
       exists: true,
@@ -100,10 +110,80 @@ export function registerTableRoutes(
       seriesNumber: meta.seriesNumber,
       resultCount: meta.resultCount,
       displays: presence.displays,
-      players: 0,
+      players: playerCount,
       dealerConnected: presence.dealers > 0,
       joiningOpen: composed.platform.settings.players.joiningOpen,
     });
+  });
+
+  app.post("/tables/:code/players", async (request, reply) => {
+    const ip = clientIp(request);
+    if (!rateLimiter.tryConsume(`join:${ip}`, PLAYER_JOIN_LIMIT, PLAYER_JOIN_WINDOW_MS)) {
+      return reply.code(429).send({ error: "rate limit exceeded" });
+    }
+
+    const params = request.params as { code: string };
+    const code = normalizeTableCode(params.code);
+    const parsed = joinPlayerBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "invalid request body" });
+    }
+
+    const result = registry.joinPlayer(code, parsed.data.name, parsed.data.color);
+    if ("error" in result) {
+      switch (result.error) {
+        case "NOT_FOUND":
+          return reply.code(404).send({ error: "NOT_FOUND" });
+        case "INVALID_NAME":
+        case "INVALID_COLOR":
+          return reply.code(400).send({ error: result.error });
+        case "PLAYERS_DISABLED":
+          return reply.code(403).send({ error: "PLAYERS_DISABLED" });
+        case "SESSION_ENDED":
+          return reply.code(409).send({ error: "SESSION_ENDED" });
+        case "JOINING_CLOSED":
+        case "TABLE_FULL":
+          return reply.code(409).send({ error: result.error });
+        default:
+          return reply.code(400).send({ error: result.error });
+      }
+    }
+
+    if (result.pending) {
+      options.notifyPending?.(code);
+    } else if (result.event) {
+      // The join was appended to the log over REST; connected dealer/display
+      // sockets only learn about it if we push it to the room (SPEC.md §17).
+      options.broadcastEvent?.(code, result.event);
+    }
+
+    return reply.code(201).send({
+      playerId: result.playerId,
+      playerToken: result.playerToken,
+      pending: result.pending,
+    });
+  });
+
+  app.post("/tables/:code/players/:id/reissue", async (request, reply) => {
+    const params = request.params as { code: string; id: string };
+    const code = normalizeTableCode(params.code);
+    const table = registry.get(code);
+    if (!table) {
+      return reply.code(404).send({ error: "NOT_FOUND" });
+    }
+
+    const token = parseBearer(request.headers.authorization);
+    if (!token || !registry.verifyDealerToken(code, token)) {
+      return reply.code(401).send({ error: "BAD_TOKEN" });
+    }
+
+    const reissued = registry.reissuePlayerToken(code, params.id);
+    if (!reissued) {
+      return reply.code(404).send({ error: "NOT_FOUND" });
+    }
+
+    options.disconnectSockets?.(reissued.disconnectedSocketIds);
+    return reply.send({ playerToken: reissued.playerToken });
   });
 
   app.get("/tables/:code/export", async (request, reply) => {

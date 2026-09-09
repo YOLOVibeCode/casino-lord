@@ -2,9 +2,12 @@ import { stableStringify, replay } from "@casino-lord/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { getModule, resolveRules } from "./modules.js";
 import { resultRecordedEvent } from "./test-helpers/baccarat-result.js";
+import { PLAYER_COLORS } from "@casino-lord/core";
 import {
   connectClient,
+  createPlayerModeTable,
   createTableViaRest,
+  joinPlayerViaRest,
   startTestServer,
   waitForMessage,
 } from "./test-helpers/server.js";
@@ -302,6 +305,183 @@ describe("sync protocol", () => {
       body: JSON.stringify(body),
     });
     expect(blocked.status).toBe(429);
+  });
+
+  it("player join → joined includes playerId and presence updates", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createPlayerModeTable(server.url);
+    const joined = await joinPlayerViaRest(server.url, code, {
+      name: "Ana",
+      color: PLAYER_COLORS[0]!,
+    });
+
+    const display = connectClient(server.url);
+    await new Promise<void>((resolve) => display.on("connect", () => resolve()));
+    display.emit("message", { op: "join", code, role: "display" });
+    await waitForMessage(display, (m) => m.op === "joined");
+
+    const player = connectClient(server.url);
+    await new Promise<void>((resolve) => player.on("connect", () => resolve()));
+    player.emit("message", {
+      op: "join",
+      code,
+      role: "player",
+      token: joined.playerToken,
+    });
+    const joinMsg = await waitForMessage(player, (m) => m.op === "joined");
+    expect(joinMsg.playerId).toBe(joined.playerId);
+
+    const presence = await waitForMessage(
+      display,
+      (m) => m.op === "presence" && Array.isArray(m.players),
+    );
+    expect(presence.players).toEqual(
+      expect.arrayContaining([{ id: joined.playerId, connected: true }]),
+    );
+
+    player.close();
+    display.close();
+
+    const dealer = connectClient(server.url);
+    await new Promise<void>((resolve) => dealer.on("connect", () => resolve()));
+    dealer.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
+    await waitForMessage(dealer, (m) => m.op === "joined");
+    dealer.close();
+  });
+
+  it("joinApproval admit and decline", async () => {
+    const server = await boot();
+    const createResponse = await fetch(`${server.url}/tables`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        game: "baccarat",
+        participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+        settings: { players: { joinApproval: true } },
+      }),
+    });
+    const { code, dealerToken } = (await createResponse.json()) as {
+      code: string;
+      dealerToken: string;
+    };
+
+    const joined = await joinPlayerViaRest(server.url, code, {
+      name: "Cy",
+      color: PLAYER_COLORS[2]!,
+    });
+    expect(joined.pending).toBe(true);
+
+    const dealer = connectClient(server.url);
+    await new Promise<void>((resolve) => dealer.on("connect", () => resolve()));
+    dealer.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
+    const joinedMsg = await waitForMessage(dealer, (m) => m.op === "joined");
+    expect(joinedMsg.pending).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: joined.playerId, name: "Cy" })]),
+    );
+
+    const player = connectClient(server.url);
+    await new Promise<void>((resolve) => player.on("connect", () => resolve()));
+    player.emit("message", {
+      op: "join",
+      code,
+      role: "player",
+      token: joined.playerToken,
+    });
+    await waitForMessage(player, (m) => m.op === "joined");
+
+    dealer.emit("message", { op: "admit", playerId: joined.playerId, accept: true });
+    const eventMsg = await waitForMessage(
+      dealer,
+      (m) =>
+        m.op === "event" &&
+        typeof m.event === "object" &&
+        m.event !== null &&
+        (m.event as { type?: string }).type === "PLAYER_JOINED",
+    );
+    expect((eventMsg.event as { player: { id: string } }).player.id).toBe(joined.playerId);
+
+    player.close();
+    dealer.close();
+  });
+
+  it("reissue invalidates old player token", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createPlayerModeTable(server.url);
+    const joined = await joinPlayerViaRest(server.url, code, {
+      name: "Dan",
+      color: PLAYER_COLORS[3]!,
+    });
+
+    const reissue = await fetch(`${server.url}/tables/${code}/players/${joined.playerId}/reissue`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${dealerToken}` },
+    });
+    const { playerToken: newToken } = (await reissue.json()) as { playerToken: string };
+
+    const oldClient = connectClient(server.url);
+    await new Promise<void>((resolve) => oldClient.on("connect", () => resolve()));
+    oldClient.emit("message", {
+      op: "join",
+      code,
+      role: "player",
+      token: joined.playerToken,
+    });
+    const err = await waitForMessage(oldClient, (m) => m.op === "error");
+    expect(err.code).toBe("BAD_TOKEN");
+    oldClient.close();
+
+    const newClient = connectClient(server.url);
+    await new Promise<void>((resolve) => newClient.on("connect", () => resolve()));
+    newClient.emit("message", {
+      op: "join",
+      code,
+      role: "player",
+      token: newToken,
+    });
+    const ok = await waitForMessage(newClient, (m) => m.op === "joined");
+    expect(ok.playerId).toBe(joined.playerId);
+    newClient.close();
+  });
+
+  it("player ownership rejects foreign bet", async () => {
+    const server = await boot();
+    const { code } = await createPlayerModeTable(server.url);
+    const joined = await joinPlayerViaRest(server.url, code, {
+      name: "Eve",
+      color: PLAYER_COLORS[4]!,
+    });
+
+    const player = connectClient(server.url);
+    await new Promise<void>((resolve) => player.on("connect", () => resolve()));
+    player.emit("message", {
+      op: "join",
+      code,
+      role: "player",
+      token: joined.playerToken,
+    });
+    await waitForMessage(player, (m) => m.op === "joined");
+
+    player.emit("message", {
+      op: "event",
+      clientId: "bet1",
+      event: {
+        type: "BET_PLACED",
+        bet: {
+          id: "b1",
+          playerId: "other-player",
+          roundId: "r1",
+          type: "banker",
+          amount: 100,
+          declared: true,
+          working: true,
+          placedAt: new Date().toISOString(),
+          originRoundId: "r1",
+        },
+      },
+    });
+    const reject = await waitForMessage(player, (m) => m.op === "reject");
+    expect(reject.reason).toContain("mismatch");
+    player.close();
   });
 
   it("export requires valid dealer token", async () => {

@@ -1,9 +1,14 @@
 import type { TableEvent } from "@casino-lord/core";
-import type { TableRepository, TableRow } from "./repository.js";
+import type { PlayerRow, TableRepository, TableRow } from "./repository.js";
 
 export function createMemoryRepository(): TableRepository {
   const tables = new Map<string, TableRow>();
   const events = new Map<string, TableEvent[]>();
+  const players = new Map<string, PlayerRow>();
+
+  function playerKey(code: string, playerId: string): string {
+    return `${code}:${playerId}`;
+  }
 
   return {
     createTable(row: TableRow): void {
@@ -25,6 +30,11 @@ export function createMemoryRepository(): TableRepository {
     deleteTable(code: string): void {
       tables.delete(code);
       events.delete(code);
+      for (const key of [...players.keys()]) {
+        if (key.startsWith(`${code}:`)) {
+          players.delete(key);
+        }
+      }
     },
 
     saveEvent(code: string, event: TableEvent): void {
@@ -52,6 +62,11 @@ export function createMemoryRepository(): TableRepository {
         if (row.lastSeenAt < cutoffIso) {
           tables.delete(code);
           events.delete(code);
+          for (const key of [...players.keys()]) {
+            if (key.startsWith(`${code}:`)) {
+              players.delete(key);
+            }
+          }
           purged += 1;
         }
       }
@@ -60,6 +75,53 @@ export function createMemoryRepository(): TableRepository {
 
     hasCode(code: string): boolean {
       return tables.has(code);
+    },
+
+    savePlayer(row: PlayerRow): void {
+      players.set(playerKey(row.code, row.playerId), row);
+    },
+
+    getPlayer(code: string, playerId: string): PlayerRow | null {
+      return players.get(playerKey(code, playerId)) ?? null;
+    },
+
+    getPlayersByCode(code: string): PlayerRow[] {
+      return [...players.values()].filter((p) => p.code === code);
+    },
+
+    findPlayerByTokenHash(code: string, tokenHash: string): PlayerRow | null {
+      for (const row of players.values()) {
+        if (row.code === code && row.tokenHash === tokenHash) {
+          return row;
+        }
+      }
+      return null;
+    },
+
+    updatePlayerToken(code: string, playerId: string, tokenHash: string): void {
+      const row = players.get(playerKey(code, playerId));
+      if (row) {
+        players.set(playerKey(code, playerId), { ...row, tokenHash });
+      }
+    },
+
+    setPlayerPending(code: string, playerId: string, pending: boolean): void {
+      const row = players.get(playerKey(code, playerId));
+      if (row) {
+        players.set(playerKey(code, playerId), { ...row, pending });
+      }
+    },
+
+    deletePlayer(code: string, playerId: string): void {
+      players.delete(playerKey(code, playerId));
+    },
+
+    deletePlayersByCode(code: string): void {
+      for (const key of [...players.keys()]) {
+        if (key.startsWith(`${code}:`)) {
+          players.delete(key);
+        }
+      }
     },
   };
 }

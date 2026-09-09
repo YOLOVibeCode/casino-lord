@@ -17,6 +17,7 @@ import { BettingBar } from "./BettingBar.js";
 import { SettingsDialog } from "./SettingsDialog.js";
 import { HistoryDialog } from "./HistoryDialog.js";
 import { CalculatorDialog } from "./CalculatorDialog.js";
+import { PlayersDialog } from "./PlayersDialog.js";
 import "./dealer-shell.css";
 
 export interface DealerShellProps {
@@ -28,7 +29,7 @@ export interface DealerShellProps {
   onNewTable?: () => void;
 }
 
-type ActiveDialog = "settings" | "history" | "calculator" | "qr" | "bank" | null;
+type ActiveDialog = "settings" | "history" | "calculator" | "qr" | "players" | "bank" | null;
 
 export function DealerShell({
   store,
@@ -381,7 +382,12 @@ export function DealerShell({
       <footer class="dealer-shell__footer">
         {playerModeOn && (
           <>
-            <button type="button" disabled title="Coming soon">
+            <button
+              type="button"
+              data-testid="players-btn"
+              disabled={!syncStore}
+              onClick={() => setActiveDialog("players")}
+            >
               👥
             </button>
             <button
@@ -525,6 +531,9 @@ export function DealerShell({
           rules={rules}
           onClose={() => setActiveDialog(null)}
         />
+      )}
+      {activeDialog === "players" && syncStore && (
+        <PlayersDialog store={syncStore} onClose={() => setActiveDialog(null)} />
       )}
       {activeDialog === "qr" && syncStore && (
         <QrDialog
