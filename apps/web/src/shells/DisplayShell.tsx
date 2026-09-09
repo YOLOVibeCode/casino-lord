@@ -4,6 +4,9 @@ import type { ComponentType } from "preact";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
 import { resolveLayout } from "../settings/device-settings.js";
+import { fetchVersion } from "../sync/api.js";
+import { QrBadge } from "../sync/QrBadge.js";
+import { isSyncStore } from "../table/sync-store-types.js";
 import type { TableStore } from "../table/store.js";
 import { useStore } from "../hooks/use-store.js";
 import "./display-shell.css";
@@ -13,9 +16,18 @@ export interface DisplayShellProps {
   module: UntypedGameModule;
   rules: unknown;
   deviceSettings: DeviceSettings;
+  displayQrUrl?: string;
+  syncBaseUrl?: string;
 }
 
-export function DisplayShell({ store, module, rules, deviceSettings }: DisplayShellProps) {
+export function DisplayShell({
+  store,
+  module,
+  rules,
+  deviceSettings,
+  displayQrUrl,
+  syncBaseUrl,
+}: DisplayShellProps) {
   useStore(store);
   const composed = store.getComposed();
   const table = store.getTableMeta();
@@ -27,6 +39,7 @@ export function DisplayShell({ store, module, rules, deviceSettings }: DisplaySh
   const [infoOpen, setInfoOpen] = useState(false);
   const [logoTaps, setLogoTaps] = useState(0);
   const [cursorHidden, setCursorHidden] = useState(false);
+  const [version, setVersion] = useState("0.0.0");
   const cursorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -48,6 +61,11 @@ export function DisplayShell({ store, module, rules, deviceSettings }: DisplaySh
       if (cursorTimer.current) clearTimeout(cursorTimer.current);
     };
   }, [deviceSettings.cursorHide]);
+
+  useEffect(() => {
+    if (!syncBaseUrl) return;
+    void fetchVersion(syncBaseUrl).then(setVersion);
+  }, [syncBaseUrl]);
 
   const requestFullScreen = async () => {
     const el = rootRef.current;
@@ -72,6 +90,22 @@ export function DisplayShell({ store, module, rules, deviceSettings }: DisplaySh
   };
 
   const emptyBets = { round: null, summaries: [], openBets: [] };
+  const syncStore = isSyncStore(store) ? store : null;
+
+  const connectionLabel = syncStore
+    ? syncStore.getConnectionState() === "connected"
+      ? "Connected"
+      : syncStore.getConnectionState() === "reconnecting"
+        ? "Reconnecting"
+        : "Offline"
+    : "Local / Solo";
+
+  const dealerHint =
+    syncStore &&
+    syncStore.getPresence().dealers === 0 &&
+    syncStore.getConnectionState() === "connected"
+      ? "Dealer disconnected"
+      : null;
 
   return (
     <div
@@ -104,7 +138,14 @@ export function DisplayShell({ store, module, rules, deviceSettings }: DisplaySh
             </span>
           ))}
         </div>
+        {displayQrUrl && <QrBadge url={displayQrUrl} />}
       </header>
+
+      {dealerHint && (
+        <div class="display-shell__dealer-hint" data-testid="dealer-disconnected">
+          {dealerHint}
+        </div>
+      )}
 
       {playerModeOn && (
         <div class="display-shell__betting-strip" data-testid="betting-strip">
@@ -134,8 +175,8 @@ export function DisplayShell({ store, module, rules, deviceSettings }: DisplaySh
         <div class="display-shell__info" onClick={(e) => e.stopPropagation()}>
           <div>Table: {store.code}</div>
           <div>Game: {module.name}</div>
-          <div>Connection: Local / Solo</div>
-          <div>Version: 0.0.0</div>
+          <div>Connection: {connectionLabel}</div>
+          <div>Version: {version}</div>
         </div>
       )}
 
