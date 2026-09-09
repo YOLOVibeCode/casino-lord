@@ -40,6 +40,8 @@ export interface VirtualSession {
   holeDealt: boolean;
   dealRound: number;
   completedHands: string[];
+  /** ISO timestamp when the current player turn began (for action timer). */
+  turnStartedAt?: string;
 }
 
 export interface BlackjackLiveInput {
