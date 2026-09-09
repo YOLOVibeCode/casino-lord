@@ -19,6 +19,7 @@ Specification complete; implementation starting at milestone M1 (`SPEC.md` §29)
 | [`SPEC-ROULETTE.md`](SPEC-ROULETTE.md) | Number entry, results board, wheel, hot/cold and property stats, full inside/outside/call bet felt, virtual spin. |
 | [`SPEC-CRAPS.md`](SPEC-CRAPS.md) | Dice entry, pass-line state machine, puck and point boxes, shooter stats, working bets, shooter-rolls-from-phone. |
 | [`SPEC-BLACKJACK.md`](SPEC-BLACKJACK.md) | Multi-seat card entry, hand engine, dealer play validation, player seats and actions, virtual shoe. |
+| [`SPEC-PLATFORM-v2.md`](SPEC-PLATFORM-v2.md) | Superseded 2.0 platform baseline, retained for the shell, calculator, persistence and theme behaviours that `SPEC.md` references as "v2.0". |
 
 ## Development
 

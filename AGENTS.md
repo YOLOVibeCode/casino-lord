@@ -19,6 +19,7 @@ The specifications are the source of truth and are more detailed than any prompt
 | `SPEC-ROULETTE.md` | Working on `packages/game-roulette`. |
 | `SPEC-CRAPS.md` | Working on `packages/game-craps`. |
 | `SPEC-BLACKJACK.md` | Working on `packages/game-blackjack`. |
+| `SPEC-PLATFORM-v2.md` | Only when `SPEC.md` says "as v2.0" for the behaviour you are implementing (shells, calculator, persistence, themes). `SPEC.md` wins on conflict. |
 
 Cite the spec section you implemented in the PR description (e.g. "SPEC-CRAPS §5.1, Appendix A"). If you must deviate from the spec, say so explicitly and why; do not silently change it. Editing a spec file is allowed only when the task is about the spec.
 

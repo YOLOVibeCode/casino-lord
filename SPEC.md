@@ -14,6 +14,7 @@
 | `SPEC-ROULETTE.md` | Roulette module: number entry, results board, wheel, statistics, bet catalogue, player felt, virtual spin. |
 | `SPEC-CRAPS.md` | Craps module: dice entry, pass-line state machine, puck, shooter stats, working bets, shooter phone. |
 | `SPEC-BLACKJACK.md` | Blackjack module: multi-seat card entry, hand engine, dealer play validation, player seats and actions, virtual shoe. |
+| `SPEC-PLATFORM-v2.md` | Superseded 2.0 baseline. Wherever this document says "as v2.0", the referenced behaviour is specified there; this document wins on conflict. |
 
 Game documents depend on this one and never redefine platform behaviour. Where a game document says "platform", it refers to a section here.
 
