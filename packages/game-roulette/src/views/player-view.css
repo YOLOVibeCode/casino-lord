@@ -1,0 +1,321 @@
+@import "./roulette-tokens.css";
+
+.roulette-player-view {
+  --felt-cell: 3rem;
+  --felt-gap: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  min-width: 360px;
+  color: var(--roulette-text);
+  background: var(--roulette-panel);
+}
+
+.roulette-player-view__body {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.roulette-player-view__sidebar {
+  flex: 0 0 3.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.roulette-player-view__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.roulette-player-view__history-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.roulette-player-view__section-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+
+.roulette-player-view__chip {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.roulette-player-view__chip--red {
+  background: var(--roulette-red);
+}
+
+.roulette-player-view__chip--black {
+  background: var(--roulette-black-chip);
+}
+
+.roulette-player-view__chip--green {
+  background: var(--roulette-green);
+}
+
+.roulette-player-view__chip--void {
+  background: var(--roulette-void);
+}
+
+.roulette-player-view__hotcold-panel {
+  font-size: 0.65rem;
+}
+
+.roulette-player-view__hotcold-title {
+  font-weight: 700;
+  margin-bottom: 0.15rem;
+}
+
+.roulette-player-view__hotcold-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+
+.player-felt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--felt-gap);
+}
+
+.player-felt__grid-wrap {
+  position: relative;
+}
+
+.player-felt__grid {
+  display: grid;
+  grid-template-columns: var(--felt-cell) repeat(12, minmax(var(--felt-cell), 1fr)) var(--felt-cell);
+  grid-template-rows: repeat(3, minmax(var(--felt-cell), auto));
+  gap: var(--felt-gap);
+}
+
+.player-felt__zero-col {
+  grid-row: 1 / span 3;
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--felt-gap);
+}
+
+.player-felt__zero {
+  flex: 1;
+  min-height: var(--felt-cell);
+  min-width: var(--felt-cell);
+}
+
+.player-felt__number {
+  min-height: max(var(--felt-cell), 48px);
+  min-width: max(var(--felt-cell), 48px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  position: relative;
+}
+
+.player-felt__number--red {
+  background: var(--roulette-red);
+}
+
+.player-felt__number--black {
+  background: var(--roulette-black);
+}
+
+.player-felt__number--green {
+  background: var(--roulette-green);
+}
+
+.player-felt__column-bet {
+  grid-row: 1 / span 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--felt-gap);
+}
+
+.player-felt__column-btn {
+  flex: 1;
+  min-height: var(--felt-cell);
+  min-width: var(--felt-cell);
+}
+
+.player-felt__dozens {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--felt-gap);
+}
+
+.player-felt__dozen {
+  min-height: 2.5rem;
+}
+
+.player-felt__outsides {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--felt-gap);
+}
+
+.player-felt__outside {
+  min-height: 3.5rem;
+}
+
+.player-felt__hits {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.player-felt__hit {
+  position: absolute;
+  pointer-events: auto;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0;
+  z-index: 2;
+}
+
+.player-felt__hit:focus-visible {
+  outline: 2px solid var(--roulette-gold);
+  outline-offset: 1px;
+}
+
+.player-felt__hit--disabled {
+  pointer-events: none;
+  opacity: 0.35;
+}
+
+.player-felt__hit-stake {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  font-size: 0.55rem;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 0.1rem 0.2rem;
+  border-radius: 0.15rem;
+}
+
+.player-felt__magnifier {
+  position: fixed;
+  bottom: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  border: 2px solid var(--roulette-gold);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.player-felt__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.player-felt__repeat,
+.player-felt__racetrack-toggle {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.player-felt__repeat:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.player-felt__racetrack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0.5rem;
+}
+
+.player-felt__racetrack-sectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.player-felt__sector-btn {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.7rem;
+  border-radius: 0.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  cursor: pointer;
+}
+
+.player-felt__racetrack-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+
+.player-felt__track-num {
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.6rem;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  color: #fff;
+}
+
+.player-felt__track-num--red {
+  background: var(--roulette-red);
+}
+
+.player-felt__track-num--black {
+  background: var(--roulette-black);
+}
+
+.player-felt__track-num--green {
+  background: var(--roulette-green);
+}
+
+@media (min-width: 360px) {
+  .roulette-player-view {
+    --felt-cell: 3rem;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 640px) {
+  .roulette-player-view__body {
+    flex-direction: row-reverse;
+  }
+}
