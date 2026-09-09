@@ -1,0 +1,65 @@
+.derived-road__ring {
+  width: calc(var(--road-cell-size) - 6px);
+  height: calc(var(--road-cell-size) - 6px);
+  border-radius: 50%;
+  border: 3px solid;
+  background: transparent;
+}
+
+.derived-road__ring--red {
+  border-color: var(--baccarat-banker);
+}
+
+.derived-road__ring--blue {
+  border-color: var(--baccarat-player);
+}
+
+.derived-road__disc {
+  width: calc(var(--road-cell-size) - 6px);
+  height: calc(var(--road-cell-size) - 6px);
+  border-radius: 50%;
+}
+
+.derived-road__disc--red {
+  background: var(--baccarat-banker);
+}
+
+.derived-road__disc--blue {
+  background: var(--baccarat-player);
+}
+
+.derived-road__slash {
+  width: calc(var(--road-cell-size) - 6px);
+  height: calc(var(--road-cell-size) - 6px);
+  position: relative;
+}
+
+.derived-road__slash::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 10%;
+  right: 10%;
+  height: 3px;
+  transform: rotate(-45deg);
+}
+
+.derived-road__slash--red::before {
+  background: var(--baccarat-banker);
+}
+
+.derived-road__slash--blue::before {
+  background: var(--baccarat-player);
+}
+
+.derived-road__prediction {
+  border: 2px dashed var(--baccarat-gold);
+  border-radius: 4px;
+  opacity: 0.85;
+}
+
+.derived-road__prediction-label {
+  font-size: calc(var(--road-cell-size) * 0.35);
+  font-weight: 700;
+  color: var(--baccarat-gold);
+}

@@ -1,0 +1,94 @@
+.current-hand-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--baccarat-panel);
+  border: 1px solid rgba(184, 148, 90, 0.4);
+  border-radius: 8px;
+}
+
+.current-hand-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.current-hand-panel__side {
+  font-weight: 700;
+  min-width: 4rem;
+  font-size: 0.85rem;
+}
+
+.current-hand-panel__side--P {
+  color: var(--baccarat-player);
+}
+
+.current-hand-panel__side--B {
+  color: var(--baccarat-banker);
+}
+
+.current-hand-panel__cards {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.current-hand-panel__card {
+  padding: 4px 8px;
+  background: #fff;
+  color: #111;
+  border-radius: 4px;
+  font-weight: 600;
+  animation: card-flip-in 200ms ease-out;
+}
+
+.current-hand-panel__card--red {
+  color: #c8102e;
+}
+
+@keyframes card-flip-in {
+  from {
+    transform: rotateY(90deg);
+    opacity: 0;
+  }
+  to {
+    transform: rotateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .current-hand-panel__card {
+    animation: none;
+  }
+}
+
+.current-hand-panel__total {
+  margin-left: auto;
+  font-weight: 700;
+}
+
+.current-hand-panel__hint {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.current-hand-panel__banner {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--baccarat-gold);
+  margin-top: 4px;
+}
+
+.current-hand-panel__banner--P {
+  color: var(--baccarat-player);
+}
+
+.current-hand-panel__banner--B {
+  color: var(--baccarat-banker);
+}
+
+.current-hand-panel__banner--T {
+  color: var(--baccarat-tie);
+}

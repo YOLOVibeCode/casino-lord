@@ -21,6 +21,9 @@ import { exportHand, importText, type ImportedHand } from "./serialize.js";
 import { baccaratConfirm } from "./confirm.js";
 import { formatOutcomeToken } from "./quick-entry.js";
 import { DealerView } from "./views/DealerView.js";
+import { DisplayView } from "./views/DisplayView.js";
+import { ResultDetailView } from "./views/ResultDetailView.js";
+import { RulesSettingsView } from "./views/RulesSettingsView.js";
 
 function stubComponent(): Component<Record<string, unknown>> {
   return (() => null) as unknown as Component<Record<string, unknown>>;
@@ -71,7 +74,7 @@ export const baccaratModule: GameModule<
     BaccaratLiveInput,
     BaccaratState
   >["DealerView"],
-  DisplayView: stubComponent() as GameModule<
+  DisplayView: DisplayView as unknown as GameModule<
     BaccaratRules,
     BaccaratResult,
     BaccaratLiveInput,
@@ -83,13 +86,13 @@ export const baccaratModule: GameModule<
     BaccaratLiveInput,
     BaccaratState
   >["PlayerView"],
-  ResultDetailView: stubComponent() as GameModule<
+  ResultDetailView: ResultDetailView as unknown as GameModule<
     BaccaratRules,
     BaccaratResult,
     BaccaratLiveInput,
     BaccaratState
   >["ResultDetailView"],
-  RulesSettingsView: stubComponent() as GameModule<
+  RulesSettingsView: RulesSettingsView as unknown as GameModule<
     BaccaratRules,
     BaccaratResult,
     BaccaratLiveInput,
@@ -110,7 +113,12 @@ export const baccaratModule: GameModule<
 
   stats: baccaratStats,
 
-  layouts: [{ id: "classic", label: "Classic", aspect: "16:9" }],
+  layouts: [
+    { id: "classic", label: "Classic", aspect: "16:9" },
+    { id: "roads-only", label: "Roads Only", aspect: "16:9" },
+    { id: "big-road-focus", label: "Big Road Focus", aspect: "16:9" },
+    { id: "portrait", label: "Portrait", aspect: "9:16" },
+  ],
 
   exportSeries(series: Series<BaccaratResult>, _rules: BaccaratRules): string {
     return series.results.map((r) => exportHand(resultToImportedHand(r.data))).join(" ");

@@ -4,6 +4,7 @@ import { browserStorage, type StorageLike } from "./storage.js";
 export interface DeviceSettings {
   layoutId: string;
   scale: number;
+  roadFit: boolean;
   expressMode: boolean;
   autoAdvance: boolean;
   confirmDelayMs: number;
@@ -17,6 +18,7 @@ const STORAGE_KEY = "casino-lord:device-settings";
 export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
   layoutId: "classic",
   scale: 1,
+  roadFit: false,
   expressMode: true,
   autoAdvance: true,
   confirmDelayMs: 0,

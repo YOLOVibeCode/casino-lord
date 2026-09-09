@@ -112,7 +112,7 @@ export function DisplayShell({ store, module, rules, deviceSettings }: DisplaySh
         </div>
       )}
 
-      <div class="display-shell__module">
+      <div class="display-shell__module" data-road-fit={deviceSettings.roadFit ? "true" : "false"}>
         {createElement(module.DisplayView as unknown as ComponentType<Record<string, unknown>>, {
           state: composed.module,
           rules,

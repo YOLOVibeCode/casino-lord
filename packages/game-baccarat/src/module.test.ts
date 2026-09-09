@@ -36,7 +36,12 @@ describe("baccaratModule", () => {
     expect(baccaratModule.id).toBe("baccarat");
     expect(baccaratModule.seriesLabel).toBe("Shoe");
     expect(baccaratModule.resultLabel).toBe("Hand");
-    expect(baccaratModule.layouts).toEqual([{ id: "classic", label: "Classic", aspect: "16:9" }]);
+    expect(baccaratModule.layouts.map((l) => l.id)).toEqual([
+      "classic",
+      "roads-only",
+      "big-road-focus",
+      "portrait",
+    ]);
     expect(baccaratModule.animationEvents).toHaveLength(10);
   });
 
