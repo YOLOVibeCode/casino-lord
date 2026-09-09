@@ -8,6 +8,8 @@ import { fetchVersion } from "../sync/api.js";
 import { QrBadge } from "../sync/QrBadge.js";
 import { isSyncStore } from "../table/sync-store-types.js";
 import type { TableStore } from "../table/store.js";
+import { AnimationLayer } from "../animation/AnimationLayer.js";
+import { useAnimationRuntime } from "../animation/useAnimationRuntime.js";
 import { useStore } from "../hooks/use-store.js";
 import "./display-shell.css";
 
@@ -43,6 +45,19 @@ export function DisplayShell({
   const cursorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  const { activeSegments, heldModuleState, boardShaking, shakeDurationMs, unlockSound } =
+    useAnimationRuntime({
+      store,
+      module,
+      rules,
+      deviceSettings,
+      overlayRef,
+      enabled: deviceSettings.animations,
+    });
+
+  const displayModuleState = heldModuleState ?? composed.module;
 
   const resetCursorTimer = () => {
     setCursorHidden(false);
@@ -113,6 +128,7 @@ export function DisplayShell({
       class={`display-shell${cursorHidden ? " display-shell--cursor-hidden" : ""}`}
       data-testid="display-shell"
       onClick={() => {
+        unlockSound();
         if (fsHint) void requestFullScreen();
       }}
     >
@@ -153,9 +169,13 @@ export function DisplayShell({
         </div>
       )}
 
-      <div class="display-shell__module" data-road-fit={deviceSettings.roadFit ? "true" : "false"}>
+      <div
+        class={`display-shell__module${boardShaking ? " display-shell__module--shake" : ""}`}
+        data-road-fit={deviceSettings.roadFit ? "true" : "false"}
+        style={boardShaking ? { "--anim-duration": `${shakeDurationMs}ms` } : undefined}
+      >
         {createElement(module.DisplayView as unknown as ComponentType<Record<string, unknown>>, {
-          state: composed.module,
+          state: displayModuleState,
           rules,
           table,
           bets: emptyBets,
@@ -180,7 +200,9 @@ export function DisplayShell({
         </div>
       )}
 
-      <div class="display-shell__animation-overlay" aria-hidden="true" />
+      <div ref={overlayRef} class="display-shell__animation-overlay" aria-hidden="true">
+        <AnimationLayer segments={activeSegments} />
+      </div>
     </div>
   );
 }
