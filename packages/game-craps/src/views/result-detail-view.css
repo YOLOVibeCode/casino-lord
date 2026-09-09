@@ -1,0 +1,36 @@
+.result-detail {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.result-detail__total {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--craps-gold);
+}
+
+.result-detail__dice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.result-detail__classification {
+  font-weight: 600;
+}
+
+.result-detail__puck {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.result-detail__quick-note {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #94a3b8;
+}

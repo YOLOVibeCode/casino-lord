@@ -20,5 +20,6 @@ describe("crapsConfirm", () => {
     const confirm = crapsConfirm(state, DEFAULT_CRAPS_RULES);
     expect(confirm?.label).toContain("SEVEN OUT");
     expect(confirm?.color).toBe("#D7263D");
+    expect(confirm?.autoSeries).toBe(true);
   });
 });

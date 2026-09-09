@@ -1,5 +1,6 @@
 import type { GameId } from "@casino-lord/core";
 import { baccaratModule } from "@casino-lord/game-baccarat";
+import { crapsModule } from "@casino-lord/game-craps";
 import { rouletteModule } from "@casino-lord/game-roulette";
 import type { UntypedGameModule } from "./module-types.js";
 import { asUntypedModule } from "./module-types.js";
@@ -19,7 +20,7 @@ export const GAMES: GameEntry[] = [
     module: asUntypedModule(rouletteModule),
     enabled: true,
   },
-  { id: "craps", name: "Craps", enabled: false },
+  { id: "craps", name: "Craps", module: asUntypedModule(crapsModule), enabled: true },
   { id: "blackjack", name: "Blackjack", enabled: false },
 ];
 

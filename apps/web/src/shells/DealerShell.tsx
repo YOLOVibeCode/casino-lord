@@ -69,6 +69,10 @@ export function DealerShell({
     if (deviceSettings.haptics && typeof navigator.vibrate === "function") {
       navigator.vibrate(10);
     }
+    const clearLiveInput =
+      module.id === "craps"
+        ? { type: "LIVE_INPUT" as const, payload: { a: null, b: null }, source: "dealer" as const }
+        : { type: "LIVE_INPUT" as const, payload: { slots: {} }, source: "dealer" as const };
     if (editingEnvelope) {
       store.editResult({
         ...editingEnvelope,
@@ -76,12 +80,15 @@ export function DealerShell({
         quick: editingEnvelope.quick,
       });
       setEditingEnvelope(null);
-      store.emit({ type: "LIVE_INPUT", payload: { slots: {} }, source: "dealer" });
+      store.emit(clearLiveInput);
     } else {
       store.record(confirmState.result, { quick: false });
+      if (confirmState.autoSeries) {
+        store.startNewSeries(undefined, { auto: true });
+      }
     }
     clearConfirmTimer();
-  }, [clearConfirmTimer, confirmState, deviceSettings.haptics, editingEnvelope, store]);
+  }, [clearConfirmTimer, confirmState, deviceSettings.haptics, editingEnvelope, module.id, store]);
 
   const startConfirmDelay = useCallback(() => {
     if (!confirmState?.enabled || !confirmState.result) return;

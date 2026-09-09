@@ -25,6 +25,7 @@ export interface ConfirmState<Result> {
   badges?: string[];
   enabled: boolean;
   result: Result | null;
+  autoSeries?: boolean;
 }
 
 export interface GameModule<Rules, Result, LiveInput, State, BetTarget = unknown, Action = never> {

@@ -467,11 +467,12 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     deleteResult: (resultId) => {
       void sendPersistedEvent({ type: "RESULT_DELETED", resultId });
     },
-    startNewSeries: (label) => {
+    startNewSeries: (label, opts) => {
       void sendPersistedEvent({
         type: "SERIES_STARTED",
         seriesId: id(),
         ...(label !== undefined ? { label } : {}),
+        ...(opts?.auto ? { auto: true } : {}),
       });
     },
     endSession: () => {
