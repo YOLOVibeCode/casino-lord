@@ -103,9 +103,9 @@ describe("PlayerView", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders when shooter state is not yet initialized", () => {
-    const state = { ...initialState(), shooter: undefined as unknown as CrapsState["shooter"] };
-    renderPlayerView({ state });
+  it("renders when module state is partial before series start", () => {
+    renderPlayerView({ state: {} as CrapsState });
+    expect(screen.getByTestId("bet-zone-pass").className).not.toContain("disabled");
     expect(screen.getByTestId("craps-player-view")).toBeTruthy();
   });
 

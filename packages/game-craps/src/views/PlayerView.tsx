@@ -269,7 +269,7 @@ export function PlayerView({
   remove,
   act,
 }: PlayerViewProps) {
-  const state = normalizeViewState(rawState);
+  const state = normalizeViewState(rawState, rules);
   const amount = useStake();
   const [selectedBetId, setSelectedBetId] = useState<string | null>(null);
   const roundId = round.id;

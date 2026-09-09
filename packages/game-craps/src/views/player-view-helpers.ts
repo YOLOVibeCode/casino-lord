@@ -3,13 +3,28 @@ import type { BetDef } from "@casino-lord/core";
 import { crapsBets } from "../bets.js";
 import type { CrapsBetId } from "../bet-target.js";
 import type { CrapsBetTarget } from "../bet-target.js";
-import { emptyShooterState } from "../state.js";
+import { DEFAULT_CRAPS_RULES } from "../rules.js";
+import { initialState } from "../state.js";
 import type { CrapsRules } from "../rules.js";
 import type { CrapsState, Point } from "../types.js";
 
-export function normalizeViewState(state: CrapsState): CrapsState {
-  if (state.shooter) return state;
-  return { ...state, shooter: emptyShooterState() };
+/** Merge partial platform module snapshots with engine defaults (pre-series join). */
+export function normalizeViewState(
+  state: CrapsState,
+  rules: CrapsRules = DEFAULT_CRAPS_RULES,
+): CrapsState {
+  const base = initialState(rules);
+  return {
+    ...base,
+    ...state,
+    phase: state.phase ?? base.phase,
+    point: state.point ?? base.point,
+    shooter: state.shooter ?? base.shooter,
+    liveInput: state.liveInput ?? base.liveInput,
+    table: state.table ?? base.table,
+    results: state.results ?? base.results,
+    lastRoll: state.lastRoll ?? base.lastRoll,
+  };
 }
 
 export type PlacePayload = Omit<PlacedBet<CrapsBetTarget>, "id" | "placedAt">;
