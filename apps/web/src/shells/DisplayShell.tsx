@@ -4,8 +4,11 @@ import type { ComponentType } from "preact";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
 import { resolveLayout } from "../settings/device-settings.js";
+import { getBankroll } from "@casino-lord/core";
 import { fetchVersion } from "../sync/api.js";
 import { QrBadge } from "../sync/QrBadge.js";
+import { isSyncConfigured } from "../sync/config.js";
+import { tableUrl } from "../sync/urls.js";
 import { isSyncStore } from "../table/sync-store-types.js";
 import type { TableStore } from "../table/store.js";
 import { AnimationLayer } from "../animation/AnimationLayer.js";
@@ -35,6 +38,13 @@ export function DisplayShell({
   const composed = store.getComposed();
   const table = store.getTableMeta();
   const playerModeOn = composed.platform.participation.playerMode === "on";
+  const joiningOpen = composed.platform.settings.players?.joiningOpen ?? false;
+  const showBankrolls = composed.platform.participation.bank === "house";
+  const rosterPlayers = (composed.platform.players ?? [])
+    .filter((p) => p.status !== "removed")
+    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt));
+  const playUrl =
+    playerModeOn && joiningOpen && isSyncConfigured() ? tableUrl(`/play/${store.code}`) : undefined;
   const layout = resolveLayout(module.layouts, deviceSettings.layoutId);
   const stats = module.stats(composed.module, rules);
 
@@ -158,6 +168,7 @@ export function DisplayShell({
           ))}
         </div>
         {displayQrUrl && <QrBadge url={displayQrUrl} />}
+        {playUrl && <QrBadge url={playUrl} title="Join QR" />}
       </header>
 
       {dealerHint && (
@@ -186,9 +197,33 @@ export function DisplayShell({
         })}
       </div>
 
-      {playerModeOn && (
+      {playerModeOn && rosterPlayers.length > 0 && (
         <aside class="display-shell__players" data-testid="players-panel">
-          PLAYERS
+          <h3 class="display-shell__players-title">PLAYERS</h3>
+          <ul class="display-shell__players-list">
+            {rosterPlayers.map((p) => {
+              const connected = syncStore
+                ?.getPresence()
+                .players.some((entry) => entry.id === p.id && entry.connected);
+              const away = p.status === "away" || !connected;
+              return (
+                <li
+                  key={p.id}
+                  class="display-shell__player-row"
+                  data-testid={`display-player-${p.id}`}
+                >
+                  <span class="display-shell__player-dot" style={{ background: p.color }} />
+                  <span class="display-shell__player-name">{p.name}</span>
+                  {away && <span class="display-shell__player-away">away</span>}
+                  {showBankrolls && (
+                    <span class="display-shell__player-bank">
+                      {getBankroll(composed.platform, p.id)}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </aside>
       )}
 

@@ -23,6 +23,21 @@ export interface TableLookupResponse {
   joiningOpen?: boolean;
 }
 
+export interface JoinPlayerBody {
+  name: string;
+  color: string;
+}
+
+export interface JoinPlayerResponse {
+  playerId: string;
+  playerToken: string;
+  pending: boolean;
+}
+
+export interface ReissuePlayerResponse {
+  playerToken: string;
+}
+
 export async function createTable(
   baseUrl: string,
   body: CreateTableBody,
@@ -45,6 +60,41 @@ export async function getTableMeta(baseUrl: string, rawCode: string): Promise<Ta
     throw new Error(`table lookup failed: ${response.status}`);
   }
   return (await response.json()) as TableLookupResponse;
+}
+
+export async function joinTablePlayer(
+  baseUrl: string,
+  rawCode: string,
+  body: JoinPlayerBody,
+): Promise<JoinPlayerResponse> {
+  const code = normalizeTableCode(rawCode);
+  const response = await fetch(`${baseUrl}/tables/${code}/players`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `join failed: ${response.status}`);
+  }
+  return (await response.json()) as JoinPlayerResponse;
+}
+
+export async function reissuePlayerToken(
+  baseUrl: string,
+  rawCode: string,
+  playerId: string,
+  dealerToken: string,
+): Promise<ReissuePlayerResponse> {
+  const code = normalizeTableCode(rawCode);
+  const response = await fetch(`${baseUrl}/tables/${code}/players/${playerId}/reissue`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${dealerToken}` },
+  });
+  if (!response.ok) {
+    throw new Error(`reissue failed: ${response.status}`);
+  }
+  return (await response.json()) as ReissuePlayerResponse;
 }
 
 export async function fetchVersion(baseUrl: string): Promise<string> {

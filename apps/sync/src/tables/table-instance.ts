@@ -9,9 +9,15 @@ import {
 import type { UntypedModule } from "../modules.js";
 import type { TableRow } from "../persistence/repository.js";
 
+export interface PlayerPresenceEntry {
+  id: string;
+  connected: boolean;
+}
+
 export interface SocketPresence {
   dealers: number;
   displays: number;
+  players: PlayerPresenceEntry[];
 }
 
 export class TableInstance {
@@ -29,6 +35,8 @@ export class TableInstance {
   private demotedSocketIds = new Set<string>();
   private dealerSockets = new Set<string>();
   private displaySockets = new Set<string>();
+  private playerSockets = new Map<string, Set<string>>();
+  private socketToPlayer = new Map<string, string>();
   private lastActivityAt: string;
 
   constructor(
@@ -101,24 +109,74 @@ export class TableInstance {
     return this.lastActivityAt;
   }
 
+  activePlayerCount(): number {
+    return this.getComposed().platform.players.filter(
+      (p) => p.status === "active" || p.status === "away",
+    ).length;
+  }
+
   presence(): SocketPresence {
-    return { dealers: this.dealerSockets.size, displays: this.displaySockets.size };
+    const composed = this.getComposed();
+    const logPlayerIds = new Set(
+      composed.platform.players.filter((p) => p.status !== "removed").map((p) => p.id),
+    );
+
+    const entries: PlayerPresenceEntry[] = [];
+    for (const id of logPlayerIds) {
+      entries.push({
+        id,
+        connected: (this.playerSockets.get(id)?.size ?? 0) > 0,
+      });
+    }
+
+    for (const [id, sockets] of this.playerSockets) {
+      if (!logPlayerIds.has(id)) {
+        entries.push({ id, connected: sockets.size > 0 });
+      }
+    }
+
+    return {
+      dealers: this.dealerSockets.size,
+      displays: this.displaySockets.size,
+      players: entries,
+    };
   }
 
   hasConnectedSockets(): boolean {
-    return this.dealerSockets.size + this.displaySockets.size > 0;
+    return (
+      this.dealerSockets.size +
+        this.displaySockets.size +
+        [...this.playerSockets.values()].reduce((n, s) => n + s.size, 0) >
+      0
+    );
   }
 
   onJoin(
-    role: "dealer" | "display",
+    role: "dealer" | "display" | "player",
     socketId: string,
-    takeover?: boolean,
+    options?: { takeover?: boolean; playerId?: string },
   ): { status: "ok" | "DEALER_ACTIVE"; demotedSocketId?: string } {
     if (role === "display") {
       this.displaySockets.add(socketId);
       return { status: "ok" };
     }
 
+    if (role === "player") {
+      const playerId = options?.playerId;
+      if (!playerId) {
+        return { status: "ok" };
+      }
+      let sockets = this.playerSockets.get(playerId);
+      if (!sockets) {
+        sockets = new Set();
+        this.playerSockets.set(playerId, sockets);
+      }
+      sockets.add(socketId);
+      this.socketToPlayer.set(socketId, playerId);
+      return { status: "ok" };
+    }
+
+    const takeover = options?.takeover;
     if (this.activeDealerSocketId !== null && this.activeDealerSocketId !== socketId && !takeover) {
       return { status: "DEALER_ACTIVE" };
     }
@@ -135,9 +193,22 @@ export class TableInstance {
     return { status: "ok", ...(demotedSocketId !== undefined ? { demotedSocketId } : {}) };
   }
 
-  onLeave(role: "dealer" | "display", socketId: string): void {
+  onLeave(role: "dealer" | "display" | "player", socketId: string): void {
     if (role === "display") {
       this.displaySockets.delete(socketId);
+      return;
+    }
+
+    if (role === "player") {
+      const playerId = this.socketToPlayer.get(socketId);
+      this.socketToPlayer.delete(socketId);
+      if (playerId) {
+        const sockets = this.playerSockets.get(playerId);
+        sockets?.delete(socketId);
+        if (sockets?.size === 0) {
+          this.playerSockets.delete(playerId);
+        }
+      }
       return;
     }
 
@@ -146,6 +217,18 @@ export class TableInstance {
       this.activeDealerSocketId = null;
     }
     this.demotedSocketIds.delete(socketId);
+  }
+
+  getPlayerSocketIds(playerId: string): string[] {
+    return [...(this.playerSockets.get(playerId) ?? [])];
+  }
+
+  disconnectPlayerSockets(playerId: string): string[] {
+    const socketIds = this.getPlayerSocketIds(playerId);
+    for (const socketId of socketIds) {
+      this.onLeave("player", socketId);
+    }
+    return socketIds;
   }
 
   isDemoted(socketId: string): boolean {

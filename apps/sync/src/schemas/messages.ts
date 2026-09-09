@@ -24,5 +24,11 @@ export const pingMessageSchema = z.object({
   op: z.literal("ping"),
 });
 
+export const admitMessageSchema = z.object({
+  op: z.literal("admit"),
+  playerId: z.string().min(1),
+  accept: z.boolean(),
+});
+
 export type JoinMessage = z.infer<typeof joinMessageSchema>;
 export type EventMessage = z.infer<typeof eventMessageSchema>;

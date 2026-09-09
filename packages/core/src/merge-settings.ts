@@ -26,6 +26,22 @@ export function mergeTableSettings(
 ): TableSettings {
   const next: TableSettings = { ...current, ...patch };
 
+  if (patch.participation !== undefined) {
+    next.participation = { ...current.participation, ...patch.participation };
+  }
+  if (patch.players !== undefined) {
+    next.players = { ...current.players, ...patch.players };
+  }
+  if (patch.bank !== undefined) {
+    next.bank = { ...current.bank, ...patch.bank };
+  }
+  if (patch.betting !== undefined) {
+    next.betting = { ...current.betting, ...patch.betting };
+  }
+  if (patch.virtual !== undefined) {
+    next.virtual = { ...current.virtual, ...patch.virtual };
+  }
+
   if (patch.rules !== undefined) {
     const baseRules = isRecord(current.rules) ? current.rules : {};
     const patchRules = isRecord(patch.rules) ? patch.rules : {};

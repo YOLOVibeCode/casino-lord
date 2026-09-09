@@ -9,8 +9,8 @@ import "./landing.css";
 
 type SheetMode = "create" | "join" | null;
 
-const DEALER_ONLY = {
-  playerMode: "off" as const,
+const DEFAULT_PARTICIPATION = {
+  playerMode: "on" as const,
   bank: "none" as const,
   outcomeSource: "physical" as const,
 };
@@ -39,7 +39,7 @@ export function LandingPage(_props: { path?: string }) {
     try {
       const result = await createTable(getSyncBaseUrl(), {
         game: selectedGame as "baccarat" | "roulette" | "craps" | "blackjack",
-        participation: DEALER_ONLY,
+        participation: DEFAULT_PARTICIPATION,
       });
       route(`/created/${result.code}?t=${encodeURIComponent(result.dealerToken)}`);
     } catch {
@@ -159,11 +159,7 @@ export function LandingPage(_props: { path?: string }) {
                   <legend>Participation</legend>
                   <label class="landing__option">
                     <input type="radio" name="participation" checked readOnly />
-                    Dealer only
-                  </label>
-                  <label class="landing__option landing__option--disabled">
-                    <input type="radio" disabled />
-                    With players (coming soon)
+                    With players (bank: none)
                   </label>
                 </fieldset>
                 {joinError && <p class="landing__error">{joinError}</p>}

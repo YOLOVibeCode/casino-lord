@@ -1,9 +1,17 @@
 import { normalizeTableCode } from "@casino-lord/core";
 import type { Server, Socket } from "socket.io";
+import type { Config } from "../config.js";
 import { getModule } from "../modules.js";
-import { createRateLimiter, DEALER_EVENT_LIMIT, DEALER_EVENT_WINDOW_MS } from "../rate-limit.js";
+import {
+  createRateLimiter,
+  DEALER_EVENT_LIMIT,
+  DEALER_EVENT_WINDOW_MS,
+  PLAYER_EVENT_LIMIT,
+  PLAYER_EVENT_WINDOW_MS,
+} from "../rate-limit.js";
 import { validateInboundEvent } from "../schemas/event-input.js";
 import {
+  admitMessageSchema,
   eventMessageSchema,
   joinMessageSchema,
   pingMessageSchema,
@@ -15,12 +23,14 @@ import { verifyToken } from "../tables/token.js";
 
 interface SocketState {
   code?: string;
-  role?: "dealer" | "display";
+  role?: "dealer" | "display" | "player";
+  playerId?: string;
   joined?: boolean;
 }
 
 export interface WsHandlerOptions {
   registry: TableRegistry;
+  config: Config;
   rateLimiter?: ReturnType<typeof createRateLimiter>;
 }
 
@@ -34,11 +44,34 @@ function sendPresence(io: Server, table: TableInstance, code: string): void {
     op: "presence",
     dealers: p.dealers,
     displays: p.displays,
-    players: [],
+    players: p.players,
   });
 }
 
-function joinedPayload(table: TableInstance, role: "dealer" | "display", sinceSeq?: number) {
+function sendPendingToDealers(io: Server, registry: TableRegistry, code: string): void {
+  io.to(room(code)).emit("message", {
+    op: "pending",
+    players: registry.pendingPayload(code),
+  });
+}
+
+export function notifyPendingPlayers(io: Server, registry: TableRegistry, code: string): void {
+  sendPendingToDealers(io, registry, code);
+}
+
+export function disconnectSocketIds(io: Server, socketIds: string[]): void {
+  for (const socketId of socketIds) {
+    io.sockets.sockets.get(socketId)?.disconnect(true);
+  }
+}
+
+function joinedPayload(
+  table: TableInstance,
+  role: "dealer" | "display" | "player",
+  sinceSeq?: number,
+  playerId?: string,
+  pendingPlayers?: Array<{ id: string; name: string; color: string }>,
+) {
   const composed = table.getComposed();
   const delta = table.joinPayload(sinceSeq);
   const payload: Record<string, unknown> = {
@@ -48,6 +81,10 @@ function joinedPayload(table: TableInstance, role: "dealer" | "display", sinceSe
     participation: composed.platform.participation,
     seq: table.latestSeq,
   };
+
+  if (playerId) {
+    payload.playerId = playerId;
+  }
 
   if (delta.snapshot) {
     payload.snapshot = delta.snapshot;
@@ -59,11 +96,15 @@ function joinedPayload(table: TableInstance, role: "dealer" | "display", sinceSe
     payload.live = table.live;
   }
 
+  if (pendingPlayers !== undefined) {
+    payload.pending = pendingPlayers;
+  }
+
   return payload;
 }
 
 export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
-  const { registry } = options;
+  const { registry, config } = options;
   const rateLimiter = options.rateLimiter ?? createRateLimiter();
 
   io.on("connection", (socket: Socket) => {
@@ -94,6 +135,11 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
+      if (msg.op === "admit") {
+        handleAdmit(socket, msg, state);
+        return;
+      }
+
       if (msg.op === "event") {
         handleEvent(socket, msg, state, rateLimiter);
       }
@@ -118,12 +164,6 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
       }
 
       const { code: rawCode, role, token, sinceSeq, takeover } = parsed.data;
-
-      if (role === "player") {
-        socket.emit("message", { op: "error", code: "PLAYERS_DISABLED" });
-        return;
-      }
-
       const code = normalizeTableCode(rawCode);
       const table = registry.get(code);
       if (!table) {
@@ -142,18 +182,57 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
+      if (role === "player") {
+        if (!config.enablePlayerMode) {
+          socket.emit("message", { op: "error", code: "PLAYERS_DISABLED" });
+          return;
+        }
+
+        const composed = table.getComposed();
+        if (composed.platform.participation.playerMode !== "on") {
+          socket.emit("message", { op: "error", code: "PLAYERS_DISABLED" });
+          return;
+        }
+
+        if (!token) {
+          socket.emit("message", { op: "error", code: "BAD_TOKEN" });
+          return;
+        }
+
+        const playerRow = registry.verifyPlayerToken(code, token);
+        if (!playerRow) {
+          socket.emit("message", { op: "error", code: "BAD_TOKEN" });
+          return;
+        }
+
+        table.onJoin("player", socket.id, { playerId: playerRow.playerId });
+        void socket.join(room(code));
+        st.code = code;
+        st.role = "player";
+        st.playerId = playerRow.playerId;
+        st.joined = true;
+        socket.data = st;
+
+        socket.emit("message", joinedPayload(table, "player", sinceSeq, playerRow.playerId));
+        sendPresence(io, table, code);
+        return;
+      }
+
       if (role === "dealer") {
         if (!token) {
           socket.emit("message", { op: "error", code: "BAD_TOKEN" });
           return;
         }
-        const row = registry.get(code);
-        if (!row || !verifyToken(token, row.dealerTokenHash)) {
+        if (!verifyToken(token, table.dealerTokenHash)) {
           socket.emit("message", { op: "error", code: "BAD_TOKEN" });
           return;
         }
 
-        const joinResult = table.onJoin("dealer", socket.id, takeover);
+        const joinResult = table.onJoin(
+          "dealer",
+          socket.id,
+          takeover !== undefined ? { takeover } : {},
+        );
         if (joinResult.status === "DEALER_ACTIVE") {
           socket.emit("message", { op: "error", code: "DEALER_ACTIVE" });
           return;
@@ -162,18 +241,69 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         if (joinResult.demotedSocketId) {
           io.sockets.sockets.get(joinResult.demotedSocketId)?.emit("message", { op: "demoted" });
         }
-      } else {
-        table.onJoin("display", socket.id);
+
+        void socket.join(room(code));
+        st.code = code;
+        st.role = "dealer";
+        st.joined = true;
+        socket.data = st;
+
+        socket.emit(
+          "message",
+          joinedPayload(table, "dealer", sinceSeq, undefined, registry.pendingPayload(code)),
+        );
+        sendPresence(io, table, code);
+        return;
       }
 
+      table.onJoin("display", socket.id);
       void socket.join(room(code));
       st.code = code;
-      st.role = role;
+      st.role = "display";
       st.joined = true;
       socket.data = st;
 
-      socket.emit("message", joinedPayload(table, role, sinceSeq));
+      socket.emit("message", joinedPayload(table, "display", sinceSeq));
       sendPresence(io, table, code);
+    }
+
+    function handleAdmit(socket: Socket, msg: Record<string, unknown>, st: SocketState): void {
+      const parsed = admitMessageSchema.safeParse(msg);
+      if (!parsed.success || !st.code || st.role !== "dealer" || !st.joined) {
+        return;
+      }
+
+      if (tableIsDemoted(st, socket)) {
+        return;
+      }
+
+      const table = registry.get(st.code);
+      if (!table) {
+        return;
+      }
+
+      const { playerId, accept } = parsed.data;
+      const result = registry.admitPlayer(st.code, playerId, accept);
+
+      if (!result.ok) {
+        return;
+      }
+
+      if (result.declined) {
+        const socketIds = table.getPlayerSocketIds(playerId);
+        for (const sid of socketIds) {
+          io.sockets.sockets.get(sid)?.emit("message", { op: "reject", reason: "DECLINED" });
+        }
+        table.disconnectPlayerSockets(playerId);
+      } else if (result.event) {
+        io.to(room(st.code)).emit("message", { op: "event", event: result.event });
+      }
+
+      io.to(room(st.code)).emit("message", {
+        op: "pending",
+        players: registry.pendingPayload(st.code),
+      });
+      sendPresence(io, table, st.code);
     }
 
     function handleResync(socket: Socket, msg: Record<string, unknown>, st: SocketState): void {
@@ -188,7 +318,7 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
-      socket.emit("message", joinedPayload(table, st.role, parsed.data.sinceSeq));
+      socket.emit("message", joinedPayload(table, st.role, parsed.data.sinceSeq, st.playerId));
     }
 
     function handleEvent(
@@ -202,7 +332,7 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
-      if (st.role !== "dealer") {
+      if (st.role === "display") {
         socket.emit("message", {
           op: "reject",
           clientId: parsed.data.clientId,
@@ -211,7 +341,7 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
-      if (tableIsDemoted(st, socket)) {
+      if (st.role === "dealer" && tableIsDemoted(st, socket)) {
         socket.emit("message", {
           op: "reject",
           clientId: parsed.data.clientId,
@@ -234,7 +364,11 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
-      if (!limiter.tryConsume(`dealer:${socket.id}`, DEALER_EVENT_LIMIT, DEALER_EVENT_WINDOW_MS)) {
+      const limitKey = st.role === "player" ? `player:${socket.id}` : `dealer:${socket.id}`;
+      const limit = st.role === "player" ? PLAYER_EVENT_LIMIT : DEALER_EVENT_LIMIT;
+      const window = st.role === "player" ? PLAYER_EVENT_WINDOW_MS : DEALER_EVENT_WINDOW_MS;
+
+      if (!limiter.tryConsume(limitKey, limit, window)) {
         socket.emit("message", {
           op: "reject",
           clientId: parsed.data.clientId,
@@ -248,7 +382,7 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
-      const validation = validateInboundEvent(parsed.data.event, st.role, module);
+      const validation = validateInboundEvent(parsed.data.event, st.role, module, st.playerId);
       if (!validation.ok) {
         socket.emit("message", {
           op: "reject",

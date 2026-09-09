@@ -29,6 +29,7 @@ export function validateInboundEvent(
   raw: Record<string, unknown> & { type: string },
   role: "dealer" | "display" | "player",
   module: GameModule<unknown, unknown, unknown, unknown>,
+  playerId?: string,
 ): ValidationResult | ValidationError {
   const parsed = baseEventSchema.safeParse(raw);
   if (!parsed.success) {
@@ -45,8 +46,42 @@ export function validateInboundEvent(
     return { ok: false, reason: `dealer cannot emit ${type}`, ownershipViolation: true };
   }
 
-  if (role === "player" && !PLAYER_OWNED.has(type) && type !== "PLAYER_UPDATED") {
-    return { ok: false, reason: `player cannot emit ${type}`, ownershipViolation: true };
+  if (role === "player") {
+    if (!playerId) {
+      return { ok: false, reason: "player not identified", ownershipViolation: true };
+    }
+    if (!PLAYER_OWNED.has(type) && type !== "PLAYER_UPDATED") {
+      return { ok: false, reason: `player cannot emit ${type}`, ownershipViolation: true };
+    }
+    if (type === "PLAYER_UPDATED") {
+      const targetId = (raw as { playerId?: string }).playerId;
+      if (targetId !== playerId) {
+        return { ok: false, reason: "cannot update another player", ownershipViolation: true };
+      }
+      const patch = (raw as { patch?: Record<string, unknown> }).patch ?? {};
+      const allowed = new Set(["name", "color"]);
+      for (const key of Object.keys(patch)) {
+        if (!allowed.has(key)) {
+          return { ok: false, reason: `player cannot patch ${key}`, ownershipViolation: true };
+        }
+      }
+    }
+    if (type === "PLAYER_ACTION") {
+      const targetId = (raw as { playerId?: string }).playerId;
+      if (targetId !== playerId) {
+        return { ok: false, reason: "cannot act for another player", ownershipViolation: true };
+      }
+    }
+    if (type === "BET_PLACED") {
+      const bet = (raw as { bet?: { playerId?: string } }).bet;
+      if (bet?.playerId !== playerId) {
+        return { ok: false, reason: "bet playerId mismatch", ownershipViolation: true };
+      }
+    }
+    if (type === "BET_UPDATED" || type === "BET_REMOVED") {
+      // Ownership of bet updates is validated at reducer; player may emit for own bets only.
+      // Full bet ownership check requires state; allow emit and let reducer no-op if wrong bet.
+    }
   }
 
   if (type === "RESULT_RECORDED" || type === "RESULT_EDITED") {
@@ -79,4 +114,9 @@ export const createTableBodySchema = z.object({
     outcomeSource: z.enum(["physical", "virtual"]),
   }),
   settings: z.record(z.unknown()).optional(),
+});
+
+export const joinPlayerBodySchema = z.object({
+  name: z.string(),
+  color: z.string(),
 });

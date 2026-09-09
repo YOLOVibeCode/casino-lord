@@ -4,11 +4,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Fastify, { type FastifyInstance } from "fastify";
 import { Server as SocketIOServer } from "socket.io";
-import type { Config } from "./config.js";
+import { loadConfig, type Config } from "./config.js";
 import { GAMES } from "./games.js";
 import { registerTableRoutes } from "./routes/tables.js";
 import type { TableRegistry } from "./tables/registry.js";
-import { attachWebSocket } from "./ws/handler.js";
+import { attachWebSocket, disconnectSocketIds, notifyPendingPlayers } from "./ws/handler.js";
 import type { RateLimiter } from "./rate-limit.js";
 
 const DEV_VERSION = {
@@ -51,7 +51,10 @@ export interface BuiltServer {
   io: SocketIOServer | null;
 }
 
-export async function buildServer(options: BuildServerOptions = {}): Promise<BuiltServer> {
+export async function buildServer(
+  options: BuildServerOptions = {} as BuildServerOptions,
+): Promise<BuiltServer> {
+  const config = options.config ?? loadConfig();
   const staticRoot = options.staticRoot ?? defaultStaticRoot();
   const startedAt = Date.now();
   const app = Fastify({ logger: true });
@@ -68,10 +71,22 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Bui
     app.get("/version.json", async () => readVersionJson(staticRoot));
   }
 
+  let ioRef: SocketIOServer | null = null;
+
   if (options.registry) {
     registerTableRoutes(app, {
       registry: options.registry,
       ...(options.rateLimiter ? { rateLimiter: options.rateLimiter } : {}),
+      notifyPending: (code) => {
+        if (ioRef) {
+          notifyPendingPlayers(ioRef, options.registry!, code);
+        }
+      },
+      disconnectSockets: (socketIds) => {
+        if (ioRef) {
+          disconnectSocketIds(ioRef, socketIds);
+        }
+      },
     });
   }
 
@@ -112,8 +127,10 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Bui
       path: "/ws",
       addTrailingSlash: false,
     });
+    ioRef = io;
     attachWebSocket(io, {
       registry: options.registry,
+      config,
       ...(options.rateLimiter ? { rateLimiter: options.rateLimiter } : {}),
     });
   }

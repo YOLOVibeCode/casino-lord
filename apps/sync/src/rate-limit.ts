@@ -26,3 +26,7 @@ export const TABLE_CREATE_LIMIT = 5;
 export const TABLE_CREATE_WINDOW_MS = 60_000;
 export const DEALER_EVENT_LIMIT = 20;
 export const DEALER_EVENT_WINDOW_MS = 1_000;
+export const PLAYER_EVENT_LIMIT = 10;
+export const PLAYER_EVENT_WINDOW_MS = 1_000;
+export const PLAYER_JOIN_LIMIT = 10;
+export const PLAYER_JOIN_WINDOW_MS = 60_000;

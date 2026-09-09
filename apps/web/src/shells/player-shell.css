@@ -1,0 +1,56 @@
+.player-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--felt-bg, #0d3b2e);
+  color: #f5f5f5;
+}
+
+.player-shell__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.95rem;
+}
+
+.player-shell__dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+}
+
+.player-shell__dot--on {
+  background: #4caf50;
+}
+
+.player-shell__dot--off {
+  background: #888;
+}
+
+.player-shell__name {
+  font-weight: 600;
+}
+
+.player-shell__bank {
+  margin-left: auto;
+}
+
+.player-shell__code {
+  opacity: 0.7;
+  font-family: monospace;
+}
+
+.player-shell__main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.player-shell__placeholder {
+  opacity: 0.6;
+  font-size: 1.1rem;
+}
