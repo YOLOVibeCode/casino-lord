@@ -4,11 +4,23 @@ import "./card-picker.css";
 
 const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"] as const;
 const SUITS = [
-  { id: "S", glyph: "♠", red: false },
-  { id: "H", glyph: "♥", red: true },
-  { id: "D", glyph: "♦", red: true },
-  { id: "C", glyph: "♣", red: false },
+  { id: "S", glyph: "♠", red: false, name: "Spades" },
+  { id: "H", glyph: "♥", red: true, name: "Hearts" },
+  { id: "D", glyph: "♦", red: true, name: "Diamonds" },
+  { id: "C", glyph: "♣", red: false, name: "Clubs" },
 ] as const;
+
+const RANK_NAMES: Record<string, string> = {
+  A: "Ace",
+  J: "Jack",
+  Q: "Queen",
+  K: "King",
+};
+
+function rankAriaLabel(rank: string, valueOf: (rank: string) => number): string {
+  const name = RANK_NAMES[rank] ?? rank;
+  return `${name}, value ${valueOf(rank)}`;
+}
 
 const KEY_TO_RANK: Record<string, string> = {
   a: "A",
@@ -257,6 +269,7 @@ export function CardPicker({
               key={rank}
               type="button"
               class={`card-picker__rank${selectedRank === rank ? " card-picker__rank--selected" : ""}`}
+              aria-label={rankAriaLabel(rank, valueOf)}
               onClick={() => handleRankSelect(rank)}
               data-testid={`rank-${rank}`}
             >
@@ -267,11 +280,12 @@ export function CardPicker({
         </div>
 
         <div class="card-picker__suits">
-          {SUITS.map(({ id, glyph, red }) => (
+          {SUITS.map(({ id, glyph, red, name }) => (
             <button
               key={id}
               type="button"
               class={`card-picker__suit card-picker__suit${red ? "--red" : ""}${selectedSuit === id || stickySuit === id ? " card-picker__suit--selected" : ""}`}
+              aria-label={name}
               onClick={() => handleSuitSelect(id)}
               data-testid={`suit-${id}`}
             >
