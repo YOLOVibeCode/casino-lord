@@ -8,7 +8,12 @@ import { loadConfig, type Config } from "./config.js";
 import { GAMES } from "./games.js";
 import { registerTableRoutes } from "./routes/tables.js";
 import type { TableRegistry } from "./tables/registry.js";
-import { attachWebSocket, disconnectSocketIds, notifyPendingPlayers } from "./ws/handler.js";
+import {
+  attachWebSocket,
+  broadcastEvent,
+  disconnectSocketIds,
+  notifyPendingPlayers,
+} from "./ws/handler.js";
 import type { RateLimiter } from "./rate-limit.js";
 
 const DEV_VERSION = {
@@ -80,6 +85,11 @@ export async function buildServer(
       notifyPending: (code) => {
         if (ioRef) {
           notifyPendingPlayers(ioRef, options.registry!, code);
+        }
+      },
+      broadcastEvent: (code, event) => {
+        if (ioRef) {
+          broadcastEvent(ioRef, code, event);
         }
       },
       disconnectSockets: (socketIds) => {

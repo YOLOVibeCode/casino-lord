@@ -1,4 +1,4 @@
-import { normalizeTableCode, validateParticipation } from "@casino-lord/core";
+import { normalizeTableCode, validateParticipation, type TableEvent } from "@casino-lord/core";
 import type { FastifyInstance } from "fastify";
 import { getModule } from "../modules.js";
 import type { RateLimiter } from "../rate-limit.js";
@@ -37,6 +37,7 @@ export interface RegisterTableRoutesOptions {
   registry: TableRegistry;
   rateLimiter?: RateLimiter;
   notifyPending?: (code: string) => void;
+  broadcastEvent?: (code: string, event: TableEvent) => void;
   disconnectSockets?: (socketIds: string[]) => void;
 }
 
@@ -150,6 +151,10 @@ export function registerTableRoutes(
 
     if (result.pending) {
       options.notifyPending?.(code);
+    } else if (result.event) {
+      // The join was appended to the log over REST; connected dealer/display
+      // sockets only learn about it if we push it to the room (SPEC.md §17).
+      options.broadcastEvent?.(code, result.event);
     }
 
     return reply.code(201).send({

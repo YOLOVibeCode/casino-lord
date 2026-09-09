@@ -1,4 +1,4 @@
-import { normalizeTableCode } from "@casino-lord/core";
+import { normalizeTableCode, type TableEvent } from "@casino-lord/core";
 import type { Server, Socket } from "socket.io";
 import type { Config } from "../config.js";
 import { getModule } from "../modules.js";
@@ -57,6 +57,10 @@ function sendPendingToDealers(io: Server, registry: TableRegistry, code: string)
 
 export function notifyPendingPlayers(io: Server, registry: TableRegistry, code: string): void {
   sendPendingToDealers(io, registry, code);
+}
+
+export function broadcastEvent(io: Server, code: string, event: TableEvent): void {
+  io.to(room(code)).emit("message", { op: "event", event });
 }
 
 export function disconnectSocketIds(io: Server, socketIds: string[]): void {

@@ -1,10 +1,12 @@
 import { PLAYER_COLORS } from "@casino-lord/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  connectClient,
   createPlayerModeTable,
   createTableViaRest,
   joinPlayerViaRest,
   startTestServer,
+  waitForMessage,
 } from "../test-helpers/server.js";
 
 const servers: Array<Awaited<ReturnType<typeof startTestServer>>> = [];
@@ -38,6 +40,31 @@ describe("player REST routes", () => {
 
     const meta = await fetch(`${server.url}/tables/${code}`).then((r) => r.json());
     expect(meta.players).toBe(1);
+  });
+
+  it("broadcasts PLAYER_JOINED to connected sockets when a player joins over REST", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createPlayerModeTable(server.url);
+
+    const dealer = connectClient(server.url);
+    await new Promise<void>((resolve) => dealer.on("connect", () => resolve()));
+    dealer.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
+    await waitForMessage(dealer, (m) => m.op === "joined");
+
+    const joinedEvent = waitForMessage<{
+      op: string;
+      event?: { type: string; player?: { name: string } };
+    }>(dealer, (m) => m.op === "event" && m.event?.type === "PLAYER_JOINED");
+
+    const joined = await joinPlayerViaRest(server.url, code, {
+      name: "Ana",
+      color: PLAYER_COLORS[0]!,
+    });
+    expect(joined.pending).toBe(false);
+
+    const msg = await joinedEvent;
+    expect(msg.event?.player?.name).toBe("Ana");
+    dealer.disconnect();
   });
 
   it("rejects invalid name and colour", async () => {
