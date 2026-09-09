@@ -9,6 +9,7 @@ import { QrBadge } from "../sync/QrBadge.js";
 import { isSyncStore } from "../table/sync-store-types.js";
 import type { TableStore } from "../table/store.js";
 import { AnimationLayer } from "../animation/AnimationLayer.js";
+import { animationSound } from "../animation/sound.js";
 import { useAnimationRuntime } from "../animation/useAnimationRuntime.js";
 import { useStore } from "../hooks/use-store.js";
 import "./display-shell.css";
@@ -38,6 +39,7 @@ export function DisplayShell({
   const stats = module.stats(composed.module, rules);
 
   const [fsHint, setFsHint] = useState(!deviceSettings.fullScreen);
+  const [soundUnlocked, setSoundUnlocked] = useState(() => animationSound.isUnlocked());
   const [infoOpen, setInfoOpen] = useState(false);
   const [logoTaps, setLogoTaps] = useState(0);
   const [cursorHidden, setCursorHidden] = useState(false);
@@ -129,6 +131,7 @@ export function DisplayShell({
       data-testid="display-shell"
       onClick={() => {
         unlockSound();
+        setSoundUnlocked(true);
         if (fsHint) void requestFullScreen();
       }}
     >
@@ -190,6 +193,12 @@ export function DisplayShell({
       )}
 
       {fsHint && <div class="display-shell__fs-hint">Tap for full screen</div>}
+
+      {deviceSettings.soundEnabled && !soundUnlocked && (
+        <div class="display-shell__fs-hint" data-testid="sound-unlock-hint">
+          Tap to enable sound
+        </div>
+      )}
 
       {infoOpen && (
         <div class="display-shell__info" onClick={(e) => e.stopPropagation()}>

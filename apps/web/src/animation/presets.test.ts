@@ -2,9 +2,21 @@ import { describe, expect, it } from "vitest";
 import { createStubModule } from "@casino-lord/core/testing";
 import { baccaratModule } from "@casino-lord/game-baccarat";
 import { asUntypedModule } from "../table/module-types.js";
-import { effectiveColor, resolvePreset, substituteBannerText } from "./presets.js";
+import {
+  effectiveColor,
+  enrichAnimationVars,
+  resolvePreset,
+  substituteBannerText,
+} from "./presets.js";
 
 describe("presets", () => {
+  it("enriches outcome var from event id", () => {
+    expect(enrichAnimationVars("banker_win", { total: 8 })).toEqual({
+      total: 8,
+      outcome: "BANKER",
+    });
+  });
+
   it("substitutes banner template vars", () => {
     expect(
       substituteBannerText("{outcome} DRAGON × {streak}", { outcome: "PLAYER", streak: 7 }),

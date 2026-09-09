@@ -1,9 +1,5 @@
-import type { AnimationEventDef, AnimationPreset } from "@casino-lord/core";
+import type { AnimationEventDef, AnimationPreset, TableSettings } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
-
-export interface TableAnimationSettings {
-  animations?: Record<string, AnimationPreset>;
-}
 
 export function buildEventDefMap(events: AnimationEventDef[]): Map<string, AnimationEventDef> {
   return new Map(events.map((def) => [def.id, def]));
@@ -12,7 +8,7 @@ export function buildEventDefMap(events: AnimationEventDef[]): Map<string, Anima
 export function resolvePreset(
   eventId: string,
   module: UntypedGameModule,
-  tableSettings: unknown,
+  tableSettings: TableSettings | unknown,
 ): AnimationPreset {
   const def = module.animationEvents.find((e) => e.id === eventId);
   const base = def?.defaultPreset ?? {
@@ -25,7 +21,7 @@ export function resolvePreset(
     blockBoardUpdate: false,
   };
 
-  const overrides = (tableSettings as TableAnimationSettings | undefined)?.animations;
+  const overrides = (tableSettings as TableSettings | undefined)?.animations;
   if (!overrides) return { ...base };
 
   const gameKey = `game.${eventId}`;
@@ -34,6 +30,23 @@ export function resolvePreset(
   if (!override) return { ...base };
 
   return { ...base, ...override };
+}
+
+export function enrichAnimationVars(
+  eventId: string,
+  vars: Record<string, string | number>,
+): Record<string, string | number> {
+  if (vars.outcome !== undefined) return vars;
+  switch (eventId) {
+    case "player_win":
+      return { ...vars, outcome: "PLAYER" };
+    case "banker_win":
+      return { ...vars, outcome: "BANKER" };
+    case "tie":
+      return { ...vars, outcome: "TIE" };
+    default:
+      return vars;
+  }
 }
 
 export function substituteBannerText(
@@ -61,4 +74,12 @@ export function effectiveColor(
   vars: Record<string, string | number>,
 ): string {
   return preset.color ?? semanticColor(eventId, vars);
+}
+
+export function getEffectivePreset(
+  eventId: string,
+  module: UntypedGameModule,
+  settings: TableSettings,
+): AnimationPreset {
+  return resolvePreset(eventId, module, settings);
 }

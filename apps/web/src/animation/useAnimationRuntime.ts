@@ -5,7 +5,13 @@ import type { UntypedGameModule } from "../table/module-types.js";
 import type { TableStore } from "../table/store.js";
 import type { ActiveSegment } from "./AnimationLayer.js";
 import { defaultAnchor, measureRoadPath } from "./measure-path.js";
-import { effectiveColor, resolvePreset, substituteBannerText } from "./presets.js";
+import { PLATFORM_ANIMATION_EVENTS } from "./platform-events.js";
+import {
+  effectiveColor,
+  enrichAnimationVars,
+  resolvePreset,
+  substituteBannerText,
+} from "./presets.js";
 import { animationSound, type AnimationTone } from "./sound.js";
 import { buildAnimationTimeline, type AnimationTimeline } from "./scheduler.js";
 
@@ -28,6 +34,8 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+const ANIMATION_TONES = new Set<AnimationTone>(["flash", "burst", "sweep", "dragon"]);
+
 function toneForStyle(style: ActiveSegment["style"]): AnimationTone | null {
   switch (style) {
     case "flash":
@@ -46,13 +54,24 @@ function toneForStyle(style: ActiveSegment["style"]): AnimationTone | null {
   }
 }
 
+function resolveTone(preset: {
+  style: ActiveSegment["style"];
+  sound?: string | null;
+}): AnimationTone | null {
+  if (preset.sound && ANIMATION_TONES.has(preset.sound as AnimationTone)) {
+    return preset.sound as AnimationTone;
+  }
+  return toneForStyle(preset.style);
+}
+
 function toActiveSegment(
   segment: AnimationTimeline["segments"][number],
   overlayRoot: HTMLElement,
   index: number,
 ): ActiveSegment {
   const { preset, trigger, eventId } = segment;
-  const color = effectiveColor(preset, eventId, trigger.vars);
+  const vars = enrichAnimationVars(eventId, trigger.vars);
+  const color = effectiveColor(preset, eventId, vars);
   const anchor = trigger.anchor
     ? {
         x: trigger.anchor.x * overlayRoot.clientWidth,
@@ -67,7 +86,7 @@ function toActiveSegment(
     color,
     intensity: preset.intensity,
     durationMs: segment.endMs - segment.startMs,
-    ...(preset.text !== undefined ? { text: substituteBannerText(preset.text, trigger.vars) } : {}),
+    ...(preset.text !== undefined ? { text: substituteBannerText(preset.text, vars) } : {}),
     ...(preset.style === "burst" || preset.style === "particles" ? { anchor } : {}),
     ...(preset.style === "trail" || preset.style === "dragon" ? { path: path ?? [] } : {}),
     phase: segment.phase,
@@ -150,7 +169,7 @@ export function useAnimationRuntime({
             setShakeDurationMs(segment.endMs - segment.startMs);
           }
           if (deviceSettings.soundEnabled && segment.preset.sound !== null) {
-            const tone = toneForStyle(segment.preset.style);
+            const tone = resolveTone(segment.preset);
             if (tone) animationSound.play(tone, segment.preset.soundVolume);
           }
           continue;
@@ -168,7 +187,7 @@ export function useAnimationRuntime({
             setShakeDurationMs(segment.endMs - segment.startMs);
           }
           if (deviceSettings.soundEnabled && segment.preset.sound !== null) {
-            const tone = toneForStyle(segment.preset.style);
+            const tone = resolveTone(segment.preset);
             if (tone) animationSound.play(tone, segment.preset.soundVolume);
           }
         }, segment.startMs);
@@ -190,9 +209,11 @@ export function useAnimationRuntime({
         includeEphemeral: true,
       }).platform.settings;
 
+      const allEventDefs = [...module.animationEvents, ...PLATFORM_ANIMATION_EVENTS];
+
       if (event.type === "ANIMATION_PREVIEW") {
         const trigger: AnimationTrigger = { eventId: event.eventId, vars: PREVIEW_VARS };
-        const timeline = buildAnimationTimeline([trigger], module.animationEvents, {
+        const timeline = buildAnimationTimeline([trigger], allEventDefs, {
           prefersReducedMotion: prefersReducedMotion(),
           resolvePreset: (eventId) => resolvePreset(eventId, module, tableSettings),
         });

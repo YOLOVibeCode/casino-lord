@@ -148,6 +148,52 @@ describe("DisplayShell animations", () => {
     expect(document.querySelectorAll('[data-cell="occupied"]').length).toBeGreaterThan(0);
   });
 
+  it("shows BANKER WINS when banker_win override uses banner template", async () => {
+    let n = 0;
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => `2026-01-01T00:00:${String(++n).padStart(2, "0")}.000Z`,
+      id: () => `id-${n}`,
+    });
+
+    store.emit({
+      type: "SETTINGS_CHANGED",
+      patch: {
+        animations: {
+          "game.banker_win": {
+            enabled: true,
+            style: "banner",
+            durationMs: 1200,
+            intensity: 2,
+            text: "{outcome} WINS",
+            sound: null,
+            soundVolume: 0.6,
+            blockBoardUpdate: false,
+          },
+        },
+      },
+    });
+
+    render(
+      <DisplayShell
+        store={store}
+        module={baccarat}
+        rules={DEFAULT_BACCARAT_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+
+    await act(async () => {
+      store.record(quickResult("B"), { quick: true });
+    });
+
+    expect(screen.getByText("BANKER WINS")).toBeTruthy();
+    expect(document.querySelector('[data-style="banner"][data-phase="main"]')).toBeTruthy();
+  });
+
   it("suppresses visuals when device animations setting is off", async () => {
     let n = 0;
     const store = createTableStore({

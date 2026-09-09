@@ -272,3 +272,48 @@ describe("SETTINGS_CHANGED rules-in-force", () => {
     expect(state.module.results).toHaveLength(3);
   });
 });
+
+describe("SETTINGS_CHANGED animations", () => {
+  it("replays byte-identically with animation preset patch", () => {
+    const module = createStubModule();
+    const settings = {
+      ...DEFAULT_TABLE_SETTINGS,
+      rules: STUB_RULES,
+    };
+    const events = [
+      ev(1, "2026-01-01T00:00:01.000Z", {
+        type: "TABLE_CREATED",
+        game: "baccarat",
+        participation: settings.participation,
+        settings,
+      }),
+      ev(2, "2026-01-01T00:00:02.000Z", { type: "SERIES_STARTED", seriesId: "s1" }),
+      ev(3, "2026-01-01T00:00:03.000Z", {
+        type: "SETTINGS_CHANGED",
+        patch: {
+          animations: {
+            "game.player_win": {
+              enabled: true,
+              style: "banner",
+              durationMs: 900,
+              intensity: 2,
+              text: "PLAYER WINS",
+              sound: null,
+              soundVolume: 0.5,
+              blockBoardUpdate: false,
+            },
+          },
+        },
+      }),
+      ev(4, "2026-01-01T00:00:04.000Z", {
+        type: "RESULT_RECORDED",
+        result: resultEnvelope("r0", 0, 5),
+      }),
+    ];
+
+    expect(() => assertReplayDeterministic(events, module, STUB_RULES)).not.toThrow();
+
+    const state = replay(events, module, STUB_RULES);
+    expect(state.platform.settings.animations?.["game.player_win"]?.style).toBe("banner");
+  });
+});
