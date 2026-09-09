@@ -31,11 +31,11 @@ pnpm workspace. Packages are created as milestones land (SPEC.md §29); only wha
 packages/core/            @casino-lord/core — platform primitives. Pure. No deps. Exists.
 packages/ui/              shared inputs (card picker, number grid, dice picker, chip tray). Exists.
 packages/game-baccarat/   GameModule for baccarat. Exists.
-packages/game-roulette/   Planned (M7).
-packages/game-craps/      Planned (M8).
-packages/game-blackjack/  Planned (M9).
-apps/web/                 Vite + Preact SPA: dealer / display / player shells. Exists (M2 slice 1).
-apps/sync/                Fastify + Socket.IO relay + Virtual Dealer. Exists (M3 slice 1).
+packages/game-roulette/   GameModule for roulette. Engine exists (M7 slice 1); views are stubs.
+packages/game-craps/      GameModule for craps. Engine exists (M8 slice 1); views are stubs.
+packages/game-blackjack/  GameModule for blackjack. Engine exists (M9 slice 1); views are stubs.
+apps/web/                 Vite + Preact SPA: dealer / display / player shells, sync client, animation runtime. Exists (M2–M4).
+apps/sync/                Fastify + Socket.IO relay + SQLite persistence. Exists (M3). Virtual Dealer planned (M6).
 ```
 
 - Tests live next to the code: `src/foo.ts` is tested by `src/foo.test.ts`. Vitest picks up `packages/*/src/**/*.test.ts`, `packages/*/src/**/*.test.tsx`, and `apps/*/src/**/*.test.ts(x)`.
