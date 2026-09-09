@@ -1,0 +1,40 @@
+.betting-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--gold-hairline, #c9a227);
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 0.875rem;
+}
+
+.betting-strip__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 8rem;
+}
+
+.betting-strip__status {
+  font-weight: 600;
+  color: var(--accent, #c9a227);
+}
+
+.betting-strip__bar {
+  height: 4px;
+  width: 8rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.betting-strip__bar-fill {
+  height: 100%;
+  background: var(--accent, #c9a227);
+  transition: width 1s linear;
+}
+
+.betting-strip__side {
+  opacity: 0.9;
+}

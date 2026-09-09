@@ -67,6 +67,9 @@ export function reduce(
       return withDerived(results, state.liveSlots, rules);
     }
 
+    case "SETTINGS_CHANGED":
+      return withDerived(state.results, state.liveSlots, rules);
+
     default:
       return state;
   }

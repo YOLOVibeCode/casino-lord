@@ -1,11 +1,32 @@
+import {
+  buildBetsView,
+  buildLeaderboard,
+  getBankroll,
+  getCurrentRound,
+  getSettlementTicker,
+  sortPlayers,
+  type TableEvent,
+} from "@casino-lord/core";
 import { createElement } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ComponentType } from "preact";
 import type { UntypedGameModule } from "../table/module-types.js";
+import { useBettingRound } from "../betting/use-betting-round.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
 import { resolveLayout } from "../settings/device-settings.js";
+import { fetchVersion } from "../sync/api.js";
+import { QrBadge } from "../sync/QrBadge.js";
+import { isSyncConfigured } from "../sync/config.js";
+import { tableUrl } from "../sync/urls.js";
+import { isSyncStore } from "../table/sync-store-types.js";
 import type { TableStore } from "../table/store.js";
+import { AnimationLayer } from "../animation/AnimationLayer.js";
+import { animationSound } from "../animation/sound.js";
+import { useAnimationRuntime } from "../animation/useAnimationRuntime.js";
 import { useStore } from "../hooks/use-store.js";
+import { currentSeriesCommit } from "../table/meta.js";
+import { BettingStrip } from "./BettingStrip.js";
+import { LeaderboardInterstitial } from "./LeaderboardInterstitial.js";
 import "./display-shell.css";
 
 export interface DisplayShellProps {
@@ -13,23 +34,83 @@ export interface DisplayShellProps {
   module: UntypedGameModule;
   rules: unknown;
   deviceSettings: DeviceSettings;
+  displayQrUrl?: string;
+  syncBaseUrl?: string;
 }
 
-export function DisplayShell({ store, module, rules, deviceSettings }: DisplayShellProps) {
+export function DisplayShell({
+  store,
+  module,
+  rules,
+  deviceSettings,
+  displayQrUrl,
+  syncBaseUrl,
+}: DisplayShellProps) {
   useStore(store);
   const composed = store.getComposed();
   const table = store.getTableMeta();
   const playerModeOn = composed.platform.participation.playerMode === "on";
+  const virtualTable = composed.platform.participation.outcomeSource === "virtual";
+  const seriesCommit = virtualTable ? currentSeriesCommit(store.events) : null;
+  const joiningOpen = composed.platform.settings.players?.joiningOpen ?? false;
+  const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
+  const showBankrolls = bankHouse && composed.platform.settings.players.showBankrolls;
+  const playUrl =
+    playerModeOn && joiningOpen && isSyncConfigured() ? tableUrl(`/play/${store.code}`) : undefined;
   const layout = resolveLayout(module.layouts, deviceSettings.layoutId);
   const stats = module.stats(composed.module, rules);
+  const settings = composed.platform.settings;
+
+  const betting = useBettingRound({
+    store,
+    composed,
+    settings,
+    editing: false,
+    newRoundId: () => crypto.randomUUID(),
+  });
+  const betsView = buildBetsView(composed.platform, module, composed.module);
+  const round = getCurrentRound(composed.platform);
+  const settledRound = composed.platform.rounds.filter((r) => r.status === "settled").at(-1);
+  const settlementTicker = settledRound
+    ? getSettlementTicker(composed.platform, settledRound.id)
+    : "";
+
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const lastLeaderboardSeq = useRef(0);
+
+  useEffect(() => {
+    const triggerEvents = store.events.filter(
+      (e: TableEvent) =>
+        (e.type === "SERIES_ENDED" || e.type === "SESSION_ENDED") &&
+        e.seq > lastLeaderboardSeq.current,
+    );
+    if (triggerEvents.length === 0) return;
+    lastLeaderboardSeq.current = Math.max(...triggerEvents.map((e) => e.seq));
+    setShowLeaderboard(true);
+  }, [store.events]);
 
   const [fsHint, setFsHint] = useState(!deviceSettings.fullScreen);
+  const [soundUnlocked, setSoundUnlocked] = useState(() => animationSound.isUnlocked());
   const [infoOpen, setInfoOpen] = useState(false);
   const [logoTaps, setLogoTaps] = useState(0);
   const [cursorHidden, setCursorHidden] = useState(false);
+  const [version, setVersion] = useState("0.0.0");
   const cursorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  const { activeSegments, heldModuleState, boardShaking, shakeDurationMs, unlockSound } =
+    useAnimationRuntime({
+      store,
+      module,
+      rules,
+      deviceSettings,
+      overlayRef,
+      enabled: deviceSettings.animations,
+    });
+
+  const displayModuleState = heldModuleState ?? composed.module;
 
   const resetCursorTimer = () => {
     setCursorHidden(false);
@@ -48,6 +129,11 @@ export function DisplayShell({ store, module, rules, deviceSettings }: DisplaySh
       if (cursorTimer.current) clearTimeout(cursorTimer.current);
     };
   }, [deviceSettings.cursorHide]);
+
+  useEffect(() => {
+    if (!syncBaseUrl) return;
+    void fetchVersion(syncBaseUrl).then(setVersion);
+  }, [syncBaseUrl]);
 
   const requestFullScreen = async () => {
     const el = rootRef.current;
@@ -71,7 +157,37 @@ export function DisplayShell({ store, module, rules, deviceSettings }: DisplaySh
     }
   };
 
-  const emptyBets = { round: null, summaries: [], openBets: [] };
+  const syncStore = isSyncStore(store) ? store : null;
+
+  const buyInByPlayer: Record<string, number> = {};
+  for (const e of store.events) {
+    if (e.type === "BANK_ISSUED" && e.reason === "buyin") {
+      buyInByPlayer[e.playerId] = (buyInByPlayer[e.playerId] ?? 0) + e.amount;
+    }
+  }
+  const leaderboard = buildLeaderboard(composed.platform, buyInByPlayer);
+  const topByBankroll = [...leaderboard].sort((a, b) => b.bankroll - a.bankroll).slice(0, 3);
+  const topByNet = [...leaderboard].sort((a, b) => b.net - a.net).slice(0, 3);
+  const sortedPlayers = sortPlayers(
+    composed.platform.players.filter((p) => p.status !== "removed"),
+    composed.platform,
+    settings.players.playersSort,
+  );
+
+  const connectionLabel = syncStore
+    ? syncStore.getConnectionState() === "connected"
+      ? "Connected"
+      : syncStore.getConnectionState() === "reconnecting"
+        ? "Reconnecting"
+        : "Offline"
+    : "Local / Solo";
+
+  const dealerHint =
+    syncStore &&
+    syncStore.getPresence().dealers === 0 &&
+    syncStore.getConnectionState() === "connected"
+      ? "Dealer disconnected"
+      : null;
 
   return (
     <div
@@ -79,6 +195,8 @@ export function DisplayShell({ store, module, rules, deviceSettings }: DisplaySh
       class={`display-shell${cursorHidden ? " display-shell--cursor-hidden" : ""}`}
       data-testid="display-shell"
       onClick={() => {
+        unlockSound();
+        setSoundUnlocked(true);
         if (fsHint) void requestFullScreen();
       }}
     >
@@ -97,6 +215,11 @@ export function DisplayShell({ store, module, rules, deviceSettings }: DisplaySh
         <span>
           {module.seriesLabel} {table.seriesNumber}
         </span>
+        {virtualTable && seriesCommit && (
+          <span class="display-shell__virtual-badge" data-testid="virtual-commit">
+            VIRTUAL · FAIR · {seriesCommit.slice(0, 8)}
+          </span>
+        )}
         <div class="display-shell__stats">
           {stats.map((row) => (
             <span key={row.label}>
@@ -104,42 +227,93 @@ export function DisplayShell({ store, module, rules, deviceSettings }: DisplaySh
             </span>
           ))}
         </div>
+        {displayQrUrl && <QrBadge url={displayQrUrl} />}
+        {playUrl && <QrBadge url={playUrl} title="Join QR" />}
       </header>
 
-      {playerModeOn && (
-        <div class="display-shell__betting-strip" data-testid="betting-strip">
-          BETS OPEN
+      {dealerHint && (
+        <div class="display-shell__dealer-hint" data-testid="dealer-disconnected">
+          {dealerHint}
         </div>
       )}
 
-      <div class="display-shell__module" data-road-fit={deviceSettings.roadFit ? "true" : "false"}>
+      {playerModeOn && (
+        <BettingStrip
+          round={round ?? settledRound ?? null}
+          betsView={betsView}
+          countdownSec={betting.countdownSec}
+          settlementTicker={settlementTicker}
+        />
+      )}
+
+      <div
+        class={`display-shell__module${boardShaking ? " display-shell__module--shake" : ""}`}
+        data-road-fit={deviceSettings.roadFit ? "true" : "false"}
+        style={boardShaking ? { "--anim-duration": `${shakeDurationMs}ms` } : undefined}
+      >
         {createElement(module.DisplayView as unknown as ComponentType<Record<string, unknown>>, {
-          state: composed.module,
+          state: displayModuleState,
           rules,
           table,
-          bets: emptyBets,
+          bets: betsView,
           layout,
         })}
       </div>
 
-      {playerModeOn && (
+      {playerModeOn && sortedPlayers.length > 0 && (
         <aside class="display-shell__players" data-testid="players-panel">
-          PLAYERS
+          <h3 class="display-shell__players-title">PLAYERS</h3>
+          <ul class="display-shell__players-list">
+            {sortedPlayers.map((p) => {
+              const connected = syncStore
+                ?.getPresence()
+                .players.some((entry) => entry.id === p.id && entry.connected);
+              const away = p.status === "away" || (syncStore ? !connected : false);
+              return (
+                <li key={p.id} class="display-shell__player-row" data-testid={`player-row-${p.id}`}>
+                  <span class="display-shell__player-dot" style={{ background: p.color }} />
+                  <span class="display-shell__player-name">{p.name}</span>
+                  {away && <span class="display-shell__player-away">away</span>}
+                  {showBankrolls && (
+                    <span class="display-shell__player-bankroll" data-testid="player-bankroll">
+                      {getBankroll(composed.platform, p.id).toLocaleString()}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </aside>
       )}
 
       {fsHint && <div class="display-shell__fs-hint">Tap for full screen</div>}
 
+      {deviceSettings.soundEnabled && !soundUnlocked && (
+        <div class="display-shell__fs-hint" data-testid="sound-unlock-hint">
+          Tap to enable sound
+        </div>
+      )}
+
       {infoOpen && (
         <div class="display-shell__info" onClick={(e) => e.stopPropagation()}>
           <div>Table: {store.code}</div>
           <div>Game: {module.name}</div>
-          <div>Connection: Local / Solo</div>
-          <div>Version: 0.0.0</div>
+          <div>Connection: {connectionLabel}</div>
+          <div>Version: {version}</div>
         </div>
       )}
 
-      <div class="display-shell__animation-overlay" aria-hidden="true" />
+      {showLeaderboard && playerModeOn && (
+        <LeaderboardInterstitial
+          byBankroll={topByBankroll}
+          byNet={topByNet}
+          onDismiss={() => setShowLeaderboard(false)}
+        />
+      )}
+
+      <div ref={overlayRef} class="display-shell__animation-overlay" aria-hidden="true">
+        <AnimationLayer segments={activeSegments} />
+      </div>
     </div>
   );
 }

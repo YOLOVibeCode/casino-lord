@@ -1,0 +1,11 @@
+.blackjack-display {
+  --bj-win: #2bb673;
+  --bj-blackjack: #d4af37;
+  --bj-lose: #d7263d;
+  --bj-push: #9aa0a6;
+  --bj-dealer-bust: #e08a1e;
+  --bj-text: #ede6d6;
+  --bj-muted: #9aa0a6;
+  --bj-panel: rgba(255, 255, 255, 0.06);
+  --bj-border: rgba(255, 255, 255, 0.12);
+}

@@ -28,6 +28,7 @@ export interface StubResultEntry {
 export interface StubState {
   results: StubResultEntry[];
   sum: number;
+  appliedThreshold: number;
 }
 
 function recomputeSum(results: StubResultEntry[]): number {
@@ -62,40 +63,45 @@ export function createStubModule(): GameModule<
     liveInputSchema: emptySchema<StubLiveInput>(),
     betTargetSchema: emptySchema<unknown>(),
 
-    initialState(): StubState {
-      return { results: [], sum: 0 };
+    initialState(rules: StubRules): StubState {
+      return { results: [], sum: 0, appliedThreshold: rules.threshold };
     },
 
     confirm(): null {
       return null;
     },
 
-    reduce(state: StubState, event: TableEvent, _rules: StubRules): StubState {
+    reduce(state: StubState, event: TableEvent, rules: StubRules): StubState {
+      const withThreshold = (next: Omit<StubState, "appliedThreshold">): StubState => ({
+        ...next,
+        appliedThreshold: rules.threshold,
+      });
+
       switch (event.type) {
         case "RESULT_RECORDED": {
           const data = event.result.data as StubResult;
           const results = [...state.results, { id: event.result.id, value: data.value }];
-          return { results, sum: recomputeSum(results) };
+          return withThreshold({ results, sum: recomputeSum(results) });
         }
         case "RESULT_EDITED": {
           const data = event.result.data as StubResult;
           const idx = state.results.findIndex((r) => r.id === event.result.id);
-          if (idx < 0) return state;
+          if (idx < 0) return withThreshold(state);
           const results = state.results.map((r, i) =>
             i === idx ? { id: event.result.id, value: data.value } : r,
           );
-          return { results, sum: recomputeSum(results) };
+          return withThreshold({ results, sum: recomputeSum(results) });
         }
         case "RESULT_DELETED": {
           const results = state.results.filter((r) => r.id !== event.resultId);
-          return { results, sum: recomputeSum(results) };
+          return withThreshold({ results, sum: recomputeSum(results) });
         }
         case "RESULT_UNDONE": {
           const results = state.results.filter((r) => r.id !== event.resultId);
-          return { results, sum: recomputeSum(results) };
+          return withThreshold({ results, sum: recomputeSum(results) });
         }
         default:
-          return state;
+          return withThreshold(state);
       }
     },
 
@@ -138,30 +144,91 @@ export function createStubModule(): GameModule<
           bets: [
             {
               id: "high",
-              label: "High",
+              label: "HIGH",
               lifecycle: "round",
+              pays: () => ({ num: 1, den: 1 }),
+            },
+            {
+              id: "low",
+              label: "LOW",
+              lifecycle: "round",
+              pays: () => ({ num: 1, den: 1 }),
+            },
+            {
+              id: "working",
+              label: "WORKING",
+              lifecycle: "working",
               pays: () => ({ num: 1, den: 1 }),
             },
           ],
         },
       ],
-      summary: () => [],
+      summary(bets: PlacedBet[]) {
+        const sum = (type: string) => {
+          const matching = bets.filter((b) => b.type === type);
+          return {
+            amount: matching.reduce((a, b) => a + b.amount, 0),
+            count: matching.length,
+          };
+        };
+        const high = sum("high");
+        const low = sum("low");
+        const working = sum("working");
+        const rows = [
+          { label: "HIGH", amount: high.amount, count: high.count },
+          { label: "LOW", amount: low.amount, count: low.count },
+        ];
+        if (working.count > 0) {
+          rows.push({ label: "WORKING", amount: working.amount, count: working.count });
+        }
+        return rows;
+      },
     },
 
     settle(input: { bets: PlacedBet[]; result: StubResult; rules: StubRules }): Settlement[] {
       return input.bets.map((bet) => {
-        const wins = input.result.value >= input.rules.threshold;
-        if (bet.type !== "high") {
+        if (bet.type === "working") {
+          if (input.result.value === input.rules.threshold) {
+            return {
+              betId: bet.id,
+              outcome: "stay",
+              returned: 0,
+              profit: 0,
+              carry: {
+                ...bet,
+                amount: bet.amount,
+                working: true,
+              },
+            };
+          }
           return { betId: bet.id, outcome: "lose", returned: 0, profit: -bet.amount };
         }
-        if (wins) {
-          return {
-            betId: bet.id,
-            outcome: "win",
-            returned: bet.amount * 2,
-            profit: bet.amount,
-          };
+
+        const wins = input.result.value >= input.rules.threshold;
+        if (bet.type === "high") {
+          if (wins) {
+            return {
+              betId: bet.id,
+              outcome: "win",
+              returned: bet.amount * 2,
+              profit: bet.amount,
+            };
+          }
+          return { betId: bet.id, outcome: "lose", returned: 0, profit: -bet.amount };
         }
+
+        if (bet.type === "low") {
+          if (!wins) {
+            return {
+              betId: bet.id,
+              outcome: "win",
+              returned: bet.amount * 2,
+              profit: bet.amount,
+            };
+          }
+          return { betId: bet.id, outcome: "lose", returned: 0, profit: -bet.amount };
+        }
+
         return { betId: bet.id, outcome: "lose", returned: 0, profit: -bet.amount };
       });
     },

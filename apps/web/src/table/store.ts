@@ -1,7 +1,8 @@
 import {
-  applyEvent,
+  canUndoResult,
   DEFAULT_TABLE_SETTINGS,
-  initialPlatformState,
+  replay,
+  resolveEffectiveRules,
   stableStringify,
   tableCodeFrom,
   type ComposedState,
@@ -10,6 +11,7 @@ import {
   type TableEvent,
   type TableEventType,
 } from "@casino-lord/core";
+import { buildResultEnvelope } from "../betting/build-result-envelope.js";
 import { saveTableEvents } from "./persistence.js";
 import { buildTableMeta } from "./meta.js";
 import type { UntypedGameModule } from "./module-types.js";
@@ -23,15 +25,18 @@ export interface TableStore {
   readonly game: GameId;
   readonly events: readonly TableEvent[];
   getComposed(): ComposedState<unknown>;
+  getRules(): unknown;
   getTableMeta(): ReturnType<typeof buildTableMeta>;
   emit: (body: TableEventInput) => void;
   record(result: unknown, opts: { quick: boolean }): void;
+  canUndoLastResult(): { ok: boolean; reason?: string };
   undoLastResult(): void;
   editResult(result: ResultEnvelope<unknown>): void;
   deleteResult(resultId: string): void;
-  startNewSeries(label?: string): void;
+  startNewSeries(label?: string, opts?: { auto?: boolean }): void;
   endSession(): void;
   importResults(results: unknown[]): void;
+  sendVirtual(kind: "trigger" | "action" | "force"): void;
   subscribe(listener: Listener): () => void;
 }
 
@@ -90,23 +95,13 @@ export function createTableStore(options: CreateTableOptions): TableStore {
     label: module.seriesLabel,
   });
 
-  const recompute = (tableCode: string): ComposedState<unknown> => {
-    let composed: ComposedState<unknown> = {
-      module: module.initialState(rules),
-      platform: initialPlatformState(),
-    };
-    for (const event of events) {
-      if (event.type === "TABLE_CREATED") {
-        composed = applyEvent(composed, event, module, rules);
-        composed = { ...composed, platform: { ...composed.platform, code: tableCode } };
-        continue;
-      }
-      composed = applyEvent(composed, event, module, rules);
-    }
-    return composed;
-  };
+  const getComposed = (): ComposedState<unknown> =>
+    replay(events, module, rules, { code, includeEphemeral: true });
 
-  const getComposed = (): ComposedState<unknown> => recompute(code);
+  const getRules = (): unknown => {
+    const composed = getComposed();
+    return resolveEffectiveRules(rules, composed.platform.settings.rules);
+  };
 
   const getTableMeta = () => {
     const composed = getComposed();
@@ -119,21 +114,27 @@ export function createTableStore(options: CreateTableOptions): TableStore {
 
   const record = (result: unknown, opts: { quick: boolean }): void => {
     const composed = getComposed();
-    const results = (composed.module as { results?: unknown[] }).results;
-    const index = Array.isArray(results) ? results.length : 0;
-    const envelope: ResultEnvelope<unknown> = {
+    const envelope = buildResultEnvelope(composed, result, {
       id: id(),
-      index,
-      recordedAt: now(),
+      now: now(),
       quick: opts.quick,
-      source: "physical",
-      by: "dealer",
-      data: result,
-    };
+    });
     append({ type: "RESULT_RECORDED", result: envelope });
   };
 
+  const canUndoLastResult = (): { ok: boolean; reason?: string } => {
+    const composed = getComposed();
+    const results = (composed.module as { results?: { id: string }[] }).results;
+    if (!Array.isArray(results) || results.length === 0) {
+      return { ok: false, reason: "No result to undo." };
+    }
+    const last = results[results.length - 1]!;
+    return canUndoResult(composed.platform, last.id);
+  };
+
   const undoLastResult = (): void => {
+    const check = canUndoLastResult();
+    if (!check.ok) return;
     const composed = getComposed();
     const results = (composed.module as { results?: { id: string }[] }).results;
     if (!Array.isArray(results) || results.length === 0) return;
@@ -149,11 +150,12 @@ export function createTableStore(options: CreateTableOptions): TableStore {
     append({ type: "RESULT_DELETED", resultId });
   };
 
-  const startNewSeries = (label?: string): void => {
+  const startNewSeries = (label?: string, opts?: { auto?: boolean }): void => {
     append({
       type: "SERIES_STARTED",
       seriesId: id(),
       ...(label !== undefined ? { label } : {}),
+      ...(opts?.auto ? { auto: true } : {}),
     });
   };
 
@@ -178,15 +180,18 @@ export function createTableStore(options: CreateTableOptions): TableStore {
       return events;
     },
     getComposed,
+    getRules,
     getTableMeta,
     emit,
     record,
+    canUndoLastResult,
     undoLastResult,
     editResult,
     deleteResult,
     startNewSeries,
     endSession,
     importResults,
+    sendVirtual: () => undefined,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -223,23 +228,13 @@ export function reopenTableStore(input: {
     return event;
   };
 
-  const recompute = (tableCode: string): ComposedState<unknown> => {
-    let composed: ComposedState<unknown> = {
-      module: module.initialState(rules),
-      platform: initialPlatformState(),
-    };
-    for (const event of events) {
-      if (event.type === "TABLE_CREATED") {
-        composed = applyEvent(composed, event, module, rules);
-        composed = { ...composed, platform: { ...composed.platform, code: tableCode } };
-        continue;
-      }
-      composed = applyEvent(composed, event, module, rules);
-    }
-    return composed;
-  };
+  const getComposed = (): ComposedState<unknown> =>
+    replay(events, module, rules, { code, includeEphemeral: true });
 
-  const getComposed = (): ComposedState<unknown> => recompute(code);
+  const getRules = (): unknown => {
+    const composed = getComposed();
+    return resolveEffectiveRules(rules, composed.platform.settings.rules);
+  };
 
   const getTableMeta = () => {
     const composed = getComposed();
@@ -251,20 +246,22 @@ export function reopenTableStore(input: {
   };
   const record = (result: unknown, opts: { quick: boolean }): void => {
     const composed = getComposed();
-    const results = (composed.module as { results?: unknown[] }).results;
-    const index = Array.isArray(results) ? results.length : 0;
-    append({
-      type: "RESULT_RECORDED",
-      result: {
-        id: idGen(),
-        index,
-        recordedAt: now(),
-        quick: opts.quick,
-        source: "physical",
-        by: "dealer",
-        data: result,
-      },
+    const envelope = buildResultEnvelope(composed, result, {
+      id: idGen(),
+      now: now(),
+      quick: opts.quick,
     });
+    append({ type: "RESULT_RECORDED", result: envelope });
+  };
+
+  const canUndoLastResult = (): { ok: boolean; reason?: string } => {
+    const composed = getComposed();
+    const results = (composed.module as { results?: { id: string }[] }).results;
+    if (!Array.isArray(results) || results.length === 0) {
+      return { ok: false, reason: "No result to undo." };
+    }
+    const last = results[results.length - 1]!;
+    return canUndoResult(composed.platform, last.id);
   };
 
   return {
@@ -278,10 +275,14 @@ export function reopenTableStore(input: {
       return events;
     },
     getComposed,
+    getRules,
     getTableMeta,
     emit,
     record,
+    canUndoLastResult,
     undoLastResult: () => {
+      const check = canUndoLastResult();
+      if (!check.ok) return;
       const composed = getComposed();
       const results = (composed.module as { results?: { id: string }[] }).results;
       if (!Array.isArray(results) || results.length === 0) return;
@@ -299,6 +300,7 @@ export function reopenTableStore(input: {
     importResults: (results) => {
       for (const data of results) record(data, { quick: true });
     },
+    sendVirtual: () => undefined,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

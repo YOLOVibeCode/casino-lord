@@ -1,0 +1,39 @@
+.rules-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.rules-settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rules-settings__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+.rules-settings__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.rules-settings__options label,
+.rules-settings__field > label {
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.rules-settings__field input[type="number"] {
+  max-width: 5rem;
+  padding: 0.35rem;
+  border-radius: 0.25rem;
+  border: 1px solid #374151;
+  background: #111318;
+  color: var(--roulette-text);
+}

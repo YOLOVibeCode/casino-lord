@@ -36,11 +36,12 @@ describe("DealerShell confirm", () => {
         module={baccarat}
         rules={DEFAULT_BACCARAT_RULES}
         deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceSettingsChange={() => {}}
       />,
     );
 
-    const confirmBtn = screen.getByTestId("confirm-btn") as HTMLButtonElement;
-    expect(confirmBtn.disabled).toBe(true);
+    const confirmBtn = screen.getByTestId("confirm-btn");
+    expect(confirmBtn.getAttribute("aria-disabled")).toBe("true");
 
     act(() => {
       store.emit({
@@ -63,8 +64,8 @@ describe("DealerShell confirm", () => {
     );
     expect(expected?.label).toBe("✓ CONFIRM BANKER 9");
 
-    const updated = screen.getByTestId("confirm-btn") as HTMLButtonElement;
-    expect(updated.disabled).toBe(false);
+    const updated = screen.getByTestId("confirm-btn");
+    expect(updated.getAttribute("aria-disabled")).not.toBe("true");
     expect(updated.textContent).toContain(expected!.label);
   });
 
@@ -91,9 +92,10 @@ describe("DealerShell confirm", () => {
         module={baccarat}
         rules={DEFAULT_BACCARAT_RULES}
         deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceSettingsChange={() => {}}
       />,
     );
 
-    expect((screen.getByTestId("confirm-btn") as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId("confirm-btn").getAttribute("aria-disabled")).toBe("true");
   });
 });

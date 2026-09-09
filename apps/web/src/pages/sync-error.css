@@ -1,0 +1,11 @@
+.sync-error {
+  max-width: 28rem;
+  margin: 4rem auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.sync-error a {
+  display: inline-block;
+  margin-top: 1.5rem;
+}

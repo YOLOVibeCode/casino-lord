@@ -1,0 +1,31 @@
+.baccarat-player-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem;
+}
+
+.baccarat-player-view__last-hand {
+  font-size: 0.8rem;
+  opacity: 0.9;
+  text-align: center;
+  padding: 0.25rem;
+}
+
+.baccarat-player-view__road-label {
+  font-size: 0.7rem;
+  opacity: 0.7;
+  text-align: center;
+}
+
+.felt-zones__zone--player {
+  border-color: #2563eb !important;
+}
+
+.felt-zones__zone--tie {
+  border-color: #16a34a !important;
+}
+
+.felt-zones__zone--banker {
+  border-color: #e5322d !important;
+}

@@ -87,6 +87,7 @@ describe("replay determinism", () => {
       { id: "res2", value: 5 },
     ]);
     expect(state.module.sum).toBe(20);
+    expect(state.module.appliedThreshold).toBe(10);
     expect(state.platform.bankrolls.p1).toBe(600);
   });
 });
@@ -155,6 +156,7 @@ describe("RESULT_EDITED recompute", () => {
     const afterEdit = replay(edited, module, STUB_RULES);
     expect(afterEdit.module.results).toEqual([{ id: "res1", value: 5 }]);
     expect(afterEdit.module.sum).toBe(5);
+    expect(afterEdit.module.appliedThreshold).toBe(10);
     expect(afterEdit.platform.bankrolls.p1).toBe(400);
   });
 });
@@ -224,7 +226,94 @@ describe("RESULT_DELETED recompute", () => {
     const state = replay(events, module, STUB_RULES);
     expect(state.module.results).toEqual([{ id: "res2", value: 20 }]);
     expect(state.module.sum).toBe(20);
+    expect(state.module.appliedThreshold).toBe(10);
     expect(state.platform.settlements.r1).toBeUndefined();
     expect(state.platform.bankrolls.p1).toBe(400);
+  });
+});
+
+describe("SETTINGS_CHANGED rules-in-force", () => {
+  it("replays byte-identically with mid-series threshold change", () => {
+    const module = createStubModule();
+    const settings = {
+      ...DEFAULT_TABLE_SETTINGS,
+      rules: STUB_RULES,
+    };
+    const events = [
+      ev(1, "2026-01-01T00:00:01.000Z", {
+        type: "TABLE_CREATED",
+        game: "baccarat",
+        participation: settings.participation,
+        settings,
+      }),
+      ev(2, "2026-01-01T00:00:02.000Z", { type: "SERIES_STARTED", seriesId: "s1" }),
+      ev(3, "2026-01-01T00:00:03.000Z", {
+        type: "RESULT_RECORDED",
+        result: resultEnvelope("r0", 0, 5),
+      }),
+      ev(4, "2026-01-01T00:00:04.000Z", {
+        type: "RESULT_RECORDED",
+        result: resultEnvelope("r1", 1, 8),
+      }),
+      ev(5, "2026-01-01T00:00:05.000Z", {
+        type: "SETTINGS_CHANGED",
+        patch: { rules: { threshold: 20 } },
+      }),
+      ev(6, "2026-01-01T00:00:06.000Z", {
+        type: "RESULT_RECORDED",
+        result: resultEnvelope("r2", 2, 12),
+      }),
+    ];
+
+    expect(() => assertReplayDeterministic(events, module, STUB_RULES)).not.toThrow();
+
+    const state = replay(events, module, STUB_RULES);
+    expect(state.module.appliedThreshold).toBe(20);
+    expect(state.module.results).toHaveLength(3);
+  });
+});
+
+describe("SETTINGS_CHANGED animations", () => {
+  it("replays byte-identically with animation preset patch", () => {
+    const module = createStubModule();
+    const settings = {
+      ...DEFAULT_TABLE_SETTINGS,
+      rules: STUB_RULES,
+    };
+    const events = [
+      ev(1, "2026-01-01T00:00:01.000Z", {
+        type: "TABLE_CREATED",
+        game: "baccarat",
+        participation: settings.participation,
+        settings,
+      }),
+      ev(2, "2026-01-01T00:00:02.000Z", { type: "SERIES_STARTED", seriesId: "s1" }),
+      ev(3, "2026-01-01T00:00:03.000Z", {
+        type: "SETTINGS_CHANGED",
+        patch: {
+          animations: {
+            "game.player_win": {
+              enabled: true,
+              style: "banner",
+              durationMs: 900,
+              intensity: 2,
+              text: "PLAYER WINS",
+              sound: null,
+              soundVolume: 0.5,
+              blockBoardUpdate: false,
+            },
+          },
+        },
+      }),
+      ev(4, "2026-01-01T00:00:04.000Z", {
+        type: "RESULT_RECORDED",
+        result: resultEnvelope("r0", 0, 5),
+      }),
+    ];
+
+    expect(() => assertReplayDeterministic(events, module, STUB_RULES)).not.toThrow();
+
+    const state = replay(events, module, STUB_RULES);
+    expect(state.platform.settings.animations?.["game.player_win"]?.style).toBe("banner");
   });
 });

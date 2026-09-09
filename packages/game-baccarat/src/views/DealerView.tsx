@@ -1,5 +1,5 @@
 import { CardPicker, OutcomeChips } from "@casino-lord/ui";
-import type { Emit, TableMeta } from "@casino-lord/core";
+import type { Emit, ResultEnvelope, TableMeta } from "@casino-lord/core";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { cardValue } from "../cards.js";
 import { evaluateHand } from "../engine.js";
@@ -11,6 +11,7 @@ import "./dealer-view.css";
 
 const PLAYER_SLOTS: SlotId[] = ["P1", "P2", "P3"];
 const BANKER_SLOTS: SlotId[] = ["B1", "B2", "B3"];
+const DEAL_ORDER: SlotId[] = ["P1", "B1", "P2", "B2", "P3", "B3"];
 
 const QUICK_CHIPS = [
   { id: "P", label: "P", color: "#2563eb", ariaLabel: "Quick entry Player win" },
@@ -73,6 +74,12 @@ function slotAriaLabel(
   return parts.join(", ");
 }
 
+export interface DealerEditMode {
+  envelope: ResultEnvelope<BaccaratResult>;
+  onConfirm: (result: BaccaratResult) => void;
+  onQuickEdit: (result: BaccaratResult) => void;
+}
+
 export interface DealerViewProps {
   state: BaccaratState;
   rules: BaccaratRules;
@@ -81,6 +88,22 @@ export interface DealerViewProps {
   record: (result: BaccaratResult, opts: { quick: boolean }) => void;
   autoAdvance?: boolean;
   expressMode?: boolean;
+  haptics?: boolean;
+  editMode?: DealerEditMode;
+}
+
+function tapHaptic(enabled: boolean): void {
+  if (enabled && typeof navigator.vibrate === "function") {
+    navigator.vibrate(10);
+  }
+}
+
+function lastFilledSlot(slots: Partial<Record<SlotId, Card>>): SlotId | null {
+  let last: SlotId | null = null;
+  for (const slot of DEAL_ORDER) {
+    if (slots[slot]) last = slot;
+  }
+  return last;
 }
 
 export function DealerView({
@@ -90,6 +113,8 @@ export function DealerView({
   record,
   autoAdvance = true,
   expressMode = true,
+  haptics = false,
+  editMode,
 }: DealerViewProps) {
   const { handState, liveSlots } = state;
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -97,6 +122,30 @@ export function DealerView({
   const [pairMenuOutcome, setPairMenuOutcome] = useState<Outcome | null>(null);
   const [stickySuit, setStickySuit] = useState<Suit | null>(null);
   const prevResultsCountRef = useRef(state.results.length);
+  const editLoadedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!editMode) {
+      editLoadedRef.current = null;
+      return;
+    }
+    if (editLoadedRef.current === editMode.envelope.id) return;
+    editLoadedRef.current = editMode.envelope.id;
+    const cards = editMode.envelope.data.cards;
+    if (cards && Object.keys(cards).length > 0) {
+      emit({
+        type: "LIVE_INPUT",
+        payload: { slots: cards },
+        source: "dealer",
+      } as Parameters<Emit>[0]);
+    } else {
+      emit({
+        type: "LIVE_INPUT",
+        payload: { slots: {} },
+        source: "dealer",
+      } as Parameters<Emit>[0]);
+    }
+  }, [editMode, emit]);
 
   const openPicker = useCallback((slot: SlotId) => {
     setPickerSlot(slot);
@@ -119,9 +168,20 @@ export function DealerView({
     [emit],
   );
 
+  const handleUndoLast = useCallback(() => {
+    const last = lastFilledSlot(liveSlots);
+    if (!last) return;
+    tapHaptic(haptics);
+    const next = { ...liveSlots };
+    delete next[last];
+    emitSlots(next);
+    openPicker(last);
+  }, [liveSlots, emitSlots, openPicker, haptics]);
+
   const handleCommit = useCallback(
     (card: { rank: string; suit: string | null }) => {
       if (!pickerSlot) return;
+      tapHaptic(haptics);
       if (card.suit) setStickySuit(card.suit as Suit);
       const next = {
         ...liveSlots,
@@ -137,7 +197,7 @@ export function DealerView({
         }
       }
     },
-    [pickerSlot, liveSlots, emitSlots, closePicker, autoAdvance, rules, openPicker],
+    [pickerSlot, liveSlots, emitSlots, closePicker, autoAdvance, rules, openPicker, haptics],
   );
 
   const handleRemove = useCallback(() => {
@@ -149,6 +209,7 @@ export function DealerView({
   }, [pickerSlot, liveSlots, emitSlots, closePicker]);
 
   useEffect(() => {
+    if (editMode) return;
     const prev = prevResultsCountRef.current;
     const curr = state.results.length;
     prevResultsCountRef.current = curr;
@@ -156,24 +217,33 @@ export function DealerView({
     if (autoAdvance && curr > prev) {
       setTimeout(() => openPicker("P1"), 0);
     }
-  }, [state.results.length, autoAdvance, openPicker]);
+  }, [state.results.length, autoAdvance, openPicker, editMode]);
+
+  const submitQuickResult = useCallback(
+    (outcome: Outcome, playerPair: boolean, bankerPair: boolean) => {
+      const result: BaccaratResult = {
+        cards: null,
+        outcome,
+        playerTotal: null,
+        bankerTotal: null,
+        playerPair,
+        bankerPair,
+        natural: false,
+      };
+      if (editMode) {
+        editMode.onQuickEdit(result);
+        return;
+      }
+      record(result, { quick: true });
+    },
+    [editMode, record],
+  );
 
   const handleQuickTap = useCallback(
     (id: string) => {
-      record(
-        {
-          cards: null,
-          outcome: id as Outcome,
-          playerTotal: null,
-          bankerTotal: null,
-          playerPair: false,
-          bankerPair: false,
-          natural: false,
-        },
-        { quick: true },
-      );
+      submitQuickResult(id as Outcome, false, false);
     },
-    [record],
+    [submitQuickResult],
   );
 
   const activateQuickEntry = useCallback(
@@ -191,21 +261,10 @@ export function DealerView({
   const handlePairRecord = useCallback(
     (playerPair: boolean, bankerPair: boolean) => {
       if (!pairMenuOutcome) return;
-      record(
-        {
-          cards: null,
-          outcome: pairMenuOutcome,
-          playerTotal: null,
-          bankerTotal: null,
-          playerPair,
-          bankerPair,
-          natural: false,
-        },
-        { quick: true },
-      );
+      submitQuickResult(pairMenuOutcome, playerPair, bankerPair);
       setPairMenuOutcome(null);
     },
-    [pairMenuOutcome, record],
+    [pairMenuOutcome, submitQuickResult],
   );
 
   useEffect(() => {
@@ -350,6 +409,7 @@ export function DealerView({
         onStickySuitChange={(suit) => setStickySuit(suit as Suit | null)}
         onCommit={handleCommit}
         onRemove={handleRemove}
+        {...(Object.keys(liveSlots).length > 0 ? { onUndoLast: handleUndoLast } : {})}
         onClose={closePicker}
       />
     </div>

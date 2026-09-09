@@ -1,12 +1,24 @@
 import { createElement } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { ComponentType } from "preact";
+import { buildBetsView, type ResultEnvelope } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
+import { tapHaptic } from "../settings/haptics.js";
+import { useBettingRound } from "../betting/use-betting-round.js";
+import { QrDialog } from "../sync/QrDialog.js";
+import { tableUrl } from "../sync/urls.js";
+import { isSyncStore } from "../table/sync-store-types.js";
 import type { TableStore } from "../table/store.js";
 import { useStore } from "../hooks/use-store.js";
 import { buildExportText } from "../table/export.js";
-import { countSeries, currentSeriesStartedAt } from "../table/meta.js";
+import { countSeries, currentSeriesCommit, currentSeriesStartedAt } from "../table/meta.js";
+import { BankPanel } from "./BankPanel.js";
+import { BettingBar } from "./BettingBar.js";
+import { SettingsDialog } from "./SettingsDialog.js";
+import { HistoryDialog } from "./HistoryDialog.js";
+import { CalculatorDialog } from "./CalculatorDialog.js";
+import { PlayersDialog } from "./PlayersDialog.js";
 import "./dealer-shell.css";
 
 export interface DealerShellProps {
@@ -14,28 +26,68 @@ export interface DealerShellProps {
   module: UntypedGameModule;
   rules: unknown;
   deviceSettings: DeviceSettings;
+  onDeviceSettingsChange: (settings: DeviceSettings) => void;
   onNewTable?: () => void;
 }
+
+type ActiveDialog = "settings" | "history" | "calculator" | "qr" | "players" | "bank" | null;
+
+const ROTATE_HINT_KEY = "casino-lord:dealer-rotate-hint-dismissed";
 
 export function DealerShell({
   store,
   module,
   rules,
   deviceSettings,
+  onDeviceSettingsChange,
   onNewTable,
 }: DealerShellProps) {
   useStore(store);
   const composed = store.getComposed();
   const table = store.getTableMeta();
   const playerModeOn = composed.platform.participation.playerMode === "on";
+  const virtualTable = composed.platform.participation.outcomeSource === "virtual";
+  const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
+  const seriesCommit = virtualTable ? currentSeriesCommit(store.events) : null;
   const confirmState = module.confirm(composed.module, rules);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
+  const [editingEnvelope, setEditingEnvelope] = useState<ResultEnvelope<unknown> | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [toastKind, setToastKind] = useState<"error" | "info">("error");
+  const [rotateHintDismissed, setRotateHintDismissed] = useState(
+    () => sessionStorage.getItem(ROTATE_HINT_KEY) === "1",
+  );
+
+  const settings = composed.platform.settings;
+  const undoCheck = store.canUndoLastResult();
+  const betting = useBettingRound({
+    store,
+    composed,
+    settings,
+    editing: editingEnvelope !== null,
+    newRoundId: () => crypto.randomUUID(),
+  });
+  const betsView = buildBetsView(composed.platform, module, composed.module);
   const [undoArmed, setUndoArmed] = useState(false);
   const [undoHand, setUndoHand] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [confirmProgress, setConfirmProgress] = useState(0);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((message: string, kind: "error" | "info" = "error") => {
+    setToastMsg(message);
+    setToastKind(kind);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastMsg(null), 4000);
+  }, []);
+
+  const dismissToast = useCallback(() => {
+    setToastMsg(null);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
   const confirmTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const confirmStarted = useRef(0);
 
@@ -46,14 +98,43 @@ export function DealerShell({
     setConfirmProgress(0);
   }, []);
 
+  const cancelEdit = useCallback(() => {
+    setEditingEnvelope(null);
+    store.emit({ type: "LIVE_INPUT", payload: { slots: {} }, source: "dealer" });
+  }, [store]);
+
   const executeConfirm = useCallback(() => {
     if (!confirmState?.enabled || !confirmState.result) return;
-    if (deviceSettings.haptics && typeof navigator.vibrate === "function") {
-      navigator.vibrate(10);
+    tapHaptic(deviceSettings.haptics);
+    const clearLiveInput =
+      module.id === "craps"
+        ? { type: "LIVE_INPUT" as const, payload: { a: null, b: null }, source: "dealer" as const }
+        : { type: "LIVE_INPUT" as const, payload: { slots: {} }, source: "dealer" as const };
+    if (editingEnvelope) {
+      store.editResult({
+        ...editingEnvelope,
+        data: confirmState.result,
+        quick: editingEnvelope.quick,
+      });
+      setEditingEnvelope(null);
+      store.emit(clearLiveInput);
+    } else {
+      betting.onDealerEntry();
+      store.record(confirmState.result, { quick: false });
+      if (confirmState.autoSeries) {
+        store.startNewSeries(undefined, { auto: true });
+      }
     }
-    store.record(confirmState.result, { quick: false });
     clearConfirmTimer();
-  }, [clearConfirmTimer, confirmState, deviceSettings.haptics, store]);
+  }, [
+    betting,
+    clearConfirmTimer,
+    confirmState,
+    deviceSettings.haptics,
+    editingEnvelope,
+    module.id,
+    store,
+  ]);
 
   const startConfirmDelay = useCallback(() => {
     if (!confirmState?.enabled || !confirmState.result) return;
@@ -75,9 +156,16 @@ export function DealerShell({
   }, [confirmState, deviceSettings.confirmDelayMs, executeConfirm]);
 
   const handleUndo = useCallback(() => {
+    if (editingEnvelope) return;
     const results = (composed.module as { results?: unknown[] }).results;
     const count = Array.isArray(results) ? results.length : 0;
     if (count === 0) return;
+
+    const check = store.canUndoLastResult();
+    if (!check.ok) {
+      showToast(check.reason ?? "Undo blocked.");
+      return;
+    }
 
     if (!undoArmed) {
       setUndoArmed(true);
@@ -90,7 +178,7 @@ export function DealerShell({
     store.undoLastResult();
     setUndoArmed(false);
     if (undoTimer.current) clearTimeout(undoTimer.current);
-  }, [composed.module, store, undoArmed]);
+  }, [composed.module, editingEnvelope, store, undoArmed]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -107,9 +195,15 @@ export function DealerShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [confirmState?.enabled, handleUndo, startConfirmDelay]);
 
+  const dismissRotateHint = useCallback(() => {
+    sessionStorage.setItem(ROTATE_HINT_KEY, "1");
+    setRotateHintDismissed(true);
+  }, []);
+
   useEffect(
     () => () => {
       if (undoTimer.current) clearTimeout(undoTimer.current);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
       clearConfirmTimer();
     },
     [clearConfirmTimer],
@@ -167,146 +261,400 @@ export function DealerShell({
     setMenuOpen(false);
   };
 
+  const handleQuickEdit = useCallback(
+    (result: unknown) => {
+      if (!editingEnvelope) return;
+      store.editResult({
+        ...editingEnvelope,
+        data: result,
+        quick: true,
+      });
+      setEditingEnvelope(null);
+    },
+    [editingEnvelope, store],
+  );
+
+  const editMode =
+    editingEnvelope !== null
+      ? {
+          envelope: editingEnvelope,
+          onConfirm: () => {},
+          onQuickEdit: handleQuickEdit,
+        }
+      : undefined;
+
+  const syncStore = isSyncStore(store) ? store : null;
+  const connectionState = syncStore?.getConnectionState() ?? null;
+  const readOnly = syncStore?.isReadOnly() ?? false;
+
+  const handleConfirmClick = useCallback(() => {
+    if (readOnly) return;
+    if (!confirmState?.enabled || !confirmState.result) {
+      showToast("Complete the hand before confirming.", "info");
+      return;
+    }
+    startConfirmDelay();
+  }, [confirmState, readOnly, showToast, startConfirmDelay]);
+
+  const dotClass =
+    connectionState === "offline"
+      ? "dealer-shell__dot dealer-shell__dot--offline"
+      : connectionState === "reconnecting"
+        ? "dealer-shell__dot dealer-shell__dot--reconnecting"
+        : "dealer-shell__dot";
+  const dotTitle =
+    connectionState === "connected"
+      ? "Connected"
+      : connectionState === "reconnecting"
+        ? "Reconnecting"
+        : connectionState === "offline"
+          ? "Offline"
+          : "Local / Solo";
+
   return (
     <div class="dealer-shell" data-testid="dealer-shell">
-      <header class="dealer-shell__header">
-        <span class="dealer-shell__dot" title="Local / Solo" />
-        <span>{store.code}</span>
-        <span>·</span>
-        <span>
-          {module.seriesLabel} {table.seriesNumber}
-        </span>
-        <span>·</span>
-        <span>
-          {module.resultLabel} {table.resultIndex}
-        </span>
-        {playerModeOn && <span class="dealer-shell__player-count">👥 {table.playerCount}</span>}
-      </header>
-
-      {playerModeOn && (
-        <div class="dealer-shell__betting-bar" data-testid="betting-bar">
-          BETS — player mode
+      {!rotateHintDismissed && (
+        <div class="dealer-shell__rotate-hint" data-testid="rotate-hint" role="status">
+          <span>Rotate to portrait for the best dealer experience.</span>
+          <button type="button" aria-label="Dismiss" onClick={dismissRotateHint}>
+            ✕
+          </button>
         </div>
       )}
 
-      <div class="dealer-shell__module">
-        {createElement(module.DealerView as unknown as ComponentType<Record<string, unknown>>, {
-          state: composed.module,
-          rules,
-          table,
-          emit: store.emit,
-          record: store.record,
-          autoAdvance: deviceSettings.autoAdvance,
-          expressMode: deviceSettings.expressMode,
-        })}
-      </div>
-
-      <div class="dealer-shell__actions">
-        <button type="button" class="dealer-shell__btn" onClick={handleUndo} data-testid="undo-btn">
-          {undoArmed ? `Tap again to undo Hand ${undoHand}` : "UNDO"}
-        </button>
-        <button
-          type="button"
-          class="dealer-shell__btn dealer-shell__btn--confirm"
-          style={confirmStyle}
-          disabled={!confirmState?.enabled}
-          onClick={startConfirmDelay}
-          data-testid="confirm-btn"
-        >
-          {confirming && (
-            <span
-              class="dealer-shell__confirm-progress"
-              style={{ transform: `scaleX(${confirmProgress})` }}
-            />
-          )}
-          <span>
-            {confirmState?.label ?? "CONFIRM"}
-            {confirmState?.badges && (
-              <span class="dealer-shell__badges"> · {confirmState.badges.join(" · ")}</span>
-            )}
-          </span>
-        </button>
-        {confirming && (
-          <button type="button" class="dealer-shell__btn" onClick={clearConfirmTimer}>
-            Cancel
+      <header class="dealer-shell__header">
+        {editingEnvelope ? (
+          <button
+            type="button"
+            class="dealer-shell__edit-banner"
+            data-testid="edit-banner"
+            onClick={cancelEdit}
+          >
+            Editing Hand {editingEnvelope.index + 1} · Cancel
           </button>
-        )}
-      </div>
-
-      <footer class="dealer-shell__footer">
-        {playerModeOn && (
+        ) : (
           <>
-            <button type="button" disabled title="Coming soon">
-              👥
-            </button>
-            <button type="button" disabled title="Coming soon">
-              🏦
-            </button>
+            <span class={dotClass} title={dotTitle} data-testid="connection-dot" />
+            <span>{store.code}</span>
+            <span>·</span>
+            <span>
+              {module.seriesLabel} {table.seriesNumber}
+            </span>
+            <span>·</span>
+            <span>
+              {module.resultLabel} {table.resultIndex}
+            </span>
+            {playerModeOn && <span class="dealer-shell__player-count">👥 {table.playerCount}</span>}
+            {virtualTable && seriesCommit && (
+              <span class="dealer-shell__virtual-badge" data-testid="virtual-commit">
+                VIRTUAL · FAIR · {seriesCommit.slice(0, 8)}
+              </span>
+            )}
           </>
         )}
-        <div class="dealer-shell__menu">
-          <button type="button" aria-label="Menu" onClick={() => setMenuOpen((o) => !o)}>
-            ⚙
-          </button>
-          {menuOpen && (
-            <div class="dealer-shell__menu-panel">
-              {onNewTable && (
+      </header>
+
+      {playerModeOn && (
+        <BettingBar
+          round={betting.round}
+          betsView={betsView}
+          countdownSec={betting.countdownSec}
+          onToggle={() => {
+            if (betting.round?.status === "open") betting.closeBets();
+            else betting.openBets();
+          }}
+        />
+      )}
+
+      {!virtualTable && (
+        <div class="dealer-shell__module">
+          {createElement(module.DealerView as unknown as ComponentType<Record<string, unknown>>, {
+            state: composed.module,
+            rules,
+            table,
+            emit: (body: Parameters<typeof store.emit>[0]) => {
+              if (body.type === "LIVE_INPUT") betting.onDealerEntry();
+              store.emit(body);
+            },
+            record: store.record,
+            autoAdvance: deviceSettings.autoAdvance,
+            expressMode: deviceSettings.expressMode,
+            haptics: deviceSettings.haptics,
+            editMode,
+          })}
+        </div>
+      )}
+
+      <div class="dealer-shell__bottom" data-testid="dealer-bottom-bar">
+        {toastMsg && (
+          <div
+            class={`dealer-shell__toast${toastKind === "info" ? " dealer-shell__toast--info" : ""}`}
+            data-testid="dealer-toast"
+            role="alert"
+          >
+            <span>{toastMsg}</span>
+            <button
+              type="button"
+              class="dealer-shell__toast-dismiss"
+              aria-label="Dismiss"
+              onClick={dismissToast}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        <div class="dealer-shell__toolbar">
+          {playerModeOn && (
+            <>
+              <button
+                type="button"
+                class="dealer-shell__tool-btn"
+                data-testid="players-btn"
+                disabled={!syncStore}
+                aria-label="Players"
+                onClick={() => setActiveDialog("players")}
+              >
+                👥
+              </button>
+              <button
+                type="button"
+                class="dealer-shell__tool-btn"
+                disabled={!bankHouse}
+                title={bankHouse ? "Bank" : "House bank not enabled"}
+                data-testid="bank-btn"
+                aria-label="Bank"
+                onClick={() => setActiveDialog("bank")}
+              >
+                🏦
+              </button>
+            </>
+          )}
+          <div class="dealer-shell__menu">
+            <button
+              type="button"
+              class="dealer-shell__tool-btn"
+              aria-label="Menu"
+              onClick={() => setMenuOpen((o) => !o)}
+            >
+              ⚙
+            </button>
+            {menuOpen && (
+              <div class="dealer-shell__menu-panel">
+                {onNewTable && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Start a new table?")) {
+                        onNewTable();
+                        setMenuOpen(false);
+                      }
+                    }}
+                  >
+                    New Table
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm("Start a new table?")) {
-                      onNewTable();
+                    if (window.confirm(`Start new ${module.seriesLabel}?`)) {
+                      store.startNewSeries();
                       setMenuOpen(false);
                     }
                   }}
                 >
-                  New Table
+                  New {module.seriesLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("End session?")) {
+                      store.endSession();
+                      setMenuOpen(false);
+                    }
+                  }}
+                >
+                  End Session
+                </button>
+                <button type="button" onClick={() => void handleExport()}>
+                  Export
+                </button>
+                <button type="button" onClick={handleImport}>
+                  Import
+                </button>
+                <button
+                  type="button"
+                  data-testid="menu-settings"
+                  onClick={() => {
+                    setActiveDialog("settings");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Settings
+                </button>
+                <button
+                  type="button"
+                  data-testid="menu-history"
+                  onClick={() => {
+                    setActiveDialog("history");
+                    setMenuOpen(false);
+                  }}
+                >
+                  History
+                </button>
+                <button
+                  type="button"
+                  data-testid="menu-calculator"
+                  onClick={() => {
+                    setActiveDialog("calculator");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Calculator
+                </button>
+                <button
+                  type="button"
+                  disabled={!syncStore}
+                  data-testid="menu-show-qr"
+                  onClick={() => {
+                    setActiveDialog("qr");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Show QR
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div class="dealer-shell__actions">
+          {virtualTable ? (
+            <>
+              <button
+                type="button"
+                class="dealer-shell__btn dealer-shell__btn--confirm"
+                disabled={readOnly}
+                data-testid="deal-btn"
+                onClick={() => {
+                  tapHaptic(deviceSettings.haptics);
+                  store.sendVirtual("trigger");
+                }}
+              >
+                DEAL
+              </button>
+              <button
+                type="button"
+                class="dealer-shell__btn"
+                disabled={readOnly}
+                data-testid="force-btn"
+                onClick={() => store.sendVirtual("force")}
+              >
+                Force
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                class="dealer-shell__btn"
+                onClick={handleUndo}
+                disabled={!!editingEnvelope || readOnly || !undoCheck.ok}
+                data-testid="undo-btn"
+                title={undoCheck.reason}
+              >
+                {undoArmed ? `Tap again to undo Hand ${undoHand}` : "UNDO"}
+              </button>
+              <button
+                type="button"
+                class={`dealer-shell__btn dealer-shell__btn--confirm${!confirmState?.enabled || readOnly ? " dealer-shell__btn--disabled" : ""}`}
+                style={confirmStyle}
+                aria-disabled={!confirmState?.enabled || readOnly}
+                onClick={handleConfirmClick}
+                data-testid="confirm-btn"
+              >
+                {confirming && (
+                  <span
+                    class="dealer-shell__confirm-progress"
+                    style={{ transform: `scaleX(${confirmProgress})` }}
+                  />
+                )}
+                <span>
+                  {editingEnvelope ? "✓ SAVE EDIT" : (confirmState?.label ?? "CONFIRM")}
+                  {confirmState?.badges && (
+                    <span class="dealer-shell__badges"> · {confirmState.badges.join(" · ")}</span>
+                  )}
+                </span>
+              </button>
+              {confirming && (
+                <button type="button" class="dealer-shell__btn" onClick={clearConfirmTimer}>
+                  Cancel
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm(`Start new ${module.seriesLabel}?`)) {
-                    store.startNewSeries();
-                    setMenuOpen(false);
-                  }
-                }}
-              >
-                New {module.seriesLabel}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm("End session?")) {
-                    store.endSession();
-                    setMenuOpen(false);
-                  }
-                }}
-              >
-                End Session
-              </button>
-              <button type="button" onClick={() => void handleExport()}>
-                Export
-              </button>
-              <button type="button" onClick={handleImport}>
-                Import
-              </button>
-              <button type="button" disabled>
-                Settings (coming soon)
-              </button>
-              <button type="button" disabled>
-                History (coming soon)
-              </button>
-              <button type="button" disabled>
-                Calculator (coming soon)
-              </button>
-              <button type="button" disabled>
-                Show QR (coming soon)
-              </button>
-            </div>
+            </>
           )}
         </div>
-      </footer>
+      </div>
+
+      {activeDialog === "bank" && bankHouse && (
+        <BankPanel
+          store={store}
+          composed={composed}
+          settings={settings}
+          onClose={() => setActiveDialog(null)}
+        />
+      )}
+      {activeDialog === "settings" && (
+        <SettingsDialog
+          store={store}
+          module={module}
+          rules={rules}
+          deviceSettings={deviceSettings}
+          onDeviceChange={onDeviceSettingsChange}
+          onClose={() => setActiveDialog(null)}
+        />
+      )}
+      {activeDialog === "history" && (
+        <HistoryDialog
+          store={store}
+          module={module}
+          rules={rules}
+          onClose={() => setActiveDialog(null)}
+          onEdit={(envelope) => {
+            setEditingEnvelope(envelope);
+            setActiveDialog(null);
+          }}
+        />
+      )}
+      {activeDialog === "calculator" && (
+        <CalculatorDialog
+          store={store}
+          module={module}
+          rules={rules}
+          onClose={() => setActiveDialog(null)}
+        />
+      )}
+      {activeDialog === "players" && syncStore && (
+        <PlayersDialog store={syncStore} onClose={() => setActiveDialog(null)} />
+      )}
+      {activeDialog === "qr" && syncStore && (
+        <QrDialog
+          entries={[
+            {
+              label: "Display",
+              url: tableUrl(`/display/${store.code}`),
+            },
+            {
+              label: "Dealer",
+              url: tableUrl(
+                `/dealer/${store.code}?t=${encodeURIComponent(syncStore.getDealerToken() ?? "")}`,
+              ),
+              warning: "Anyone with this link can control the table.",
+            },
+          ]}
+          onClose={() => setActiveDialog(null)}
+        />
+      )}
     </div>
   );
 }

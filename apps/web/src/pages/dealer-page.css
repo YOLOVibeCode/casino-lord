@@ -1,0 +1,37 @@
+.dealer-page {
+  min-height: 100dvh;
+  padding: 0;
+}
+
+@media (min-width: 769px) {
+  .dealer-page {
+    min-height: 100%;
+    padding: 0.5rem;
+  }
+}
+
+.dealer-page--error {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.dealer-page__demoted {
+  background: #5d4037;
+  color: #fff;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: 4px;
+}
+
+.dealer-page__demoted button {
+  background: #fff;
+  color: #333;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}

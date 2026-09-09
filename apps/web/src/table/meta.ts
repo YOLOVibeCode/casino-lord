@@ -10,6 +10,15 @@ export function currentSeriesStartedAt(events: TableEvent[]): string {
   return last?.at ?? new Date(0).toISOString();
 }
 
+export function currentSeriesCommit(events: readonly TableEvent[]): string | null {
+  const starts = events.filter((e) => e.type === "SERIES_STARTED");
+  const last = starts[starts.length - 1];
+  if (last?.type === "SERIES_STARTED" && last.commit) {
+    return last.commit;
+  }
+  return null;
+}
+
 export function buildTableMeta<State>(
   composed: ComposedState<State>,
   events: TableEvent[],

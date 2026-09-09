@@ -1,0 +1,74 @@
+.bank-panel__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  z-index: 100;
+}
+
+.bank-panel {
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--panel-bg, #1a1a1a);
+  border-top: 1px solid var(--gold-hairline, #c9a227);
+  padding: 1rem;
+}
+
+.bank-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.bank-panel__section {
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bank-panel__section h3 {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--accent, #c9a227);
+}
+
+.bank-panel__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.bank-panel__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.bank-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.bank-panel input,
+.bank-panel select {
+  padding: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--gold-hairline, #c9a227);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+}
+
+.bank-panel button {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--gold-hairline, #c9a227);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+}

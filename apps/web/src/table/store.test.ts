@@ -98,4 +98,24 @@ describe("table store", () => {
 
     expect(composedStateFingerprint(reopened)).toBe(before);
   });
+
+  it("getRules reflects SETTINGS_CHANGED patch", () => {
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "series-1",
+    });
+
+    expect((store.getRules() as { predictionCells: boolean }).predictionCells).toBe(false);
+
+    store.emit({
+      type: "SETTINGS_CHANGED",
+      patch: { rules: { predictionCells: true } },
+    });
+
+    expect((store.getRules() as { predictionCells: boolean }).predictionCells).toBe(true);
+  });
 });

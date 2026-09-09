@@ -1,0 +1,58 @@
+.dealer-shell button,
+.dealer-shell [role="button"],
+.card-picker__rank,
+.card-picker__suit,
+.card-picker__btn,
+.card-picker__close,
+.number-grid__cell,
+.number-grid__confirm,
+.dice-picker__face,
+.dice-picker__clear,
+.dice-picker__commit,
+.outcome-chips__chip,
+.dealer-view__slot,
+.dealer-view__seat-tab,
+.dealer-view__action,
+.dealer-view__pair-btn,
+.dealer-view__no-spin,
+.dealer-view__mode-toggle,
+.dealer-view__seven-out {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dealer-shell,
+.dealer-shell__module,
+.card-picker__sheet,
+.number-grid,
+.dice-picker {
+  user-select: none;
+  font-size: max(1rem, 16px);
+}
+
+.dealer-shell button:active:not(:disabled),
+.card-picker__rank:active,
+.card-picker__suit:active,
+.card-picker__btn:active:not(:disabled),
+.number-grid__cell:active:not(:disabled),
+.dice-picker__face:active,
+.outcome-chips__chip:active,
+.dealer-view__slot:active:not(:disabled) {
+  transform: scale(0.97);
+  transition: transform 80ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dealer-shell button:active,
+  .card-picker__rank:active,
+  .card-picker__suit:active,
+  .number-grid__cell:active,
+  .dice-picker__face:active,
+  .outcome-chips__chip:active,
+  .dealer-view__slot:active,
+  .dealer-view__slot--pulse {
+    transform: none;
+    transition: none;
+    animation: none !important;
+  }
+}

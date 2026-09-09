@@ -38,11 +38,12 @@ describe("DealerShell UI confirm", () => {
         module={baccarat}
         rules={DEFAULT_BACCARAT_RULES}
         deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceSettingsChange={() => {}}
       />,
     );
 
-    const confirmBtn = screen.getByTestId("confirm-btn") as HTMLButtonElement;
-    expect(confirmBtn.disabled).toBe(true);
+    const confirmBtn = screen.getByTestId("confirm-btn");
+    expect(confirmBtn.getAttribute("aria-disabled")).toBe("true");
 
     fireEvent.click(screen.getByTestId("slot-P1"));
     pickExpress("7", "H");
@@ -54,8 +55,8 @@ describe("DealerShell UI confirm", () => {
     pickExpress("5", "C");
 
     await waitFor(() => {
-      const btn = screen.getByTestId("confirm-btn") as HTMLButtonElement;
-      expect(btn.disabled).toBe(false);
+      const btn = screen.getByTestId("confirm-btn");
+      expect(btn.getAttribute("aria-disabled")).not.toBe("true");
       expect(btn.textContent).toContain("✓ CONFIRM BANKER 9");
     });
   });

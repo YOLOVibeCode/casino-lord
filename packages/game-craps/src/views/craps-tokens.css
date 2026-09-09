@@ -1,0 +1,12 @@
+.craps-display {
+  --craps-gold: #d4af37;
+  --craps-cream: #ede6d6;
+  --craps-red: #d7263d;
+  --craps-orange: #e08a1e;
+  --craps-purple: #8e5bd9;
+  --craps-surface: #0f172a;
+  --craps-panel: #1e293b;
+  --craps-border: #334155;
+  color: var(--craps-cream);
+  font-family: system-ui, sans-serif;
+}

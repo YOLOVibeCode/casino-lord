@@ -29,13 +29,13 @@ pnpm workspace. Packages are created as milestones land (SPEC.md §29); only wha
 
 ```
 packages/core/            @casino-lord/core — platform primitives. Pure. No deps. Exists.
-packages/ui/              shared inputs (card picker, number grid, dice picker, chip tray). Exists.
+packages/ui/              shared inputs: CardPicker, OutcomeChips, NumberGrid, DicePicker exist; chip tray / felt zones planned (M5).
 packages/game-baccarat/   GameModule for baccarat. Exists.
-packages/game-roulette/   Planned (M7).
-packages/game-craps/      Planned (M8).
-packages/game-blackjack/  Planned (M9).
-apps/web/                 Vite + Preact SPA: dealer / display / player shells. Exists (M2 slice 1).
-apps/sync/                Fastify + Socket.IO relay + Virtual Dealer. Planned (M3, M6).
+packages/game-roulette/   GameModule for roulette. Engine + dealer/display views exist (M7); PlayerView stub, no virtual yet.
+packages/game-craps/      GameModule for craps. Engine + dealer/display views exist (M8); PlayerView stub, no virtual yet.
+packages/game-blackjack/  GameModule for blackjack. Engine + dealer/display views exist (M9); PlayerView stub, no virtual yet.
+apps/web/                 Vite + Preact SPA: dealer / display / player shells, sync client, animation runtime. Exists (M2–M4).
+apps/sync/                Fastify + Socket.IO relay + SQLite persistence. Exists (M3). Virtual Dealer planned (M6).
 ```
 
 - Tests live next to the code: `src/foo.ts` is tested by `src/foo.test.ts`. Vitest picks up `packages/*/src/**/*.test.ts`, `packages/*/src/**/*.test.tsx`, and `apps/*/src/**/*.test.ts(x)`.
@@ -52,6 +52,9 @@ Run from the repo root. All of these work on a fresh clone with Node 22 and pnpm
 | Typecheck | `pnpm typecheck` | Runs `tsc --noEmit` in every package. Must pass. |
 | Lint | `pnpm lint` | Prettier check. Fix with `pnpm format`. |
 | Test | `pnpm test` | Vitest, all packages, under a few seconds. |
+| Build | `pnpm build` | Vite web bundle, then `tsc` for sync. |
+| Start | `pnpm start` | Production sync server (`apps/sync/dist/main.js`). |
+| Stamp | `pnpm stamp` | Write `apps/web/dist/version.json` (named `stamp` because `pnpm deploy` is reserved). |
 | Everything | `pnpm check` | typecheck + lint + test. This is what CI runs. Run it before you say you are done. |
 | Watch tests | `pnpm test:watch` | Interactive only. |
 
@@ -72,7 +75,7 @@ Integration branch: **`main`**. Work on a feature branch (`feat/<topic>`, `fix/<
 - Never introduce real-money, payment, wallet, or currency-conversion code paths. Chips are integers with no cash value (SPEC.md §2, §26).
 - Never generate outcomes on a table whose `outcomeSource` is `physical`, and never let a virtual outcome read bets (SPEC.md §14, §26).
 - Do not modify `.github/workflows/`, `railway.json`, Dockerfiles, or `.cursor/` unless the task is explicitly about them.
-- Do not add runtime dependencies to `packages/core` (dependency-free by design). Engine code in `packages/game-*` may depend only on `@casino-lord/core` and `zod`; view code under `src/views/` may additionally depend on `@casino-lord/ui` with `preact` as a peer dependency. **`apps/web`** may use `preact`, `preact-iso`, `zod`, `@casino-lord/core`, and workspace game packages only. Elsewhere, state why in the PR.
+- Do not add runtime dependencies to `packages/core` (dependency-free by design). Engine code in `packages/game-*` may depend only on `@casino-lord/core` and `zod`; view code under `src/views/` may additionally depend on `@casino-lord/ui` with `preact` as a peer dependency. **`apps/web`** may use `preact`, `preact-iso`, `zod`, `@casino-lord/core`, workspace game packages (including `@casino-lord/game-roulette`, `@casino-lord/game-craps`, and `@casino-lord/game-blackjack`), `socket.io-client`, and `qrcode` (`toDataURL` / `toString` SVG). **`apps/sync`** may use `fastify`, `@fastify/static`, `socket.io`, `better-sqlite3`, `zod`, `@casino-lord/core`, and workspace game packages (including `@casino-lord/game-roulette`, `@casino-lord/game-craps`, and `@casino-lord/game-blackjack`) only. Elsewhere, state why in the PR.
 - Do not commit secrets, `.env` files, `dist/`, or `node_modules/`.
 - Do not rewrite or reformat spec files as a side effect of a code task.
 - Do not weaken a test to make it pass.

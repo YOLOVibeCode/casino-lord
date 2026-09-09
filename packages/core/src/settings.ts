@@ -1,3 +1,4 @@
+import type { AnimationPreset } from "./animation.js";
 import type { Participation } from "./types.js";
 
 /** Table settings broadcast via the log (SPEC.md §18). */
@@ -18,6 +19,7 @@ export interface TableSettings {
     tableMin: number;
     tableMax: number;
     maxExposure: number;
+    bigWinMultiple: number;
     roundingMode: "down";
   };
   betting: {
@@ -37,6 +39,8 @@ export interface TableSettings {
   currency?: string;
   /** Game-specific rules; typed by each GameModule at runtime. */
   rules: unknown;
+  /** Per-event animation overrides keyed `game.<eventId>` or `platform.<eventId>`. */
+  animations?: Record<string, AnimationPreset>;
 }
 
 export const DEFAULT_TABLE_SETTINGS: TableSettings = {
@@ -56,6 +60,7 @@ export const DEFAULT_TABLE_SETTINGS: TableSettings = {
     tableMin: 5,
     tableMax: 500,
     maxExposure: 0,
+    bigWinMultiple: 20,
     roundingMode: "down",
   },
   betting: {

@@ -1,0 +1,149 @@
+.settings-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.settings-dialog {
+  background: var(--surface-elevated, #1a1a2e);
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+  width: min(420px, 95vw);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--text, #eee);
+}
+
+.settings-dialog--wide {
+  width: min(560px, 95vw);
+}
+
+.settings-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border, #333);
+}
+
+.settings-dialog__tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.settings-dialog__tab {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #aaa);
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+
+.settings-dialog__tab--active {
+  color: var(--text, #eee);
+  border-bottom: 2px solid var(--accent, #c9a227);
+}
+
+.settings-dialog__body {
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.settings-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.settings-dialog__field label {
+  font-size: 0.85rem;
+  color: var(--text-muted, #aaa);
+}
+
+.settings-dialog__field input[type="range"],
+.settings-dialog__field select {
+  width: 100%;
+}
+
+.settings-dialog__checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.animation-editor__bundles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.animation-editor__bundles select {
+  flex: 1;
+  min-width: 8rem;
+}
+
+.animation-editor__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.animation-editor__row {
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+}
+
+.animation-editor__summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  list-style: none;
+}
+
+.animation-editor__summary::-webkit-details-marker {
+  display: none;
+}
+
+.animation-editor__badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-muted, #aaa);
+  border: 1px solid var(--border, #444);
+  border-radius: 3px;
+  padding: 0 0.25rem;
+}
+
+.animation-editor__override {
+  font-size: 0.7rem;
+  color: var(--accent, #c9a227);
+}
+
+.animation-editor__controls {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border, #333);
+}
+
+.animation-editor__vars {
+  color: var(--text-muted, #aaa);
+  font-size: 0.75rem;
+}
+
+.animation-editor__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.animation-editor__advanced {
+  opacity: 0.85;
+}

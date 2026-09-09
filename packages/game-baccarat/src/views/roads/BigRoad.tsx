@@ -32,6 +32,7 @@ export function BigRoad({ grid, newColCount = 0 }: BigRoadProps) {
                 class={`road-grid__cell${isNew ? " road-grid__cell--enter" : ""}`}
                 data-row={row}
                 data-col={col}
+                {...(cell ? { "data-cell": "occupied" } : {})}
                 data-testid={`big-road-cell-${row}-${col}`}
                 aria-label={cell ? bigRoadCellAriaLabel(cell) : "Empty big road cell"}
               >

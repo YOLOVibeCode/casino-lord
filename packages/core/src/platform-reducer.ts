@@ -4,6 +4,7 @@ import type { PlacedBet, ResultEnvelope } from "./data-model.js";
 import type { TableEvent } from "./events.js";
 import type { PlatformState } from "./platform-state.js";
 import { initialPlatformState } from "./platform-state.js";
+import { mergeTableSettings } from "./merge-settings.js";
 
 export interface PlatformReducerContext<Rules, Result, LiveInput, State, BetTarget, Action> {
   module: GameModule<Rules, Result, LiveInput, State, BetTarget, Action>;
@@ -36,6 +37,53 @@ function applySettlementBankrolls(
   return { ...state, bankrolls };
 }
 
+function applyCarryBets(bets: PlacedBet[], settlements: Settlement[]): PlacedBet[] {
+  const carryByBetId = new Map<string, PlacedBet>();
+  for (const s of settlements) {
+    if (s.outcome === "stay" && s.carry) {
+      carryByBetId.set(s.betId, { ...s.carry, working: true });
+    }
+  }
+  if (carryByBetId.size === 0) return bets;
+  return bets.map((b) => carryByBetId.get(b.id) ?? b);
+}
+
+function reassignCarriedBets(
+  bets: PlacedBet[],
+  rounds: PlatformState["rounds"],
+  newRoundId: string,
+): PlacedBet[] {
+  return bets.map((b) => {
+    if (!b.working) return b;
+    const round = rounds.find((r) => r.id === b.roundId);
+    if (round?.status === "settled") {
+      return { ...b, roundId: newRoundId, originRoundId: b.originRoundId || b.roundId };
+    }
+    return b;
+  });
+}
+
+function reverseSettlementForRound(state: PlatformState, roundId: string): PlatformState {
+  const priorSettlements = state.settlements[roundId];
+  if (!priorSettlements) return state;
+
+  let next = state;
+  if (state.participation.bank === "house") {
+    const roundBets = state.bets.filter((b) => b.roundId === roundId);
+    next = applySettlementBankrolls(next, priorSettlements, roundBets, true);
+  }
+
+  const settlements = { ...next.settlements };
+  delete settlements[roundId];
+  const rounds = next.rounds.map((r) => {
+    if (r.id !== roundId) return r;
+    const { resultId: _removed, ...rest } = r;
+    return { ...rest, status: "closed" as const };
+  });
+
+  return { ...next, settlements, rounds };
+}
+
 function settleRound<Rules, Result, LiveInput, State, BetTarget, Action>(
   state: PlatformState,
   roundId: string,
@@ -63,11 +111,13 @@ function settleRound<Rules, Result, LiveInput, State, BetTarget, Action>(
     next = applySettlementBankrolls(next, rounded, roundBets, false);
   }
 
+  const bets = applyCarryBets(next.bets, rounded);
+
   const rounds = state.rounds.map((r) =>
     r.id === roundId ? { ...r, status: "settled" as const, resultId: result.id } : r,
   );
 
-  return { ...next, rounds };
+  return { ...next, bets, rounds };
 }
 
 export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Action>(
@@ -88,14 +138,19 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
     case "SETTINGS_CHANGED":
       return {
         ...state,
-        settings: { ...state.settings, ...event.patch },
+        settings: mergeTableSettings(state.settings, event.patch),
       };
 
     case "PARTICIPATION_CHANGED":
       return { ...state, participation: event.participation };
 
     case "SERIES_STARTED":
-      return { ...state, currentSeriesId: event.seriesId };
+      return {
+        ...state,
+        currentSeriesId: event.seriesId,
+        currentSeriesCommit: event.commit ?? null,
+        currentSeriesSeed: null,
+      };
 
     case "PLAYER_JOINED": {
       const players = [...state.players, event.player];
@@ -123,7 +178,11 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
     case "BANK_ISSUED": {
       const bankrolls = { ...state.bankrolls };
       bankrolls[event.playerId] = (bankrolls[event.playerId] ?? 0) + event.amount;
-      return { ...state, bankrolls };
+      return {
+        ...state,
+        bankrolls,
+        chipsIssuedTotal: state.chipsIssuedTotal + event.amount,
+      };
     }
 
     case "BANK_ADJUSTED": {
@@ -139,7 +198,8 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
         openedAt: event.at,
         ...(event.closesAt !== undefined ? { closesAt: event.closesAt } : {}),
       };
-      return { ...state, rounds: [...state.rounds, round] };
+      const bets = reassignCarriedBets(state.bets, state.rounds, event.roundId);
+      return { ...state, bets, rounds: [...state.rounds, round] };
     }
 
     case "BET_PLACED": {
@@ -221,22 +281,7 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
       const affectedRound = state.rounds.find((r) => r.resultId === resultId);
       if (!affectedRound) return state;
 
-      const roundId = affectedRound.id;
-      const priorSettlements = state.settlements[roundId];
-      let next = state;
-      if (priorSettlements && state.participation.bank === "house") {
-        const roundBets = state.bets.filter((b) => b.roundId === roundId);
-        next = applySettlementBankrolls(next, priorSettlements, roundBets, true);
-      }
-
-      const settlements = { ...next.settlements };
-      delete settlements[roundId];
-      const rounds = next.rounds.map((r) => {
-        if (r.id !== roundId) return r;
-        const { resultId: _removed, ...rest } = r;
-        return { ...rest, status: "closed" as const };
-      });
-      next = { ...next, settlements, rounds };
+      let next = reverseSettlementForRound(state, affectedRound.id);
 
       if (event.type === "RESULT_EDITED" && event.result.roundId) {
         return settleRound(next, event.result.roundId, event.result as ResultEnvelope<Result>, ctx);
@@ -244,12 +289,22 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
       return next;
     }
 
+    case "RESULT_UNDONE": {
+      const affectedRound = state.rounds.find((r) => r.resultId === event.resultId);
+      if (!affectedRound) return state;
+      return reverseSettlementForRound(state, affectedRound.id);
+    }
+
+    case "SERIES_ENDED":
+      return {
+        ...state,
+        currentSeriesSeed: event.seed ?? null,
+      };
+
     case "LIVE_INPUT":
     case "ANIMATION_PREVIEW":
     case "SESSION_ENDED":
     case "DEALER_CHANGED":
-    case "SERIES_ENDED":
-    case "RESULT_UNDONE":
     case "TURN_ASSIGNED":
     case "PLAYER_ACTION":
       return state;

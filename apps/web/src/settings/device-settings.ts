@@ -11,6 +11,8 @@ export interface DeviceSettings {
   haptics: boolean;
   cursorHide: boolean;
   fullScreen: boolean;
+  animations: boolean;
+  soundEnabled: boolean;
 }
 
 const STORAGE_KEY = "casino-lord:device-settings";
@@ -25,6 +27,8 @@ export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
   haptics: true,
   cursorHide: true,
   fullScreen: false,
+  animations: true,
+  soundEnabled: false,
 };
 
 export function loadDeviceSettings(store: StorageLike | null = browserStorage()): DeviceSettings {
