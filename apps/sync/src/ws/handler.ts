@@ -23,6 +23,12 @@ import {
 import type { TableInstance } from "../tables/table-instance.js";
 import type { TableRegistry } from "../tables/registry.js";
 import { verifyToken } from "../tables/token.js";
+import {
+  buildVirtualStatus,
+  executeVirtualStep,
+  resolveVirtualRequest,
+} from "../tables/virtual-executor.js";
+import { defaultActionForModule } from "../tables/virtual-dealer.js";
 
 interface SocketState {
   code?: string;
@@ -78,6 +84,7 @@ function joinedPayload(
   sinceSeq?: number,
   playerId?: string,
   pendingPlayers?: Array<{ id: string; name: string; color: string }>,
+  registry?: TableRegistry,
 ) {
   const composed = table.getComposed();
   const delta = table.joinPayload(sinceSeq);
@@ -105,6 +112,14 @@ function joinedPayload(
 
   if (pendingPlayers !== undefined) {
     payload.pending = pendingPlayers;
+  }
+
+  if (registry && composed.platform.participation.outcomeSource === "virtual") {
+    const virtualDealer = registry.getVirtualDealer(table.code);
+    const module = getModule(table.game);
+    if (virtualDealer && module) {
+      payload.virtual = buildVirtualStatus(table, module, virtualDealer);
+    }
   }
 
   return payload;
@@ -225,7 +240,10 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         st.joined = true;
         socket.data = st;
 
-        socket.emit("message", joinedPayload(table, "player", sinceSeq, playerRow.playerId));
+        socket.emit(
+          "message",
+          joinedPayload(table, "player", sinceSeq, playerRow.playerId, undefined, registry),
+        );
         sendPresence(io, table, code);
         return;
       }
@@ -262,7 +280,14 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
 
         socket.emit(
           "message",
-          joinedPayload(table, "dealer", sinceSeq, undefined, registry.pendingPayload(code)),
+          joinedPayload(
+            table,
+            "dealer",
+            sinceSeq,
+            undefined,
+            registry.pendingPayload(code),
+            registry,
+          ),
         );
         sendPresence(io, table, code);
         return;
@@ -275,7 +300,10 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
       st.joined = true;
       socket.data = st;
 
-      socket.emit("message", joinedPayload(table, "display", sinceSeq));
+      socket.emit(
+        "message",
+        joinedPayload(table, "display", sinceSeq, undefined, undefined, registry),
+      );
       sendPresence(io, table, code);
     }
 
@@ -330,7 +358,10 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
-      socket.emit("message", joinedPayload(table, st.role, parsed.data.sinceSeq, st.playerId));
+      socket.emit(
+        "message",
+        joinedPayload(table, st.role, parsed.data.sinceSeq, st.playerId, undefined, registry),
+      );
     }
 
     function handleEvent(
@@ -444,6 +475,54 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         op: "event",
         event: result.event,
       });
+
+      if (
+        result.event.type === "BETS_CLOSED" &&
+        composed.platform.participation.outcomeSource === "virtual" &&
+        table.settings.virtual.autoTrigger
+      ) {
+        scheduleAutoTrigger(st.code, table);
+      }
+    }
+
+    function scheduleAutoTrigger(code: string, table: TableInstance): void {
+      const virtualDealer = registry.getVirtualDealer(code);
+      const module = getModule(table.game);
+      if (!virtualDealer || !module?.virtual) {
+        return;
+      }
+      if (virtualDealer.dealing || virtualDealer.awaiting === "action") {
+        return;
+      }
+      const delayMs = table.settings.betting.autoOpenDelayMs;
+      setTimeout(() => {
+        const liveTable = registry.get(code);
+        const liveDealer = registry.getVirtualDealer(code);
+        const liveModule = liveTable ? getModule(liveTable.game) : null;
+        if (!liveTable || !liveDealer || !liveModule?.virtual) {
+          return;
+        }
+        if (liveDealer.dealing || liveDealer.awaiting === "action") {
+          return;
+        }
+        if (liveTable.settings.virtual.autoTrigger !== true) {
+          return;
+        }
+        const request = resolveVirtualRequest("trigger", liveModule, undefined, undefined);
+        if (!request) {
+          return;
+        }
+        executeVirtualStep({
+          io,
+          registry,
+          table: liveTable,
+          module: liveModule,
+          virtualDealer: liveDealer,
+          actionTimer: registry.getActionTimer(code),
+          request,
+          clientId: `auto-${Date.now()}`,
+        });
+      }, delayMs);
     }
 
     function handleVirtual(
@@ -528,16 +607,27 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
+      const turn = module.turn?.(composed.module);
+
       if (parsed.data.kind === "action") {
-        socket.emit("message", {
-          op: "reject",
-          clientId: parsed.data.clientId,
-          reason: "not supported",
-        });
-        return;
+        if (st.role !== "player" || !st.playerId) {
+          socket.emit("message", {
+            op: "reject",
+            clientId: parsed.data.clientId,
+            reason: "not authorized",
+          });
+          return;
+        }
+        if (turn?.playerId !== st.playerId) {
+          socket.emit("message", {
+            op: "reject",
+            clientId: parsed.data.clientId,
+            reason: "not authorized",
+          });
+          return;
+        }
       }
 
-      const turn = module.turn?.(composed.module);
       if (
         parsed.data.kind === "trigger" &&
         st.role === "player" &&
@@ -562,7 +652,7 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
 
       if (
         virtualDealer.awaiting === "action" &&
-        parsed.data.kind !== "force" &&
+        parsed.data.kind === "trigger" &&
         st.role !== "dealer"
       ) {
         socket.emit("message", {
@@ -593,80 +683,59 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
-      let stepEvents;
-      try {
-        stepEvents = virtualDealer.runStep(table, module, "deal");
-      } catch {
+      let forceDefault: unknown;
+      if (parsed.data.kind === "force" && virtualDealer.awaiting === "action") {
+        try {
+          forceDefault = defaultActionForModule(module);
+        } catch {
+          socket.emit("message", {
+            op: "reject",
+            clientId: parsed.data.clientId,
+            reason: "virtual step failed",
+          });
+          return;
+        }
+      }
+
+      const turnPlayerId =
+        parsed.data.kind === "force" && virtualDealer.awaiting === "action"
+          ? (turn?.playerId ?? undefined)
+          : st.playerId;
+
+      const request = resolveVirtualRequest(
+        parsed.data.kind,
+        module,
+        parsed.data.payload,
+        turnPlayerId,
+        forceDefault,
+      );
+
+      if (!request) {
         socket.emit("message", {
           op: "reject",
           clientId: parsed.data.clientId,
-          reason: "virtual step failed",
+          reason: "not authorized",
         });
         return;
       }
 
-      const revealDelayMs = table.settings.virtual.revealDelayMs;
-      const startedAt = Date.now();
-      const paced = virtualDealer.paceEvents(
-        stepEvents,
-        new Date(startedAt).toISOString(),
-        revealDelayMs,
-      );
-
-      // SPEC.md §14.4: reveals are emitted spaced by revealDelayMs so every
-      // display animates on arrival; the ack follows the last event.
-      const code = st.code;
       const clientId = parsed.data.clientId;
-      const liveTable = table;
-      virtualDealer.dealing = true;
-      void (async () => {
-        let lastSeq = liveTable.latestSeq;
-        try {
-          for (let index = 0; index < paced.length; index++) {
-            const { event, at } = paced[index]!;
-            const wait = Date.parse(at) - Date.now();
-            if (wait > 0) {
-              await new Promise((r) => setTimeout(r, wait));
-            }
-            if (registry.get(code) !== liveTable) {
-              return;
-            }
-            lastSeq = appendPaced(event, at, index) ?? lastSeq;
-          }
-        } finally {
-          virtualDealer.dealing = false;
-        }
-        socket.emit("message", { op: "ack", clientId, seq: lastSeq });
-      })();
-
-      function appendPaced(
-        event: Omit<TableEvent, "seq" | "at">,
-        at: string,
-        index: number,
-      ): number | undefined {
-        let body: Omit<TableEvent, "seq" | "at"> = event;
-        const typedEvent = body as TableEvent;
-        if (typedEvent.type === "RESULT_RECORDED") {
-          const latest = liveTable.getComposed();
-          const results = (latest.module as { results?: unknown[] }).results ?? [];
-          body = {
-            type: "RESULT_RECORDED",
-            result: {
-              ...typedEvent.result,
-              id: crypto.randomUUID(),
-              index: results.length,
-              recordedAt: at,
-            },
-          } as Omit<TableEvent, "seq" | "at">;
-        }
-        const result = liveTable.appendEvent(body, `${clientId}:${index}`, at);
-        if (result.kind === "new") {
-          registry.persistEvent(code, result.event);
-          io.to(room(code)).emit("message", { op: "event", event: result.event });
-          return result.event.seq;
-        }
-        return undefined;
-      }
+      executeVirtualStep({
+        io,
+        registry,
+        table,
+        module,
+        virtualDealer,
+        actionTimer: registry.getActionTimer(st.code),
+        request,
+        clientId,
+        onAck: (seq) => {
+          socket.emit("message", { op: "ack", clientId, seq });
+        },
+        onReject: (reason) => {
+          socket.emit("message", { op: "reject", clientId, reason });
+        },
+      });
     }
 
     function tableIsDemoted(st: SocketState, sock: Socket): boolean {
