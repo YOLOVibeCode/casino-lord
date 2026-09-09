@@ -3,7 +3,6 @@ import type { BaccaratResult, Card, SlotId } from "../types.js";
 import {
   BANKER_SLOTS,
   PLAYER_SLOTS,
-  formatCardList,
   formatSlotCard,
   isRedSuit,
   outcomeDisplayLabel,
