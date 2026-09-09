@@ -17,6 +17,21 @@ import "./play-page.css";
 
 type Phase = "loading" | "join" | "pending" | "playing" | "error";
 
+const COLOR_LABELS = [
+  "Red",
+  "Blue",
+  "Green",
+  "Orange",
+  "Purple",
+  "Pink",
+  "Teal",
+  "Yellow",
+  "Cyan",
+  "Lime",
+  "Indigo",
+  "Rose",
+];
+
 export function PlayPage(_props: { path?: string }) {
   const { route } = useLocation();
   const { params } = useRoute();
@@ -28,7 +43,6 @@ export function PlayPage(_props: { path?: string }) {
   const [color, setColor] = useState<string>(PLAYER_COLORS[0]!);
   const [store, setStore] = useState<SyncStore | null>(null);
   const [playerName, setPlayerName] = useState("");
-  const [joinPending, setJoinPending] = useState(false);
 
   useEffect(() => {
     if (!isSyncConfigured()) {
@@ -121,7 +135,6 @@ export function PlayPage(_props: { path?: string }) {
       ? syncStore.getComposed().platform.players.find((p) => p.id === pid)
       : undefined;
     const isActive = inLog?.status === "active";
-    setJoinPending(pending && !isActive);
     setPhase(isActive ? "playing" : pending ? "pending" : "playing");
   };
 
@@ -142,7 +155,6 @@ export function PlayPage(_props: { path?: string }) {
         (p) => p.id === playerId && p.status === "active",
       );
       if (joined) {
-        setJoinPending(false);
         setPhase("playing");
       }
     };
@@ -187,7 +199,7 @@ export function PlayPage(_props: { path?: string }) {
 
   if (phase === "loading") {
     return (
-      <main class="play-page" data-testid="play-page">
+      <main class="play-page play-page--loading" data-testid="play-page">
         <p>Loading…</p>
       </main>
     );
@@ -195,7 +207,7 @@ export function PlayPage(_props: { path?: string }) {
 
   if (phase === "error") {
     return (
-      <main class="play-page" data-testid="play-page">
+      <main class="play-page play-page--error" data-testid="play-page">
         <p class="play-page__error">{error}</p>
         <button type="button" onClick={() => route("/")}>
           Home
@@ -206,13 +218,15 @@ export function PlayPage(_props: { path?: string }) {
 
   if (phase === "join") {
     return (
-      <main class="play-page" data-testid="play-page">
+      <main class="play-page play-page--join" data-testid="play-page">
         <h1>Join table {code}</h1>
         <p class="play-page__disclaimer">Play chips — no cash value</p>
         <label class="play-page__field">
-          Display name
+          <span>Display name</span>
           <input
             type="text"
+            name="nickname"
+            autocomplete="nickname"
             value={name}
             maxLength={16}
             onInput={(e) => setName((e.target as HTMLInputElement).value)}
@@ -221,35 +235,44 @@ export function PlayPage(_props: { path?: string }) {
         </label>
         <fieldset class="play-page__colors">
           <legend>Colour</legend>
-          {PLAYER_COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              class={`play-page__swatch${color === c ? " play-page__swatch--selected" : ""}`}
-              style={{ background: c }}
-              aria-label={c}
-              onClick={() => setColor(c)}
-              data-testid={`color-${c}`}
-            />
-          ))}
+          <div class="play-page__swatch-row">
+            {PLAYER_COLORS.map((c, i) => (
+              <div key={c} class="play-page__swatch-wrap">
+                <button
+                  type="button"
+                  class={`play-page__swatch${color === c ? " play-page__swatch--selected" : ""}`}
+                  style={{ background: c }}
+                  aria-label={COLOR_LABELS[i] ?? c}
+                  aria-pressed={color === c}
+                  onClick={() => setColor(c)}
+                  data-testid={`color-${c}`}
+                />
+                <span class="play-page__swatch-label">{COLOR_LABELS[i] ?? c}</span>
+              </div>
+            ))}
+          </div>
         </fieldset>
         {error && <p class="play-page__error">{error}</p>}
-        <button
-          type="button"
-          class="play-page__join"
-          onClick={() => void handleJoin()}
-          data-testid="join-btn"
-        >
-          Join
-        </button>
+        <div class="play-page__join-wrap">
+          <button
+            type="button"
+            class="play-page__join"
+            onClick={() => void handleJoin()}
+            data-testid="join-btn"
+          >
+            Join
+          </button>
+        </div>
       </main>
     );
   }
 
   if (phase === "pending" && store) {
     return (
-      <main class="play-page play-page--pending" data-testid="play-page">
-        <p data-testid="pending-message">Waiting for the dealer to approve</p>
+      <main class="play-page play-page--embedded play-page--pending" data-testid="play-page">
+        <p class="play-page__pending-message" data-testid="pending-message">
+          Waiting for the dealer to approve
+        </p>
         <PlayerShell store={store} playerName={playerName} />
       </main>
     );
@@ -257,7 +280,7 @@ export function PlayPage(_props: { path?: string }) {
 
   if (phase === "playing" && store) {
     return (
-      <main class="play-page" data-testid="play-page">
+      <main class="play-page play-page--embedded" data-testid="play-page">
         <PlayerShell store={store} playerName={playerName || "Player"} />
       </main>
     );
