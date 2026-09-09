@@ -3,6 +3,7 @@ import type { BaccaratRules } from "../rules.js";
 import type { BaccaratState } from "../state.js";
 import { CurrentHandPanel } from "./CurrentHandPanel.js";
 import { BeadPlate, BigRoad, DerivedRoad } from "./roads/index.js";
+import { useRoadColDelta } from "./use-road-col-delta.js";
 import "./baccarat-tokens.css";
 import "./display-view.css";
 
@@ -35,6 +36,11 @@ export function DisplayView({ state, rules, layout }: DisplayViewProps) {
   const layoutId = layout.id;
   const showCurrentHand = layoutId !== "roads-only";
   const stats = footerStats(state);
+  const newBeadCols = useRoadColDelta(roads.beadPlate.cols);
+  const newBigRoadCols = useRoadColDelta(roads.bigRoad.cols);
+  const newBigEyeCols = useRoadColDelta(roads.bigEyeBoy.cols);
+  const newSmallRoadCols = useRoadColDelta(roads.smallRoad.cols);
+  const newCockroachCols = useRoadColDelta(roads.cockroachPig.cols);
 
   const predictions = rules.predictionCells
     ? {
@@ -53,11 +59,11 @@ export function DisplayView({ state, rules, layout }: DisplayViewProps) {
       <div class="display-view__top">
         <div class="display-view__bead">
           <div class="display-view__road-label">BEAD PLATE</div>
-          <BeadPlate grid={roads.beadPlate} />
+          <BeadPlate grid={roads.beadPlate} newColCount={newBeadCols} />
         </div>
         <div class="display-view__big-road-wrap">
           <div class="display-view__road-label">BIG ROAD</div>
-          <BigRoad grid={roads.bigRoad} />
+          <BigRoad grid={roads.bigRoad} newColCount={newBigRoadCols} />
         </div>
       </div>
 
@@ -68,6 +74,7 @@ export function DisplayView({ state, rules, layout }: DisplayViewProps) {
             grid={roads.bigEyeBoy}
             variant="big-eye-boy"
             label="BIG EYE BOY"
+            newColCount={newBigEyeCols}
             {...(predictions?.bigEye ? { predictions: predictions.bigEye } : {})}
           />
         </div>
@@ -76,6 +83,7 @@ export function DisplayView({ state, rules, layout }: DisplayViewProps) {
             grid={roads.smallRoad}
             variant="small-road"
             label="SMALL ROAD"
+            newColCount={newSmallRoadCols}
             {...(predictions?.small ? { predictions: predictions.small } : {})}
           />
         </div>
@@ -88,6 +96,7 @@ export function DisplayView({ state, rules, layout }: DisplayViewProps) {
             grid={roads.cockroachPig}
             variant="cockroach-pig"
             label="COCKROACH PIG"
+            newColCount={newCockroachCols}
             {...(predictions?.cockroach ? { predictions: predictions.cockroach } : {})}
           />
         </div>

@@ -50,3 +50,7 @@ export function stateWithRoadTokens(
 export function roadsFromTokens(tokens: string, rules: BaccaratRules = DEFAULT_BACCARAT_RULES) {
   return buildRoads(handsFromTokens(tokens), rules);
 }
+
+export function gridCellAt(container: HTMLElement, row: number, col: number): HTMLElement | null {
+  return container.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+}
