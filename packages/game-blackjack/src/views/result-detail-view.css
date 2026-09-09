@@ -1,0 +1,48 @@
+.result-detail {
+  padding: 1rem;
+  color: var(--bj-text, #ede6d6);
+}
+
+.result-detail__dealer-error {
+  background: #d7263d;
+  color: #fff;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.result-detail__section {
+  margin-bottom: 1rem;
+}
+
+.result-detail__section-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bj-muted, #9aa0a6);
+  margin-bottom: 0.35rem;
+}
+
+.result-detail__hand-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  margin-bottom: 0.35rem;
+}
+
+.result-detail__outcome {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.result-detail__quick-note {
+  color: var(--bj-muted, #9aa0a6);
+  font-style: italic;
+}
+
+.result-detail__tag {
+  font-size: 0.75rem;
+  color: var(--bj-blackjack, #d4af37);
+}
