@@ -302,6 +302,7 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
       };
 
     case "LIVE_INPUT":
+    case "VIRTUAL_PENDING":
     case "ANIMATION_PREVIEW":
     case "SESSION_ENDED":
     case "DEALER_CHANGED":

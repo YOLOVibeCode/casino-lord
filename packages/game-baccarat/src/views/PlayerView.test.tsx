@@ -35,6 +35,7 @@ const CONTEXT = {
   getOwnStake: () => 0,
   getTableStake: () => 0,
   settlementFlash: null as const,
+  settlementByZone: {} as Record<string, "win" | "lose">,
   onZoneTap: vi.fn(),
   onZoneLongPress: vi.fn(),
 };
@@ -75,5 +76,31 @@ describe("PlayerView", () => {
   it("shows no-commission banker sublabel", () => {
     renderPlayerView({ ...DEFAULT_BACCARAT_RULES, bankerCommission: 0 });
     expect(screen.getByTestId("felt-zone-banker").textContent).toContain("1:2 on 6");
+  });
+
+  it("shows mini big road dots when results exist", () => {
+    renderPlayerView();
+    expect(
+      screen.getByTestId("mini-big-road").querySelectorAll(".mini-big-road__dot").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("quick-entry last hand omits null totals", () => {
+    render(
+      <PlayerBettingContext.Provider value={CONTEXT}>
+        <PlayerView
+          state={stateWithRoadTokens("B")}
+          rules={DEFAULT_BACCARAT_RULES}
+          me={ME}
+          round={ROUND}
+          place={vi.fn()}
+          remove={vi.fn()}
+          act={vi.fn()}
+        />
+      </PlayerBettingContext.Provider>,
+    );
+    const line = screen.getByTestId("last-hand-line").textContent ?? "";
+    expect(line).toContain("Last hand: BANKER");
+    expect(line).not.toContain("null");
   });
 });

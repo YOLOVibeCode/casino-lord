@@ -16,6 +16,7 @@ export type TableEventType =
   | "SESSION_ENDED"
   | "DEALER_CHANGED"
   | "LIVE_INPUT"
+  | "VIRTUAL_PENDING"
   | "RESULT_RECORDED"
   | "RESULT_UNDONE"
   | "RESULT_EDITED"
@@ -44,6 +45,7 @@ export type TableEvent = TableEventEnvelope &
     | { type: "SESSION_ENDED" }
     | { type: "DEALER_CHANGED" }
     | { type: "LIVE_INPUT"; payload: unknown; source: "dealer" | "system" }
+    | { type: "VIRTUAL_PENDING"; kind: "dice" | "shoe" | "wheel"; untilAt: string }
     | { type: "RESULT_RECORDED"; result: ResultEnvelope<unknown> }
     | { type: "RESULT_UNDONE"; resultId: string }
     | { type: "RESULT_EDITED"; result: ResultEnvelope<unknown> }
@@ -81,7 +83,11 @@ export type TableEvent = TableEventEnvelope &
     | { type: "PLAYER_ACTION"; playerId: string; action: unknown; intent?: boolean }
   );
 
-const EPHEMERAL: ReadonlySet<TableEventType> = new Set(["LIVE_INPUT", "ANIMATION_PREVIEW"]);
+const EPHEMERAL: ReadonlySet<TableEventType> = new Set([
+  "LIVE_INPUT",
+  "VIRTUAL_PENDING",
+  "ANIMATION_PREVIEW",
+]);
 
 export function isPersistedEvent(event: TableEvent): boolean {
   return !EPHEMERAL.has(event.type);

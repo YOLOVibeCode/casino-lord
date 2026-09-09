@@ -52,6 +52,23 @@ export function DisplayShell({
   const playerModeOn = composed.platform.participation.playerMode === "on";
   const virtualTable = composed.platform.participation.outcomeSource === "virtual";
   const seriesCommit = virtualTable ? currentSeriesCommit(store.events) : null;
+  const virtualPending = store.getVirtualPending?.() ?? null;
+  const [pendingProgress, setPendingProgress] = useState(0);
+
+  useEffect(() => {
+    if (!virtualPending) {
+      setPendingProgress(0);
+      return;
+    }
+    const tick = (): void => {
+      const remaining = Date.parse(virtualPending.untilAt) - Date.now();
+      const total = Math.max(1, Date.parse(virtualPending.untilAt) - Date.now() + 1000);
+      setPendingProgress(Math.max(0, Math.min(1, 1 - remaining / total)));
+    };
+    tick();
+    const id = setInterval(tick, 50);
+    return () => clearInterval(id);
+  }, [virtualPending?.untilAt]);
   const joiningOpen = composed.platform.settings.players?.joiningOpen ?? false;
   const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
   const showBankrolls = bankHouse && composed.platform.settings.players.showBankrolls;
@@ -216,9 +233,13 @@ export function DisplayShell({
           {module.seriesLabel} {table.seriesNumber}
         </span>
         {virtualTable && seriesCommit && (
-          <span class="display-shell__virtual-badge" data-testid="virtual-commit">
+          <a
+            class="display-shell__virtual-badge"
+            data-testid="virtual-commit"
+            href={tableUrl(`/verify?code=${store.code}`)}
+          >
             VIRTUAL · FAIR · {seriesCommit.slice(0, 8)}
-          </span>
+          </a>
         )}
         <div class="display-shell__stats">
           {stats.map((row) => (
@@ -309,6 +330,21 @@ export function DisplayShell({
           byNet={topByNet}
           onDismiss={() => setShowLeaderboard(false)}
         />
+      )}
+
+      {virtualPending && (
+        <div class="display-shell__virtual-pending" data-testid="virtual-pending-ring">
+          <svg viewBox="0 0 36 36" aria-hidden="true">
+            <circle cx="18" cy="18" r="16" class="display-shell__pending-track" />
+            <circle
+              cx="18"
+              cy="18"
+              r="16"
+              class="display-shell__pending-progress"
+              stroke-dasharray={`${pendingProgress * 100} 100`}
+            />
+          </svg>
+        </div>
       )}
 
       <div ref={overlayRef} class="display-shell__animation-overlay" aria-hidden="true">

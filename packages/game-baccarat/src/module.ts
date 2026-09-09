@@ -32,9 +32,6 @@ import {
   type VirtualShoeSession,
 } from "./virtual.js";
 
-let virtualShoeSession: VirtualShoeSession | null = null;
-let virtualSeriesId = "local";
-
 function stubComponent(): Component<Record<string, unknown>> {
   return (() => null) as unknown as Component<Record<string, unknown>>;
 }
@@ -151,20 +148,20 @@ export const baccaratModule: GameModule<
       decks: baccaratVirtualDecks,
       penetration: shoePenetration,
     },
-    step({ state, rules, rng, trigger }) {
+    step({ state, rules, rng, trigger, session, seriesId }) {
       const out = baccaratVirtualStep({
         state,
         rules,
         rng,
         trigger,
-        session: virtualShoeSession,
-        seriesId: virtualSeriesId,
+        session: (session as VirtualShoeSession | null | undefined) ?? null,
+        seriesId: seriesId ?? "local",
       });
-      virtualShoeSession = out.session;
-      if (out.seriesRollover) {
-        virtualShoeSession = null;
-      }
-      return { events: out.events, awaiting: out.awaiting };
+      return {
+        events: out.events,
+        awaiting: out.awaiting,
+        session: out.seriesRollover ? null : out.session,
+      };
     },
   },
 };

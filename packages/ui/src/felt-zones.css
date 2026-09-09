@@ -3,16 +3,35 @@
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.75rem;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.felt-zones--baccarat {
+  flex: 1;
+  min-height: 0;
+}
+
+.felt-zones--baccarat .felt-zones__main-row {
+  flex: 1;
+  min-height: 0;
+}
+
+.felt-zones--baccarat .felt-zones__main-row .felt-zones__zone {
+  min-height: 3rem;
 }
 
 .felt-zones__side-row {
   display: flex;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .felt-zones__main-row {
   display: flex;
   gap: 0.5rem;
+  flex: 1;
+  min-height: 0;
 }
 
 .felt-zones__zone {
@@ -30,6 +49,12 @@
   justify-content: center;
   padding: 0.5rem;
   position: relative;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.felt-zones__zone:active {
+  transform: scale(0.97);
 }
 
 .felt-zones__zone--pressing {
@@ -66,28 +91,31 @@
 
 @media (prefers-reduced-motion: reduce) {
   .felt-zones__zone--flash-win,
-  .felt-zones__zone--flash-lose {
+  .felt-zones__zone--flash-lose,
+  .felt-zones__zone:active {
     animation: none;
+    transform: none;
   }
 }
 
 .felt-zones__label {
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: max(1rem, 16px);
 }
 
 .felt-zones__sublabel {
-  font-size: 0.75rem;
+  font-size: max(0.8125rem, 13px);
   opacity: 0.85;
 }
 
 .felt-zones__stake {
   margin-top: 0.25rem;
-  font-size: 0.8rem;
+  font-size: max(1.125rem, 18px);
+  font-weight: 600;
 }
 
 .felt-zones__table-stake {
-  font-size: 0.7rem;
+  font-size: max(0.8125rem, 13px);
   opacity: 0.7;
 }
 
@@ -98,8 +126,8 @@
 }
 
 .felt-zones__chip {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 50%;
   border: 2px solid var(--player-color, #fff);
   background: #333;
@@ -107,4 +135,28 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.felt-zones__badge {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: max(0.75rem, 12px);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  z-index: 1;
+}
+
+.felt-zones__badge--win {
+  background: #166534;
+  color: #fff;
+  border: 2px solid #4ade80;
+}
+
+.felt-zones__badge--lose {
+  background: #7f1d1d;
+  color: #fff;
+  border: 2px solid #f87171;
 }

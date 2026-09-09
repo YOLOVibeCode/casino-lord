@@ -49,11 +49,39 @@ function lastResult(state: BaccaratState): BaccaratResult | null {
 }
 
 function formatLastHand(result: BaccaratResult): string {
-  const pCards = result.cards ? formatCardList(result.cards, PLAYER_SLOTS) : "";
-  const bCards = result.cards ? formatCardList(result.cards, BANKER_SLOTS) : "";
-  const pPart = pCards ? `P ${pCards} =${result.playerTotal}` : `P =${result.playerTotal}`;
-  const bPart = bCards ? `B ${bCards} =${result.bankerTotal}` : `B =${result.bankerTotal}`;
-  return `Last hand: ${pPart} · ${bPart}`;
+  const hasCards = result.cards !== null && Object.keys(result.cards).length > 0;
+  const hasPlayerTotal = result.playerTotal !== null;
+  const hasBankerTotal = result.bankerTotal !== null;
+
+  if (!hasCards && !hasPlayerTotal && !hasBankerTotal) {
+    return `Last hand: ${outcomeDisplayLabel(result.outcome)}`;
+  }
+
+  const parts: string[] = [];
+  if (hasPlayerTotal || hasCards) {
+    const pCards = hasCards ? formatCardList(result.cards!, PLAYER_SLOTS) : "";
+    const pPart = pCards
+      ? `P ${pCards} =${result.playerTotal}`
+      : hasPlayerTotal
+        ? `P =${result.playerTotal}`
+        : "";
+    if (pPart) parts.push(pPart);
+  }
+  if (hasBankerTotal || hasCards) {
+    const bCards = hasCards ? formatCardList(result.cards!, BANKER_SLOTS) : "";
+    const bPart = bCards
+      ? `B ${bCards} =${result.bankerTotal}`
+      : hasBankerTotal
+        ? `B =${result.bankerTotal}`
+        : "";
+    if (bPart) parts.push(bPart);
+  }
+
+  if (parts.length === 0) {
+    return `Last hand: ${outcomeDisplayLabel(result.outcome)}`;
+  }
+
+  return `Last hand: ${parts.join(" · ")}`;
 }
 
 export function PlayerView({ state, rules }: PlayerViewProps) {
@@ -112,14 +140,26 @@ export function PlayerView({ state, rules }: PlayerViewProps) {
         onTap={(zone) => onZoneTap(String(zone.target))}
         onLongPress={(zone) => onZoneLongPress(String(zone.target))}
       />
-      <div class="baccarat-player-view__road-label">Mini big road</div>
-      <MiniBigRoad grid={state.roads.bigRoad} visibleCols={8} />
+      <div class="baccarat-player-view__road-wrap">
+        <div class="baccarat-player-view__road-label">Mini big road</div>
+        <MiniBigRoad grid={state.roads.bigRoad} visibleCols={8} />
+      </div>
       {result && (
         <p class="baccarat-player-view__last-hand" data-testid="last-hand-line">
           {formatLastHand(result)}
-          {result.outcome ? ` · ${outcomeDisplayLabel(result.outcome)}` : ""}
+          {result.outcome && hasDetailedHand(result)
+            ? ` · ${outcomeDisplayLabel(result.outcome)}`
+            : ""}
         </p>
       )}
     </div>
+  );
+}
+
+function hasDetailedHand(result: BaccaratResult): boolean {
+  return (
+    (result.cards !== null && Object.keys(result.cards).length > 0) ||
+    result.playerTotal !== null ||
+    result.bankerTotal !== null
   );
 }

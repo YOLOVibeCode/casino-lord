@@ -15,6 +15,7 @@ import type { TableRepository, TableRow } from "../persistence/repository.js";
 import { type AdmitPlayerResult, type JoinPlayerResult, PlayerService } from "./player-service.js";
 import { generateDealerToken, hashToken } from "./token.js";
 import { TableInstance } from "./table-instance.js";
+import { VirtualActionTimer } from "./action-timer.js";
 import { VirtualDealer } from "./virtual-dealer.js";
 
 export interface CreateTableResult {
@@ -40,6 +41,7 @@ export class TableRegistry {
   private readonly rng: () => number;
   private readonly tables = new Map<string, TableInstance>();
   private readonly virtualDealers = new Map<string, VirtualDealer>();
+  private readonly actionTimers = new Map<string, VirtualActionTimer>();
   private readonly idleTimer: ReturnType<typeof setInterval>;
   private readonly retentionTimer: ReturnType<typeof setInterval>;
 
@@ -167,6 +169,15 @@ export class TableRegistry {
     return this.virtualDealers.get(code) ?? null;
   }
 
+  getActionTimer(code: string): VirtualActionTimer {
+    let timer = this.actionTimers.get(code);
+    if (!timer) {
+      timer = new VirtualActionTimer();
+      this.actionTimers.set(code, timer);
+    }
+    return timer;
+  }
+
   persistEvent(code: string, event: TableEvent): void {
     if (isPersistedEvent(event)) {
       this.repository.saveEvent(code, event);
@@ -250,6 +261,8 @@ export class TableRegistry {
   }
 
   deleteTable(code: string): void {
+    this.actionTimers.get(code)?.cancel();
+    this.actionTimers.delete(code);
     this.tables.delete(code);
     this.virtualDealers.delete(code);
     this.repository.deleteTable(code);

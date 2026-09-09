@@ -144,3 +144,28 @@
   pointer-events: none;
   z-index: 100;
 }
+
+.display-shell__virtual-pending {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 4rem;
+  height: 4rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 90;
+}
+
+.display-shell__pending-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 3;
+}
+
+.display-shell__pending-progress {
+  fill: none;
+  stroke: var(--gold-accent, #d4af37);
+  stroke-width: 3;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}

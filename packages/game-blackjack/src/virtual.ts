@@ -3,6 +3,7 @@ import { dealerMustDraw, handValue, isPair } from "./engine.js";
 import { liveInputToResult } from "./round-state.js";
 import type { BlackjackRules } from "./rules.js";
 import type { BlackjackState } from "./state.js";
+import { handKey, isHandComplete } from "./turn.js";
 import type { Card, HandInput, Rank, Seat, Suit, VirtualSession } from "./types.js";
 import { ALL_SEATS } from "./types.js";
 
@@ -37,33 +38,6 @@ function emptyHand(): HandInput {
   return { cards: [], doubled: false, fromSplit: false, surrendered: false, outcome: null };
 }
 
-function handKey(seat: Seat, index: number): string {
-  return `${seat}:${index}`;
-}
-
-function isHandComplete(
-  hand: HandInput,
-  seat: Seat,
-  handIndex: number,
-  session: VirtualSession,
-  rules: BlackjackRules,
-): boolean {
-  if (session.completedHands.includes(handKey(seat, handIndex))) return true;
-  if (hand.surrendered) return true;
-  const hv = handValue(hand.cards, hand.fromSplit, rules.blackjackAfterSplit);
-  if (hv.bust || hv.blackjack) return true;
-  if (hand.doubled && hand.cards.length >= 3) return true;
-  if (
-    hand.fromSplit &&
-    hand.cards[0]?.rank === "A" &&
-    rules.splitAcesOneCard &&
-    hand.cards.length >= 2
-  ) {
-    return true;
-  }
-  return false;
-}
-
 function initSession(rules: BlackjackRules, rng: Rng, activeSeats: Seat[]): VirtualSession {
   return {
     shoe: buildShoe(rules.decks, rng),
@@ -87,7 +61,7 @@ function advancePlayerTurn(
     const hands = seats[seat] ?? [emptyHand()];
     for (let hi = 0; hi < hands.length; hi++) {
       const hand = hands[hi]!;
-      if (!isHandComplete(hand, seat, hi, session, rules)) {
+      if (!isHandComplete(hand, seat, hi, rules, session.completedHands)) {
         session.currentSeat = seat;
         session.currentHandIndex = hi;
         session.phase = "player";
