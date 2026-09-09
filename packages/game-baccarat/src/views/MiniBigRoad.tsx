@@ -1,17 +1,16 @@
 import type { BigRoadGridCell, RoadGrid } from "../roads/types.js";
 import "./mini-big-road.css";
 
-const VISIBLE_COLS = 12;
-
 interface MiniBigRoadProps {
   grid: RoadGrid<BigRoadGridCell>;
+  visibleCols?: number;
 }
 
-export function MiniBigRoad({ grid }: MiniBigRoadProps) {
-  const startCol = Math.max(0, grid.cols - VISIBLE_COLS);
-  const visibleCols = grid.cols - startCol;
+export function MiniBigRoad({ grid, visibleCols = 12 }: MiniBigRoadProps) {
+  const startCol = Math.max(0, grid.cols - visibleCols);
+  const colCount = grid.cols - startCol;
 
-  if (visibleCols <= 0) {
+  if (colCount <= 0) {
     return (
       <div class="mini-big-road" data-testid="mini-big-road">
         <div class="mini-big-road__grid" style={{ gridTemplateColumns: "repeat(1, 20px)" }}>
@@ -26,12 +25,12 @@ export function MiniBigRoad({ grid }: MiniBigRoadProps) {
       <div
         class="mini-big-road__grid"
         style={{
-          gridTemplateColumns: `repeat(${visibleCols}, 20px)`,
+          gridTemplateColumns: `repeat(${colCount}, 20px)`,
           gridTemplateRows: `repeat(${grid.rows}, 20px)`,
         }}
       >
         {Array.from({ length: grid.rows }, (_, row) =>
-          Array.from({ length: visibleCols }, (_, ci) => {
+          Array.from({ length: colCount }, (_, ci) => {
             const col = startCol + ci;
             const cell = grid.cells[row]?.[col];
             return (

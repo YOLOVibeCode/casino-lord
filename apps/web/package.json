@@ -14,6 +14,7 @@
     "@casino-lord/game-craps": "workspace:*",
     "@casino-lord/game-roulette": "workspace:*",
     "@casino-lord/game-blackjack": "workspace:*",
+    "@casino-lord/ui": "workspace:*",
     "preact": "^10.26.0",
     "preact-iso": "^2.9.2",
     "qrcode": "^1.5.4",

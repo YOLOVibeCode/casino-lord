@@ -22,6 +22,7 @@ import { baccaratConfirm } from "./confirm.js";
 import { formatOutcomeToken } from "./quick-entry.js";
 import { DealerView } from "./views/DealerView.js";
 import { DisplayView } from "./views/DisplayView.js";
+import { PlayerView } from "./views/PlayerView.js";
 import { ResultDetailView } from "./views/ResultDetailView.js";
 import { RulesSettingsView } from "./views/RulesSettingsView.js";
 
@@ -80,7 +81,7 @@ export const baccaratModule: GameModule<
     BaccaratLiveInput,
     BaccaratState
   >["DisplayView"],
-  PlayerView: stubComponent() as GameModule<
+  PlayerView: PlayerView as unknown as GameModule<
     BaccaratRules,
     BaccaratResult,
     BaccaratLiveInput,
