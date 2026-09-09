@@ -9,7 +9,9 @@ const booleanFromEnv = z
 const configSchema = z.object({
   port: z.coerce.number().int().positive().default(3000),
   persist: persistSchema.default("sqlite"),
+  sqlitePath: z.string().default("/data/casino-lord.db"),
   tableTtlHours: z.coerce.number().int().positive().default(6),
+  tableRetentionDays: z.coerce.number().int().positive().default(30),
   publicUrl: z.string().optional(),
   enabledGames: z
     .string()
@@ -28,14 +30,22 @@ const configSchema = z.object({
 export type Config = z.infer<typeof configSchema>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  return configSchema.parse({
+  const config = configSchema.parse({
     port: env.PORT,
     persist: env.PERSIST,
+    sqlitePath: env.SQLITE_PATH,
     tableTtlHours: env.TABLE_TTL_HOURS,
+    tableRetentionDays: env.TABLE_RETENTION_DAYS,
     publicUrl: env.PUBLIC_URL,
     enabledGames: env.ENABLED_GAMES,
     enablePlayerMode: env.ENABLE_PLAYER_MODE,
     enableVirtual: env.ENABLE_VIRTUAL,
     maxPlayersHard: env.MAX_PLAYERS_HARD,
   });
+
+  if (config.persist === "redis") {
+    throw new Error("PERSIST=redis is not supported yet");
+  }
+
+  return config;
 }
