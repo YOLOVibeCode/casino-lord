@@ -1,10 +1,49 @@
 .bet-slip {
-  padding: 0.75rem 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.5rem 0.75rem 0;
+  touch-action: manipulation;
+}
+
+.bet-slip--compact .bet-slip__details {
+  display: none;
+}
+
+.bet-slip--compact .bet-slip__compact {
+  display: flex;
+}
+
+.bet-slip__compact {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.25rem 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: max(0.875rem, 14px);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bet-slip__compact-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.bet-slip__compact-total {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .bet-slip__title {
-  font-size: 0.85rem;
+  font-size: max(0.875rem, 14px);
   opacity: 0.8;
   margin-bottom: 0.5rem;
 }
@@ -14,7 +53,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.35rem 0;
-  font-size: 0.95rem;
+  font-size: max(0.9375rem, 15px);
 }
 
 .bet-slip__label {
@@ -26,8 +65,8 @@
 }
 
 .bet-slip__remove {
-  min-width: 2rem;
-  min-height: 2rem;
+  min-width: 3rem;
+  min-height: 3rem;
   border: none;
   border-radius: 0.25rem;
   background: rgba(255, 255, 255, 0.12);
@@ -35,6 +74,7 @@
   cursor: pointer;
   font-size: 1rem;
   line-height: 1;
+  touch-action: manipulation;
 }
 
 .bet-slip__total {
@@ -44,20 +84,27 @@
   padding-top: 0.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   font-weight: 600;
+  font-size: max(0.9375rem, 15px);
 }
 
 .bet-slip__place {
   display: block;
   width: 100%;
-  margin-top: 0.75rem;
-  min-height: 3rem;
+  margin-top: 0.5rem;
+  min-height: 4rem;
   border: none;
   border-radius: 0.5rem;
   background: #16a34a;
   color: #fff;
   font-weight: 700;
-  font-size: 1rem;
+  font-size: max(1rem, 16px);
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bet-slip__place:active {
+  transform: scale(0.98);
 }
 
 .bet-slip__place:disabled {
@@ -66,14 +113,20 @@
 }
 
 .bet-slip__locked {
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
   text-align: center;
-  font-size: 0.95rem;
+  font-size: max(0.9375rem, 15px);
   opacity: 0.85;
 }
 
 .bet-slip__error {
   margin-top: 0.5rem;
   color: #fca5a5;
-  font-size: 0.85rem;
+  font-size: max(0.875rem, 14px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bet-slip__place:active {
+    transform: none;
+  }
 }

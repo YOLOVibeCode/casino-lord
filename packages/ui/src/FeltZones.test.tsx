@@ -13,6 +13,7 @@ const CONTEXT = {
   getOwnStake: (id: string) => (id === "banker" ? 100 : 0),
   getTableStake: (id: string) => (id === "banker" ? 250 : 0),
   settlementFlash: null as const,
+  settlementByZone: {} as Record<string, "win" | "lose">,
   onZoneTap: vi.fn(),
   onZoneLongPress: vi.fn(),
 };
@@ -61,5 +62,20 @@ describe("FeltZones", () => {
     renderZones();
     expect(screen.getByTestId("felt-zone-stake-banker").textContent).toContain("100");
     expect(screen.getByTestId("felt-zone-table-banker").textContent).toContain("250");
+  });
+
+  it("shows WIN badge on winning zone", () => {
+    render(
+      <PlayerBettingContext.Provider value={{ ...CONTEXT, settlementByZone: { banker: "win" } }}>
+        <FeltZones
+          zones={[
+            { id: "banker", label: "BANKER", sublabel: "1:1", color: "#e5322d", target: "banker" },
+          ]}
+          onTap={vi.fn()}
+          onLongPress={vi.fn()}
+        />
+      </PlayerBettingContext.Provider>,
+    );
+    expect(screen.getByTestId("felt-zone-badge-banker").textContent).toBe("WIN");
   });
 });
