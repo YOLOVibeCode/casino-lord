@@ -110,6 +110,77 @@ describe("PlayerShell", () => {
     expect(screen.getByTestId("bet-slip-error").textContent).toContain("Insufficient");
   });
 
+  it("shows over max validation error", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "SETTINGS_CHANGED",
+      patch: { bank: { ...houseSettings().bank, tableMax: 50, chipDenominations: [5, 25, 100] } },
+    });
+    render(<PlayerShell store={store} playerName="Ana" />);
+
+    fireEvent.click(screen.getByTestId("chip-denom-100"));
+    const zone = screen.getByTestId("felt-zone-banker");
+    fireEvent.mouseDown(zone);
+    fireEvent.mouseUp(zone);
+    expect(screen.getByTestId("bet-slip-error").textContent).toContain("Maximum");
+  });
+
+  it("emits BET_REMOVED when removing placed bet from slip", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    const emitSpy = vi.spyOn(store, "emit");
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("bet-slip-remove-b1"));
+    expect(emitSpy).toHaveBeenCalledWith({ type: "BET_REMOVED", betId: "b1" });
+  });
+
+  it("shows settlement summary after banker win", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: 4,
+        bankerTotal: 9,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("Banker 9");
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("+95");
+  });
+
   it("shows rebuy hint at zero bankroll", () => {
     const { store } = setupStore({ bankroll: 0 });
     render(<PlayerShell store={store} playerName="Ana" />);
