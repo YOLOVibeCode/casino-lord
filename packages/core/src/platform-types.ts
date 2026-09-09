@@ -41,6 +41,17 @@ export interface ActionDef<Action> {
 
 export type VirtualTrigger = "deal" | "spin" | "roll";
 
+export function triggerForKind(kind: "dice" | "shoe" | "wheel"): VirtualTrigger {
+  switch (kind) {
+    case "shoe":
+      return "deal";
+    case "wheel":
+      return "spin";
+    case "dice":
+      return "roll";
+  }
+}
+
 export interface LayoutPreset {
   id: string;
   label: string;

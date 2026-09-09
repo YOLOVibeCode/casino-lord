@@ -93,7 +93,13 @@ export interface GameModule<Rules, Result, LiveInput, State, BetTarget = unknown
       rng: Rng;
       trigger: VirtualTrigger;
       action?: { playerId: string; action: Action };
-    }): { events: Omit<TableEvent, "seq" | "at">[]; awaiting: "none" | "action" | "trigger" };
+      session?: unknown;
+      seriesId?: string;
+    }): {
+      events: Omit<TableEvent, "seq" | "at">[];
+      awaiting: "none" | "action" | "trigger";
+      session?: unknown;
+    };
   };
 
   animationEvents: AnimationEventDef[];
