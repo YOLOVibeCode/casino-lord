@@ -1,0 +1,138 @@
+.display-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0.75rem;
+  color: var(--bj-text, #ede6d6);
+  box-sizing: border-box;
+}
+
+.display-view__dealer {
+  text-align: center;
+  padding: 0.75rem;
+  background: var(--bj-panel, rgba(255, 255, 255, 0.06));
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+}
+
+.display-view__dealer-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--bj-muted, #9aa0a6);
+}
+
+.display-view__dealer-cards {
+  font-size: 1.25rem;
+  margin: 0.35rem 0;
+}
+
+.display-view__dealer-status {
+  font-size: 0.85rem;
+  color: var(--bj-muted, #9aa0a6);
+}
+
+.display-view__seats {
+  display: grid;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.display-view--classic .display-view__seats {
+  grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
+}
+
+.display-view--dealer-focus .display-view__seats {
+  grid-template-columns: repeat(7, 1fr);
+  font-size: 0.75rem;
+}
+
+.display-view--dealer-focus .display-view__dealer {
+  padding: 1.5rem;
+}
+
+.display-view--dealer-focus .display-view__dealer-cards {
+  font-size: 2rem;
+}
+
+.display-view--stats-focus .display-view__seats,
+.display-view--stats-focus .display-view__dealer-cards {
+  font-size: 0.8rem;
+}
+
+.display-view--portrait {
+  flex-direction: column;
+}
+
+.display-view--portrait .display-view__seats {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.display-view__seat {
+  background: var(--bj-panel, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--bj-border, rgba(255, 255, 255, 0.12));
+  border-radius: 4px;
+  padding: 0.5rem;
+  min-height: 3rem;
+}
+
+.display-view__seat--empty {
+  opacity: 0.35;
+}
+
+.display-view__seat-label {
+  font-size: 0.65rem;
+  color: var(--bj-muted, #9aa0a6);
+}
+
+.display-view__hand {
+  margin-top: 0.25rem;
+}
+
+.display-view__hand-tag {
+  font-size: 0.65rem;
+  color: var(--bj-blackjack, #d4af37);
+}
+
+.display-view__outcome {
+  font-weight: 700;
+  font-size: 0.8rem;
+  margin-top: 0.2rem;
+}
+
+.display-view__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--bj-border, rgba(255, 255, 255, 0.12));
+  font-size: 0.75rem;
+}
+
+.display-view__shoe {
+  flex: 1;
+  min-width: 10rem;
+}
+
+.display-view__shoe-bar {
+  height: 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 0.25rem;
+}
+
+.display-view__shoe-fill {
+  height: 100%;
+  background: var(--bj-blackjack, #d4af37);
+}
+
+.display-view__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+}
+
+.display-view__stat {
+  white-space: nowrap;
+}

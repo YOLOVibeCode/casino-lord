@@ -1,0 +1,35 @@
+.rules-settings {
+  padding: 1rem;
+  color: var(--bj-text, #ede6d6);
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.rules-settings__field {
+  margin-bottom: 1rem;
+}
+
+.rules-settings__label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bj-muted, #9aa0a6);
+  margin-bottom: 0.35rem;
+}
+
+.rules-settings__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.rules-settings__options label {
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.rules-settings__range {
+  width: 100%;
+  max-width: 16rem;
+}

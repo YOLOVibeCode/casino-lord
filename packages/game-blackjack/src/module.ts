@@ -21,6 +21,10 @@ import { initialState, type BlackjackState } from "./state.js";
 import { blackjackStats } from "./stats.js";
 import type { BlackjackLiveInput, BlackjackResult } from "./types.js";
 import { blackjackVirtualStep, type BlackjackAction } from "./virtual.js";
+import { DealerView } from "./views/DealerView.js";
+import { DisplayView } from "./views/DisplayView.js";
+import { ResultDetailView } from "./views/ResultDetailView.js";
+import { RulesSettingsView } from "./views/RulesSettingsView.js";
 
 function stubComponent(): Component<Record<string, unknown>> {
   return (() => null) as unknown as Component<Record<string, unknown>>;
@@ -60,13 +64,13 @@ export const blackjackModule: GameModule<
   reduce,
   confirm: blackjackConfirm,
 
-  DealerView: stubComponent() as GameModule<
+  DealerView: DealerView as unknown as GameModule<
     BlackjackRules,
     BlackjackResult,
     BlackjackLiveInput,
     BlackjackState
   >["DealerView"],
-  DisplayView: stubComponent() as GameModule<
+  DisplayView: DisplayView as unknown as GameModule<
     BlackjackRules,
     BlackjackResult,
     BlackjackLiveInput,
@@ -80,13 +84,13 @@ export const blackjackModule: GameModule<
     BlackjackBetTarget,
     BlackjackAction
   >["PlayerView"],
-  ResultDetailView: stubComponent() as GameModule<
+  ResultDetailView: ResultDetailView as unknown as GameModule<
     BlackjackRules,
     BlackjackResult,
     BlackjackLiveInput,
     BlackjackState
   >["ResultDetailView"],
-  RulesSettingsView: stubComponent() as GameModule<
+  RulesSettingsView: RulesSettingsView as unknown as GameModule<
     BlackjackRules,
     BlackjackResult,
     BlackjackLiveInput,
