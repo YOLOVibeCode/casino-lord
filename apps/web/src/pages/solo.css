@@ -5,21 +5,35 @@
 
 @media (max-width: 768px) {
   .solo {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    min-height: 100dvh;
     padding: 0;
   }
 
   .solo__toolbar {
+    flex-shrink: 0;
     margin-bottom: 0;
     padding: 0.5rem 0.75rem;
   }
 
-  .solo__dealer {
-    min-height: 100dvh;
+  .solo__panes {
+    flex: 1;
+    min-height: 0;
+    gap: 0;
+    display: flex;
+    flex-direction: column;
   }
 
-  .solo__panes {
-    gap: 0;
-    min-height: auto;
+  .solo__dealer {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .solo__dealer .dealer-shell {
+    height: 100%;
+    max-height: 100%;
   }
 
   .solo__display {
