@@ -186,6 +186,51 @@ describe("synced store", () => {
     display.destroy();
   });
 
+  it("reopening a table with a populated local log does not duplicate events", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url);
+    const dealer = await openDealer(server.url, code, dealerToken);
+    const first = await openDisplay(server.url, code);
+
+    dealer.record(minimalBaccaratResult(), { quick: false });
+    dealer.record(minimalBaccaratResult(), { quick: false });
+    await waitForFingerprint(first, composedStateFingerprint(dealer));
+    // Let the local IndexedDB log settle before simulating a reload.
+    await new Promise((r) => setTimeout(r, 100));
+    first.destroy();
+
+    const storedLatestSeq = first.events.reduce((max, e) => Math.max(max, e.seq), 0);
+    expect(storedLatestSeq).toBeGreaterThan(0);
+
+    const reopened = createSyncedTableStore({
+      code,
+      role: "display",
+      syncUrl: server.url,
+      module,
+      rules,
+    });
+    const socket = getSyncSocketForTest(reopened)!;
+    const joins: Array<{ sinceSeq?: number }> = [];
+    const originalEmit = socket.emit.bind(socket);
+    socket.emit = ((event: string, ...args: unknown[]) => {
+      const msg = args[0] as { op?: string; sinceSeq?: number } | undefined;
+      if (event === "message" && msg?.op === "join") joins.push(msg);
+      return originalEmit(event, ...args);
+    }) as typeof socket.emit;
+    await waitForSyncReady(reopened);
+
+    // The local log must be loaded before the first join, so it resumes from the stored seq.
+    expect(joins[0]?.sinceSeq).toBe(storedLatestSeq);
+
+    await waitForFingerprint(reopened, composedStateFingerprint(dealer));
+    const seqs = reopened.events.map((e) => e.seq);
+    expect(new Set(seqs).size).toBe(seqs.length);
+    expect(seqs).toEqual([...seqs].sort((a, b) => a - b));
+
+    dealer.destroy();
+    reopened.destroy();
+  });
+
   it("takeover demotes the first dealer", async () => {
     const server = await boot();
     const { code, dealerToken } = await createTableViaRest(server.url);

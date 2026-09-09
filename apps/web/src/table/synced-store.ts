@@ -296,10 +296,12 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     void flushOfflineQueue();
   };
 
+  // Connect only after the local log has loaded so the first join carries the
+  // right sinceSeq and the server delta never lands on top of a later local merge.
   const socket: Socket = io(syncUrl, {
     path: "/ws",
     transports: ["websocket"],
-    autoConnect: true,
+    autoConnect: false,
   });
 
   socket.on("connect", () => {
@@ -369,14 +371,20 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
 
   socket.on("message", onSocketMessage);
 
-  void loadTable(code).then((stored) => {
-    if (stored && stored.events.length > 0) {
-      events.push(...stored.events);
-      game = stored.game;
-      recomputeLatestSeq();
-      notify();
-    }
-  });
+  let destroyed = false;
+  void loadTable(code)
+    .then((stored) => {
+      if (stored && stored.events.length > 0 && events.length === 0) {
+        events.push(...stored.events);
+        game = stored.game;
+        recomputeLatestSeq();
+        notify();
+      }
+    })
+    .catch(() => undefined)
+    .then(() => {
+      if (!destroyed) socket.connect();
+    });
 
   if (role === "dealer" && token) saveDealerToken(code, token);
 
@@ -485,6 +493,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       sendJoin(true);
     },
     destroy: () => {
+      destroyed = true;
       clearOfflineTimer();
       socket.disconnect();
       listeners.clear();
