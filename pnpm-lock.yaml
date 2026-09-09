@@ -35,7 +35,13 @@ importers:
       '@casino-lord/core':
         specifier: workspace:*
         version: link:../core
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
     devDependencies:
+      preact:
+        specifier: ^10.26.0
+        version: 10.29.8
       tsx:
         specifier: ^4.19.0
         version: 4.23.13

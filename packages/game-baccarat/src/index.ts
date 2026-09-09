@@ -6,3 +6,6 @@ export * from "./shoe-tracker.js";
 export * from "./quick-entry.js";
 export * from "./serialize.js";
 export * from "./roads/index.js";
+export { baccaratModule } from "./module.js";
+export type { BaccaratState } from "./state.js";
+export type { BaccaratBetId, BaccaratBetTarget } from "./bet-target.js";
