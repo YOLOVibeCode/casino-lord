@@ -1,0 +1,46 @@
+.road-grid {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.road-grid__inner {
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  min-width: 100%;
+}
+
+.road-grid__cell {
+  width: var(--road-cell-size);
+  height: var(--road-cell-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.road-grid__cell--enter {
+  animation: road-cell-enter 180ms ease-out;
+}
+
+@keyframes road-cell-enter {
+  from {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .road-grid__cell--enter {
+    animation: none;
+  }
+}
+
+[data-road-fit="true"] .road-grid {
+  overflow-x: hidden;
+}

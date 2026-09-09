@@ -1,0 +1,34 @@
+.rules-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.rules-settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rules-settings__label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.rules-settings__options {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rules-settings__note {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  color: var(--baccarat-gold);
+}
+
+.rules-settings input[type="range"] {
+  width: 100%;
+  max-width: 240px;
+}

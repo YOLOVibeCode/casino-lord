@@ -1,0 +1,43 @@
+.bead-plate__disc {
+  width: calc(var(--road-cell-size) - 4px);
+  height: calc(var(--road-cell-size) - 4px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--road-cell-size) * 0.45);
+  font-weight: 700;
+  color: #fff;
+  position: relative;
+}
+
+.bead-plate__disc--P {
+  background: var(--baccarat-player);
+}
+
+.bead-plate__disc--B {
+  background: var(--baccarat-banker);
+}
+
+.bead-plate__disc--T {
+  background: var(--baccarat-tie);
+}
+
+.bead-plate__pair-dot {
+  position: absolute;
+  width: calc(var(--road-cell-size) * 0.22);
+  height: calc(var(--road-cell-size) * 0.22);
+  border-radius: 50%;
+}
+
+.bead-plate__pair-dot--banker {
+  top: 1px;
+  left: 1px;
+  background: var(--baccarat-banker);
+}
+
+.bead-plate__pair-dot--player {
+  bottom: 1px;
+  right: 1px;
+  background: var(--baccarat-player);
+}

@@ -1,0 +1,51 @@
+.result-detail {
+  padding: 16px;
+  background: var(--baccarat-panel);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-detail__outcome {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.result-detail__outcome--P {
+  color: var(--baccarat-player);
+}
+
+.result-detail__outcome--B {
+  color: var(--baccarat-banker);
+}
+
+.result-detail__outcome--T {
+  color: var(--baccarat-tie);
+}
+
+.result-detail__hand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.result-detail__badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.result-detail__badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(212, 175, 55, 0.2);
+  color: var(--baccarat-gold);
+}
+
+.result-detail__quick-note {
+  font-style: italic;
+  opacity: 0.85;
+}
