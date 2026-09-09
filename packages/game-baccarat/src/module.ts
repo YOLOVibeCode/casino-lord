@@ -20,6 +20,7 @@ import type { BaccaratLiveInput, BaccaratResult } from "./types.js";
 import { exportHand, importText, type ImportedHand } from "./serialize.js";
 import { baccaratConfirm } from "./confirm.js";
 import { formatOutcomeToken } from "./quick-entry.js";
+import { DealerView } from "./views/DealerView.js";
 
 function stubComponent(): Component<Record<string, unknown>> {
   return (() => null) as unknown as Component<Record<string, unknown>>;
@@ -64,7 +65,7 @@ export const baccaratModule: GameModule<
   reduce,
   confirm: baccaratConfirm,
 
-  DealerView: stubComponent() as GameModule<
+  DealerView: DealerView as unknown as GameModule<
     BaccaratRules,
     BaccaratResult,
     BaccaratLiveInput,
