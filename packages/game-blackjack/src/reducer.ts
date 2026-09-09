@@ -52,7 +52,18 @@ export function reduce(
       const recordDespite =
         event.payload.recordDespiteDealerError ?? state.liveInput.recordDespiteDealerError;
       if (recordDespite !== undefined) liveInput.recordDespiteDealerError = recordDespite;
-      const virtual = event.payload.virtual ?? state.liveInput.virtual;
+      const prevVirtual = state.liveInput.virtual;
+      let virtual = event.payload.virtual ?? state.liveInput.virtual;
+      if (virtual?.phase === "player" && virtual.currentSeat !== null) {
+        const turnChanged =
+          prevVirtual?.phase !== "player" ||
+          prevVirtual.currentSeat !== virtual.currentSeat ||
+          prevVirtual.currentHandIndex !== virtual.currentHandIndex;
+        virtual = {
+          ...virtual,
+          turnStartedAt: turnChanged ? event.at : (prevVirtual?.turnStartedAt ?? event.at),
+        };
+      }
       if (virtual !== undefined) liveInput.virtual = virtual;
       return withDerived(state.rounds, liveInput, rules);
     }

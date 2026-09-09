@@ -1,5 +1,5 @@
-import type { Component } from "preact";
 import type { ActionDef, GameModule, Series } from "@casino-lord/core";
+import { isActionEnabled } from "./actions-enabled.js";
 import { blackjackAnimationEvents, deriveBlackjackAnimations } from "./animations.js";
 import { blackjackBets } from "./bets.js";
 import type { BlackjackBetTarget } from "./bet-target.js";
@@ -20,22 +20,50 @@ import { settleBlackjack } from "./settle.js";
 import { initialState, type BlackjackState } from "./state.js";
 import { blackjackStats } from "./stats.js";
 import type { BlackjackLiveInput, BlackjackResult } from "./types.js";
+import { blackjackTurn } from "./turn.js";
 import { blackjackVirtualStep, type BlackjackAction } from "./virtual.js";
 import { DealerView } from "./views/DealerView.js";
 import { DisplayView } from "./views/DisplayView.js";
+import { PlayerView } from "./views/PlayerView.js";
 import { ResultDetailView } from "./views/ResultDetailView.js";
 import { RulesSettingsView } from "./views/RulesSettingsView.js";
 
-function stubComponent(): Component<Record<string, unknown>> {
-  return (() => null) as unknown as Component<Record<string, unknown>>;
-}
-
 const playerActions: ActionDef<BlackjackAction>[] = [
-  { id: "hit", label: "Hit", action: "hit" },
-  { id: "stand", label: "Stand", action: "stand" },
-  { id: "double", label: "Double", action: "double" },
-  { id: "split", label: "Split", action: "split" },
-  { id: "surrender", label: "Surrender", action: "surrender" },
+  {
+    id: "hit",
+    label: "Hit",
+    action: "hit",
+    enabled: (state, me) =>
+      isActionEnabled("hit", state as BlackjackState, me, DEFAULT_BLACKJACK_RULES),
+  },
+  {
+    id: "stand",
+    label: "Stand",
+    action: "stand",
+    enabled: (state, me) =>
+      isActionEnabled("stand", state as BlackjackState, me, DEFAULT_BLACKJACK_RULES),
+  },
+  {
+    id: "double",
+    label: "Double",
+    action: "double",
+    enabled: (state, me) =>
+      isActionEnabled("double", state as BlackjackState, me, DEFAULT_BLACKJACK_RULES),
+  },
+  {
+    id: "split",
+    label: "Split",
+    action: "split",
+    enabled: (state, me) =>
+      isActionEnabled("split", state as BlackjackState, me, DEFAULT_BLACKJACK_RULES),
+  },
+  {
+    id: "surrender",
+    label: "Surrender",
+    action: "surrender",
+    enabled: (state, me) =>
+      isActionEnabled("surrender", state as BlackjackState, me, DEFAULT_BLACKJACK_RULES),
+  },
 ];
 
 export type { BlackjackAction };
@@ -76,7 +104,7 @@ export const blackjackModule: GameModule<
     BlackjackLiveInput,
     BlackjackState
   >["DisplayView"],
-  PlayerView: stubComponent() as GameModule<
+  PlayerView: PlayerView as unknown as GameModule<
     BlackjackRules,
     BlackjackResult,
     BlackjackLiveInput,
@@ -104,6 +132,9 @@ export const blackjackModule: GameModule<
   },
 
   playerActions,
+  turn(state) {
+    return blackjackTurn(state, DEFAULT_BLACKJACK_RULES);
+  },
   seats: { max: DEFAULT_BLACKJACK_RULES.seats, assign: "player" },
 
   virtual: {

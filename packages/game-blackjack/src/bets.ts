@@ -1,7 +1,8 @@
 import type { BetCatalogue, PlacedBet } from "@casino-lord/core";
 import type { BlackjackBetId, BlackjackBetTarget } from "./bet-target.js";
+import { canPlaceInsurance } from "./actions-enabled.js";
 import { blackjackPayoutFraction } from "./engine.js";
-import type { BlackjackRules } from "./rules.js";
+import { DEFAULT_BLACKJACK_RULES, type BlackjackRules } from "./rules.js";
 import type { BlackjackResult } from "./types.js";
 import type { BlackjackState } from "./state.js";
 
@@ -50,6 +51,7 @@ export const blackjackBets: BetCatalogue<
           lifecycle: "round",
           targets: "custom",
           pays: () => ({ num: 2, den: 1 }),
+          allowedWhen: (state) => canPlaceInsurance(state, DEFAULT_BLACKJACK_RULES),
         },
         {
           id: "even_money",
@@ -57,6 +59,7 @@ export const blackjackBets: BetCatalogue<
           lifecycle: "round",
           targets: "custom",
           pays: () => ({ num: 1, den: 1 }),
+          allowedWhen: (state) => canPlaceInsurance(state, DEFAULT_BLACKJACK_RULES),
         },
         {
           id: "perfect_pairs",
