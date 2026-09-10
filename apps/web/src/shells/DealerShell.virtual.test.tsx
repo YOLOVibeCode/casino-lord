@@ -168,6 +168,119 @@ describe("DealerShell virtual panel", () => {
     expect(screen.getByTestId("virtual-reveal").textContent).toBe("Dealing… card 2 revealed");
   });
 
+  it("shows reveal progress for shoe without virtualPending when LIVE_INPUT is in flight", () => {
+    const events: TableEvent[] = [
+      ...virtualBaseEvents(),
+      {
+        seq: 3,
+        at: "2026-01-01T00:00:02.000Z",
+        type: "RESULT_RECORDED",
+        result: {
+          id: "r0",
+          index: 1,
+          recordedAt: "2026-01-01T00:00:02.000Z",
+          quick: false,
+          source: "virtual",
+          by: "system",
+          data: {},
+        },
+      },
+      {
+        seq: 4,
+        at: "2026-01-01T00:00:03.000Z",
+        type: "LIVE_INPUT",
+        payload: {},
+        source: "system",
+      },
+    ];
+    const baseStore = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    const store: TableStore = {
+      ...baseStore,
+      get events() {
+        return events;
+      },
+      getComposed: () => ({
+        ...baseStore.getComposed(),
+        platform: {
+          ...baseStore.getComposed().platform,
+          participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
+          currentSeriesResults: [
+            {
+              id: "r0",
+              index: 1,
+              recordedAt: "2026-01-01T00:00:02.000Z",
+              quick: false,
+              source: "virtual",
+              by: "system",
+              data: BACCARAT_RESULT,
+            },
+          ],
+        },
+      }),
+      sendVirtual: vi.fn(),
+      getVirtualStatus: () => ({ awaiting: "trigger" as const }),
+      getVirtualPending: () => null,
+    };
+
+    renderDealerShell({
+      store,
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    expect(screen.getByTestId("virtual-reveal").textContent).toBe("Dealing… card 1 revealed");
+  });
+
+  it("shows optimistic Dealing… immediately after DEAL before events arrive", () => {
+    const sendVirtual = vi.fn();
+    const baseStore = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    const store: TableStore = {
+      ...baseStore,
+      get events() {
+        return virtualBaseEvents();
+      },
+      getComposed: () => ({
+        ...baseStore.getComposed(),
+        platform: {
+          ...baseStore.getComposed().platform,
+          participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
+          currentSeriesResults: [],
+        },
+      }),
+      sendVirtual,
+      getVirtualStatus: () => ({ awaiting: "trigger" as const }),
+      getVirtualPending: () => null,
+    };
+
+    renderDealerShell({
+      store,
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    fireEvent.click(screen.getByTestId("deal-btn"));
+    expect(sendVirtual).toHaveBeenCalledWith("trigger");
+    expect(screen.getByTestId("virtual-reveal").textContent).toBe("Dealing…");
+  });
+
   it("shows last result with ResultDetailView when idle", () => {
     const envelope: ResultEnvelope<typeof BACCARAT_RESULT> = {
       id: "r1",

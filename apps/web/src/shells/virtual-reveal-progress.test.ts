@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TableEvent } from "@casino-lord/core";
 import {
   countSystemLiveInputsSinceLastResult,
+  getVirtualRevealState,
   revealProgressLabel,
 } from "./virtual-reveal-progress.js";
 
@@ -65,6 +66,61 @@ describe("countSystemLiveInputsSinceLastResult", () => {
       },
     ];
     expect(countSystemLiveInputsSinceLastResult(events)).toBe(1);
+  });
+});
+
+describe("getVirtualRevealState", () => {
+  it("returns shoe reveal when system LIVE_INPUT count is positive without pending", () => {
+    const events: TableEvent[] = [
+      {
+        seq: 1,
+        at: "t1",
+        type: "RESULT_RECORDED",
+        result: {
+          id: "r1",
+          index: 1,
+          recordedAt: "t1",
+          quick: false,
+          source: "virtual",
+          by: "system",
+          data: {},
+        },
+      },
+      {
+        seq: 2,
+        at: "t2",
+        type: "LIVE_INPUT",
+        payload: {},
+        source: "system",
+      },
+    ];
+    expect(getVirtualRevealState(null, events, "shoe", false)).toEqual({
+      kind: "shoe",
+      count: 1,
+    });
+  });
+
+  it("returns optimistic reveal when flag is set", () => {
+    expect(getVirtualRevealState(null, [], "shoe", true)).toEqual({
+      kind: "shoe",
+      count: 0,
+    });
+  });
+
+  it("prefers virtualPending over shoe LIVE_INPUT count", () => {
+    const events: TableEvent[] = [
+      {
+        seq: 1,
+        at: "t2",
+        type: "LIVE_INPUT",
+        payload: {},
+        source: "system",
+      },
+    ];
+    expect(getVirtualRevealState({ kind: "wheel", untilAt: "t9" }, events, "shoe", false)).toEqual({
+      kind: "wheel",
+      count: 1,
+    });
   });
 });
 

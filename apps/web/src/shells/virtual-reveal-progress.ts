@@ -21,6 +21,25 @@ export function countSystemLiveInputsSinceLastResult(events: readonly TableEvent
   return count;
 }
 
+export function getVirtualRevealState(
+  virtualPending: VirtualPendingState | null,
+  events: readonly TableEvent[],
+  moduleKind: VirtualPendingState["kind"] | undefined,
+  optimisticDealing: boolean,
+): { kind: VirtualPendingState["kind"]; count: number } | null {
+  const count = countSystemLiveInputsSinceLastResult(events);
+  if (virtualPending) {
+    return { kind: virtualPending.kind, count };
+  }
+  if (moduleKind === "shoe" && count > 0) {
+    return { kind: "shoe", count };
+  }
+  if (optimisticDealing && moduleKind) {
+    return { kind: moduleKind, count: 0 };
+  }
+  return null;
+}
+
 export function revealProgressLabel(
   count: number,
   pendingKind: VirtualPendingState["kind"],
