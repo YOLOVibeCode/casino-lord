@@ -25,6 +25,7 @@ import { animationSound } from "../animation/sound.js";
 import { useAnimationRuntime } from "../animation/useAnimationRuntime.js";
 import { useStore } from "../hooks/use-store.js";
 import { currentSeriesCommit } from "../table/meta.js";
+import { formatBoardLabel } from "../i18n/board-labels.js";
 import { BettingStrip } from "./BettingStrip.js";
 import { LeaderboardInterstitial } from "./LeaderboardInterstitial.js";
 import "./display-shell.css";
@@ -244,7 +245,8 @@ export function DisplayShell({
         <div class="display-shell__stats">
           {stats.map((row) => (
             <span key={row.label}>
-              {row.label}: <span class="display-shell__stat-value">{row.value}</span>
+              {formatBoardLabel(row.label, deviceSettings.boardLanguage)}:{" "}
+              <span class="display-shell__stat-value">{row.value}</span>
             </span>
           ))}
         </div>
@@ -270,8 +272,14 @@ export function DisplayShell({
       <div
         class={`display-shell__module${boardShaking ? " display-shell__module--shake" : ""}`}
         data-road-fit={deviceSettings.roadFit ? "true" : "false"}
+        data-board-language={deviceSettings.boardLanguage}
         style={boardShaking ? { "--anim-duration": `${shakeDurationMs}ms` } : undefined}
       >
+        {virtualTable && (
+          <span class="display-shell__virtual-board-tag" data-testid="virtual-board-tag">
+            VIRTUAL
+          </span>
+        )}
         {createElement(module.DisplayView as unknown as ComponentType<Record<string, unknown>>, {
           state: displayModuleState,
           rules,

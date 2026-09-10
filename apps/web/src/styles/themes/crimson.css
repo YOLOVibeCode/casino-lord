@@ -1,0 +1,12 @@
+[data-theme="crimson"] {
+  --felt-top: #4a1020;
+  --felt-bottom: #2a0812;
+  --panel-bg: #1a0a10;
+  --gold-hairline: rgba(205, 170, 90, 0.45);
+  --gold-accent: #c9a227;
+  --color-player: #5b8fd4;
+  --color-banker: #c41e3a;
+  --color-tie: #2d8f5e;
+  --text-primary: #f5ebe0;
+  --text-muted: rgba(245, 235, 224, 0.65);
+}

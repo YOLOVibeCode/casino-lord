@@ -1,0 +1,17 @@
+[data-theme="high-contrast"] {
+  --felt-top: #000000;
+  --felt-bottom: #000000;
+  --panel-bg: #000000;
+  --gold-hairline: rgba(255, 255, 255, 0.8);
+  --gold-accent: #ffff00;
+  --color-player: #0066ff;
+  --color-banker: #ff0000;
+  --color-tie: #00ff00;
+  --text-primary: #ffffff;
+  --text-muted: rgba(255, 255, 255, 0.85);
+}
+
+[data-theme="high-contrast"] .display-shell,
+[data-theme="high-contrast"] .settings-dialog {
+  border-width: 2px;
+}

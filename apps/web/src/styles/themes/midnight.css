@@ -1,0 +1,12 @@
+[data-theme="midnight"] {
+  --felt-top: #1a1a2e;
+  --felt-bottom: #0f0f1a;
+  --panel-bg: #12121f;
+  --gold-hairline: rgba(0, 255, 200, 0.35);
+  --gold-accent: #00ffc8;
+  --color-player: #4d9fff;
+  --color-banker: #ff4d6d;
+  --color-tie: #00e676;
+  --text-primary: #e8e8f0;
+  --text-muted: rgba(232, 232, 240, 0.6);
+}

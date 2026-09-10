@@ -111,6 +111,188 @@ describe("SettingsDialog", () => {
     );
   });
 
+  it("calls onDeviceChange when theme changes", () => {
+    const onDeviceChange = vi.fn();
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceChange={onDeviceChange}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Device"));
+    fireEvent.change(screen.getByTestId("device-theme"), { target: { value: "midnight" } });
+
+    expect(onDeviceChange).toHaveBeenCalledWith(expect.objectContaining({ theme: "midnight" }));
+  });
+
+  it("calls onDeviceChange when board language changes", () => {
+    const onDeviceChange = vi.fn();
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceChange={onDeviceChange}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Device"));
+    fireEvent.change(screen.getByTestId("device-board-language"), {
+      target: { value: "EN+ZH" },
+    });
+
+    expect(onDeviceChange).toHaveBeenCalledWith(
+      expect.objectContaining({ boardLanguage: "EN+ZH" }),
+    );
+  });
+
+  it("calls onDeviceChange when animations toggled", () => {
+    const onDeviceChange = vi.fn();
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={{ ...DEFAULT_DEVICE_SETTINGS, animations: false }}
+        onDeviceChange={onDeviceChange}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Device"));
+    fireEvent.click(screen.getByTestId("device-animations"));
+
+    expect(onDeviceChange).toHaveBeenCalledWith(expect.objectContaining({ animations: true }));
+  });
+
+  it("emits SETTINGS_CHANGED for players settings", () => {
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceChange={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("tab-players"));
+    fireEvent.change(screen.getByTestId("players-max"), { target: { value: "30" } });
+
+    const changed = store.events.find((e) => e.type === "SETTINGS_CHANGED");
+    expect(changed?.type).toBe("SETTINGS_CHANGED");
+    if (changed?.type === "SETTINGS_CHANGED") {
+      expect(changed.patch.players?.maxPlayers).toBe(30);
+    }
+  });
+
+  it("emits SETTINGS_CHANGED for chip denominations on blur", () => {
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceChange={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("tab-bank"));
+    const input = screen.getByTestId("bank-chip-denominations");
+    fireEvent.change(input, { target: { value: "5, 25, 100" } });
+    fireEvent.blur(input);
+
+    const changed = store.events.find((e) => e.type === "SETTINGS_CHANGED");
+    expect(changed?.type).toBe("SETTINGS_CHANGED");
+    if (changed?.type === "SETTINGS_CHANGED") {
+      expect(changed.patch.bank?.chipDenominations).toEqual([5, 25, 100]);
+    }
+  });
+
+  it("does not emit SETTINGS_CHANGED for invalid chip denominations", () => {
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceChange={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("tab-bank"));
+    const input = screen.getByTestId("bank-chip-denominations");
+    fireEvent.change(input, { target: { value: "bad,0" } });
+    fireEvent.blur(input);
+
+    const changed = store.events.filter((e) => e.type === "SETTINGS_CHANGED");
+    expect(changed.length).toBe(0);
+  });
+
   it("calls onDeviceChange when sounds toggled", () => {
     const onDeviceChange = vi.fn();
     const store = createTableStore({

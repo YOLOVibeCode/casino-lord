@@ -1,4 +1,11 @@
-:root {
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap");
+@import "./themes/midnight.css";
+@import "./themes/crimson.css";
+@import "./themes/high-contrast.css";
+@import "./board-labels.css";
+
+:root,
+[data-theme="table-felt"] {
   --felt-top: #0b3d2e;
   --felt-bottom: #062418;
   --panel-bg: #0f1412;

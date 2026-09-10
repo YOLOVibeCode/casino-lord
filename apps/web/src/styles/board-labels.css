@@ -1,0 +1,80 @@
+html[data-board-language="ZH"] .baccarat-display .display-view__bead .display-view__road-label,
+html[data-board-language="ZH"]
+  .baccarat-display
+  .display-view__big-road-wrap
+  .display-view__road-label {
+  font-size: 0;
+  line-height: 0;
+}
+
+html[data-board-language="ZH"]
+  .baccarat-display
+  .display-view__bead
+  .display-view__road-label::before {
+  content: "珠盘";
+  font-size: 0.75rem;
+  line-height: normal;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
+html[data-board-language="ZH"]
+  .baccarat-display
+  .display-view__big-road-wrap
+  .display-view__road-label::before {
+  content: "大路";
+  font-size: 0.75rem;
+  line-height: normal;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
+html[data-board-language="EN+ZH"]
+  .baccarat-display
+  .display-view__bead
+  .display-view__road-label::after {
+  content: " / 珠盘";
+}
+
+html[data-board-language="EN+ZH"]
+  .baccarat-display
+  .display-view__big-road-wrap
+  .display-view__road-label::after {
+  content: " / 大路";
+}
+
+html[data-board-language="EN+ZH"]
+  .roulette-display
+  .display-view__percentages
+  div:nth-child(1)::after {
+  content: " (红/黑/绿)";
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+html[data-board-language="EN+ZH"]
+  .roulette-display
+  .display-view__percentages
+  div:nth-child(2)::after {
+  content: " (单/双)";
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+html[data-board-language="EN+ZH"]
+  .roulette-display
+  .display-view__percentages
+  div:nth-child(3)::after {
+  content: " (小/大)";
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+html[data-board-language="ZH"] .baccarat-display,
+html[data-board-language="ZH"] .roulette-display,
+html[data-board-language="EN+ZH"] .baccarat-display,
+html[data-board-language="EN+ZH"] .roulette-display {
+  font-family: "Noto Sans SC", system-ui, sans-serif;
+}
