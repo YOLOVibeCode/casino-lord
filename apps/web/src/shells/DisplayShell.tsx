@@ -80,12 +80,31 @@ function countAffectedSettlements(
   return count;
 }
 
+function isDealerAuthoredPersistedEvent(event: TableEvent): boolean {
+  switch (event.type) {
+    case "RESULT_RECORDED":
+    case "BETS_OPENED":
+    case "SETTINGS_CHANGED":
+    case "SESSION_ENDED":
+    case "DEALER_CHANGED":
+    case "PLAYER_JOINED":
+    case "PLAYER_UPDATED":
+    case "PLAYER_REMOVED":
+    case "BANK_ISSUED":
+    case "BANK_ADJUSTED":
+      return true;
+    case "BETS_CLOSED":
+      return event.by === "dealer";
+    default:
+      return false;
+  }
+}
+
 export interface DisplayShellProps {
   store: TableStore;
   module: UntypedGameModule;
   rules: unknown;
   deviceSettings: DeviceSettings;
-  displayQrUrl?: string;
   syncBaseUrl?: string;
 }
 
@@ -94,7 +113,6 @@ export function DisplayShell({
   module,
   rules,
   deviceSettings,
-  displayQrUrl,
   syncBaseUrl,
 }: DisplayShellProps) {
   useStore(store);
@@ -121,10 +139,13 @@ export function DisplayShell({
     return () => clearInterval(id);
   }, [virtualPending?.untilAt]);
   const joiningOpen = composed.platform.settings.players?.joiningOpen ?? false;
+  const sessionEnded = store.events.some((e) => e.type === "SESSION_ENDED");
   const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
   const showBankrolls = bankHouse && composed.platform.settings.players.showBankrolls;
   const playUrl =
-    playerModeOn && joiningOpen && isSyncConfigured() ? tableUrl(`/play/${store.code}`) : undefined;
+    playerModeOn && joiningOpen && !sessionEnded && isSyncConfigured()
+      ? tableUrl(`/play/${store.code}`)
+      : undefined;
   const layout = resolveLayout(module.layouts, deviceSettings.layoutId);
   const stats = module.stats(composed.module, rules);
   const settings = composed.platform.settings;
@@ -360,17 +381,25 @@ export function DisplayShell({
   const [connectionState, setConnectionState] = useState(
     () => syncStore?.getConnectionState() ?? "connected",
   );
+  const [dealerEverPresent, setDealerEverPresent] = useState(false);
 
   useEffect(() => {
     if (!syncStore) {
       setConnectionState("connected");
+      setDealerEverPresent(false);
       return;
     }
-    setConnectionState(syncStore.getConnectionState());
-    return syncStore.subscribe(() => {
+    const refreshSyncState = (): void => {
       setConnectionState(syncStore.getConnectionState());
-    });
-  }, [syncStore]);
+      const dealersConnected = syncStore.getPresence().dealers > 0;
+      const dealerInLog = store.events.some(isDealerAuthoredPersistedEvent);
+      if (dealersConnected || dealerInLog) {
+        setDealerEverPresent(true);
+      }
+    };
+    refreshSyncState();
+    return syncStore.subscribe(refreshSyncState);
+  }, [syncStore, latestEventSeq, store.events]);
 
   const buyInByPlayer: Record<string, number> = {};
   for (const e of store.events) {
@@ -396,9 +425,11 @@ export function DisplayShell({
         ? "Reconnecting"
         : "Offline";
 
-  const dealerHint =
+  const dealerBanner =
     syncStore && syncStore.getPresence().dealers === 0 && connectionState === "connected"
-      ? "Dealer disconnected"
+      ? dealerEverPresent
+        ? { message: "Dealer disconnected", variant: "disconnected" as const }
+        : { message: "Waiting for the dealer to connect", variant: "waiting" as const }
       : null;
 
   return (
@@ -447,8 +478,14 @@ export function DisplayShell({
             </span>
           ))}
         </div>
-        {displayQrUrl && <QrBadge url={displayQrUrl} tableCode={store.code} />}
-        {playUrl && <QrBadge url={playUrl} title="Join QR" tableCode={store.code} />}
+        {playUrl && (
+          <QrBadge
+            url={playUrl}
+            title="Join QR"
+            tableCode={store.code}
+            caption={`Scan to join · ${store.code}`}
+          />
+        )}
         {syncStore && connectionState === "reconnecting" && (
           <span class="display-shell__connection-pill" data-testid="connection-pill">
             Reconnecting…
@@ -462,9 +499,15 @@ export function DisplayShell({
         </div>
       )}
 
-      {dealerHint && (
-        <div class="display-shell__dealer-hint" data-testid="dealer-disconnected">
-          {dealerHint}
+      {dealerBanner && (
+        <div
+          class={`display-shell__dealer-hint${dealerBanner.variant === "waiting" ? " display-shell__dealer-hint--waiting" : ""}`}
+          data-testid={
+            dealerBanner.variant === "waiting" ? "dealer-waiting" : "dealer-disconnected"
+          }
+          role="status"
+        >
+          {dealerBanner.message}
         </div>
       )}
 
