@@ -2,7 +2,13 @@ import { createElement } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { useLocation } from "preact-iso";
 import type { ComponentType } from "preact";
-import { buildBetsView, getCurrentSeriesResults, type ResultEnvelope } from "@casino-lord/core";
+import {
+  buildBetsView,
+  buildLeaderboard,
+  buyInByPlayerFromEvents,
+  getCurrentSeriesResults,
+  type ResultEnvelope,
+} from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
 import { tapHaptic } from "../settings/haptics.js";
@@ -23,6 +29,7 @@ import { SettingsDialog } from "./SettingsDialog.js";
 import { HistoryDialog } from "./HistoryDialog.js";
 import { CalculatorDialog } from "./CalculatorDialog.js";
 import { PlayersDialog } from "./PlayersDialog.js";
+import { SessionEndedPanel } from "./SessionEndedPanel.js";
 import { VirtualPanel } from "./VirtualPanel.js";
 import { useConfirm } from "../ui/ConfirmSheet.js";
 import { usePrompt } from "../ui/PromptSheet.js";
@@ -87,6 +94,19 @@ export function DealerShell({
   const table = store.getTableMeta();
   const playerModeOn = composed.platform.participation.playerMode === "on";
   const virtualTable = composed.platform.participation.outcomeSource === "virtual";
+  const sessionEnded = store.events.some((e) => e.type === "SESSION_ENDED");
+  const buyInByPlayer = buyInByPlayerFromEvents(store.events);
+  const chipsIssuedTotal = Object.values(buyInByPlayer).reduce((sum, n) => sum + n, 0);
+  const activePlayerCount = composed.platform.players.filter((p) => p.status !== "removed").length;
+  const topBankrolls = buildLeaderboard(composed.platform, buyInByPlayer)
+    .sort((a, b) => b.bankroll - a.bankroll)
+    .slice(0, 3);
+  const latestSeriesEnded = [...store.events].reverse().find((e) => e.type === "SERIES_ENDED");
+  const revealedSeed =
+    latestSeriesEnded?.type === "SERIES_ENDED" && "seed" in latestSeriesEnded
+      ? latestSeriesEnded.seed
+      : undefined;
+  const resultCount = countSeriesResults(store.events);
   const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
   const seriesCommit = virtualTable ? currentSeriesCommit(store.events) : null;
   const virtualStatus = store.getVirtualStatus?.() ?? null;
@@ -125,6 +145,7 @@ export function DealerShell({
   const confirmStarted = useRef(0);
   const lastToastedRejectRef = useRef<string | null>(null);
   const menuPanelRef = useRef<HTMLDivElement>(null);
+  const prevSessionEndedRef = useRef(sessionEnded);
   const [forceTapped, setForceTapped] = useState(false);
 
   const clearConfirmTimer = useCallback(() => {
@@ -304,58 +325,77 @@ export function DealerShell({
     ? { borderColor: confirmState.color, color: confirmState.color }
     : undefined;
 
-  const handleExport = async () => {
-    try {
-      let text: string;
-      const syncStore = isSyncStore(store) ? store : null;
-      const dealerToken = syncStore?.getDealerToken() ?? null;
-
-      if (syncStore && dealerToken) {
-        text = await fetchTableExport(
-          getSyncBaseUrl(),
-          store.code,
-          table.seriesNumber,
-          dealerToken,
-        );
-      } else {
-        const series = buildSeriesFromStoreEvents(store.events, table.seriesNumber);
-        if (!series) {
-          toast.error("No series to export", { testId: "dealer-toast" });
-          return;
-        }
-        const outcomeSource = composed.platform.participation.outcomeSource;
-        text = buildExportText({
-          game: store.game,
-          code: store.code,
-          seriesNumber: table.seriesNumber,
-          seriesStartedAt: series.startedAt,
-          source: outcomeSource,
-          rules,
-          module,
-          series,
-          events: store.events,
-        });
-      }
-
-      const resultCount = countSeriesResults(store.events);
+  const handleExport = useCallback(
+    async (opts?: { toastMessage?: string }) => {
       try {
-        await navigator.clipboard.writeText(text);
-        toast.success(`Export copied — ${resultCount} results`, { testId: "dealer-toast" });
-        setMenuOpen(false);
+        let text: string;
+        const syncStoreForExport = isSyncStore(store) ? store : null;
+        const dealerToken = syncStoreForExport?.getDealerToken() ?? null;
+
+        if (syncStoreForExport && dealerToken) {
+          text = await fetchTableExport(
+            getSyncBaseUrl(),
+            store.code,
+            table.seriesNumber,
+            dealerToken,
+          );
+        } else {
+          const series = buildSeriesFromStoreEvents(store.events, table.seriesNumber);
+          if (!series) {
+            toast.error("No series to export", { testId: "dealer-toast" });
+            return;
+          }
+          const outcomeSource = composed.platform.participation.outcomeSource;
+          text = buildExportText({
+            game: store.game,
+            code: store.code,
+            seriesNumber: table.seriesNumber,
+            seriesStartedAt: series.startedAt,
+            source: outcomeSource,
+            rules,
+            module,
+            series,
+            events: store.events,
+          });
+        }
+
+        const resultCount = countSeriesResults(store.events);
+        const successMessage = opts?.toastMessage ?? `Export copied — ${resultCount} results`;
+        try {
+          await navigator.clipboard.writeText(text);
+          toast.success(successMessage, { testId: "dealer-toast" });
+          setMenuOpen(false);
+        } catch {
+          await prompt({
+            title: "Export",
+            label: "Copy this text manually",
+            defaultValue: text,
+            multiline: true,
+            confirmLabel: "Done",
+          });
+          setMenuOpen(false);
+        }
       } catch {
-        await prompt({
-          title: "Export",
-          label: "Copy this text manually",
-          defaultValue: text,
-          multiline: true,
-          confirmLabel: "Done",
-        });
-        setMenuOpen(false);
+        toast.error("Export failed", { testId: "dealer-toast" });
       }
-    } catch {
-      toast.error("Export failed", { testId: "dealer-toast" });
+    },
+    [
+      composed.platform.participation.outcomeSource,
+      module,
+      prompt,
+      rules,
+      store,
+      table.seriesNumber,
+      toast,
+    ],
+  );
+
+  useEffect(() => {
+    if (sessionEnded && !prevSessionEndedRef.current) {
+      void handleExport({ toastMessage: "Session ended — export copied" });
     }
-  };
+    prevSessionEndedRef.current = sessionEnded;
+  }, [handleExport, sessionEnded]);
 
   const importPreview = (text: string): string | null => {
     const trimmed = text.trim();
@@ -483,7 +523,12 @@ export function DealerShell({
       )}
 
       <header class="dealer-shell__header">
-        {editingEnvelope ? (
+        {sessionEnded ? (
+          <>
+            <span class={dotClass} title={dotTitle} data-testid="connection-dot" />
+            <span data-testid="dealer-session-ended-status">Session ended</span>
+          </>
+        ) : editingEnvelope ? (
           <button
             type="button"
             class="dealer-shell__edit-banner"
@@ -514,7 +559,21 @@ export function DealerShell({
         )}
       </header>
 
-      {playerModeOn && (
+      {sessionEnded ? (
+        <SessionEndedPanel
+          resultCount={resultCount}
+          playerCount={activePlayerCount}
+          chipsIssuedTotal={chipsIssuedTotal}
+          topBankrolls={topBankrolls}
+          virtualTable={virtualTable}
+          {...(revealedSeed !== undefined ? { seedHex: revealedSeed } : {})}
+          onCopyExport={() => void handleExport(undefined)}
+          {...(onNewTable ? { onNewTable } : {})}
+          onHome={() => route("/")}
+        />
+      ) : null}
+
+      {!sessionEnded && playerModeOn && (
         <BettingBar
           round={betting.round}
           betsView={betsView}
@@ -526,7 +585,7 @@ export function DealerShell({
         />
       )}
 
-      {!virtualTable && (
+      {!sessionEnded && !virtualTable && (
         <div class="dealer-shell__module">
           {createElement(module.DealerView as unknown as ComponentType<Record<string, unknown>>, {
             state: composed.module,
@@ -547,7 +606,7 @@ export function DealerShell({
         </div>
       )}
 
-      {virtualTable && (
+      {!sessionEnded && virtualTable && (
         <VirtualPanel
           virtualPending={virtualPending}
           events={store.events}
@@ -562,7 +621,7 @@ export function DealerShell({
 
       <div class="dealer-shell__bottom" data-testid="dealer-bottom-bar">
         <div class="dealer-shell__toolbar">
-          {playerModeOn && (
+          {!sessionEnded && playerModeOn && (
             <>
               <button
                 type="button"
@@ -622,7 +681,7 @@ export function DealerShell({
                   role="menu"
                   data-testid="dealer-menu-panel"
                 >
-                  {onNewTable && (
+                  {!sessionEnded && onNewTable && (
                     <button
                       type="button"
                       data-testid="menu-new-table"
@@ -642,67 +701,87 @@ export function DealerShell({
                       New Table
                     </button>
                   )}
-                  <button
-                    type="button"
-                    data-testid="menu-new-series"
-                    onClick={() => void handleNewSeries()}
-                  >
-                    New {module.seriesLabel}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="menu-void-bets"
-                    disabled={betsView.openBets.length === 0}
-                    onClick={() => void handleVoidOpenBets()}
-                  >
-                    Void open bets
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="menu-end-session"
-                    onClick={() => {
-                      void (async () => {
-                        const endBody = virtualTable
-                          ? "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results. The virtual seed will be revealed."
-                          : "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results.";
-                        const ok = await confirm({
-                          title: "End session?",
-                          body: endBody,
-                          destructive: true,
-                          confirmLabel: "Hold to end session",
-                        });
-                        if (ok) {
-                          store.endSession();
-                          setMenuOpen(false);
-                        }
-                      })();
-                    }}
-                  >
-                    End Session
-                  </button>
+                  {!sessionEnded && (
+                    <>
+                      <button
+                        type="button"
+                        data-testid="menu-new-series"
+                        onClick={() => void handleNewSeries()}
+                      >
+                        New {module.seriesLabel}
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="menu-void-bets"
+                        disabled={betsView.openBets.length === 0}
+                        onClick={() => void handleVoidOpenBets()}
+                      >
+                        Void open bets
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="menu-end-session"
+                        onClick={() => {
+                          void (async () => {
+                            const endBody = virtualTable
+                              ? "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results. The virtual seed will be revealed."
+                              : "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results.";
+                            const ok = await confirm({
+                              title: "End session?",
+                              body: endBody,
+                              destructive: true,
+                              confirmLabel: "Hold to end session",
+                            });
+                            if (ok) {
+                              store.endSession();
+                              setMenuOpen(false);
+                            }
+                          })();
+                        }}
+                      >
+                        End Session
+                      </button>
+                    </>
+                  )}
                   <button type="button" onClick={() => void handleExport()}>
                     Export
                   </button>
-                  <button
-                    type="button"
-                    data-testid="menu-import"
-                    onClick={() => void handleImport()}
-                  >
-                    Import
-                  </button>
+                  {!sessionEnded && (
+                    <button
+                      type="button"
+                      data-testid="menu-import"
+                      onClick={() => void handleImport()}
+                    >
+                      Import
+                    </button>
+                  )}
                   <a href={tableUrl(`/verify?code=${store.code}`)} data-testid="menu-verify">
                     Verify fairness / export
                   </a>
-                  <button
-                    type="button"
-                    data-testid="menu-settings"
-                    onClick={() => {
-                      setActiveDialog("settings");
-                      setMenuOpen(false);
-                    }}
-                  >
-                    Settings
-                  </button>
+                  {!sessionEnded && (
+                    <>
+                      <button
+                        type="button"
+                        data-testid="menu-settings"
+                        onClick={() => {
+                          setActiveDialog("settings");
+                          setMenuOpen(false);
+                        }}
+                      >
+                        Settings
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="menu-calculator"
+                        onClick={() => {
+                          setActiveDialog("calculator");
+                          setMenuOpen(false);
+                        }}
+                      >
+                        Calculator
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
                     data-testid="menu-history"
@@ -712,16 +791,6 @@ export function DealerShell({
                     }}
                   >
                     History
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="menu-calculator"
-                    onClick={() => {
-                      setActiveDialog("calculator");
-                      setMenuOpen(false);
-                    }}
-                  >
-                    Calculator
                   </button>
                   <button
                     type="button"
@@ -754,86 +823,88 @@ export function DealerShell({
           </div>
         </div>
 
-        <div class="dealer-shell__actions">
-          {virtualTable ? (
-            <>
-              {awaitingPlayerAction && (
-                <span class="dealer-shell__virtual-hint" data-testid="virtual-action-hint">
-                  Waiting for {virtualStatus?.turnPrompt ?? "player action"}
-                </span>
-              )}
-              <button
-                type="button"
-                class="dealer-shell__btn dealer-shell__btn--confirm"
-                disabled={readOnly || !!awaitingPlayerAction}
-                data-testid="deal-btn"
-                title={awaitingPlayerAction ? "Awaiting player action" : undefined}
-                onClick={() => {
-                  tapHaptic(deviceSettings.haptics);
-                  store.sendVirtual("trigger");
-                }}
-              >
-                {virtualTriggerLabel}
-              </button>
-              {showForceBtn && (
+        {!sessionEnded && (
+          <div class="dealer-shell__actions">
+            {virtualTable ? (
+              <>
+                {awaitingPlayerAction && (
+                  <span class="dealer-shell__virtual-hint" data-testid="virtual-action-hint">
+                    Waiting for {virtualStatus?.turnPrompt ?? "player action"}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  class="dealer-shell__btn dealer-shell__btn--confirm"
+                  disabled={readOnly || !!awaitingPlayerAction}
+                  data-testid="deal-btn"
+                  title={awaitingPlayerAction ? "Awaiting player action" : undefined}
+                  onClick={() => {
+                    tapHaptic(deviceSettings.haptics);
+                    store.sendVirtual("trigger");
+                  }}
+                >
+                  {virtualTriggerLabel}
+                </button>
+                {showForceBtn && (
+                  <button
+                    type="button"
+                    class="dealer-shell__btn"
+                    disabled={forceDisabled}
+                    data-testid="force-btn"
+                    title="Deals now even though it is a player's turn"
+                    onClick={() => {
+                      setForceTapped(true);
+                      store.sendVirtual("force");
+                    }}
+                  >
+                    {forceLabel}
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
                 <button
                   type="button"
                   class="dealer-shell__btn"
-                  disabled={forceDisabled}
-                  data-testid="force-btn"
-                  title="Deals now even though it is a player's turn"
-                  onClick={() => {
-                    setForceTapped(true);
-                    store.sendVirtual("force");
-                  }}
+                  onClick={handleUndo}
+                  disabled={!!editingEnvelope || readOnly || !undoCheck.ok}
+                  data-testid="undo-btn"
+                  title={undoCheck.reason}
                 >
-                  {forceLabel}
+                  {undoArmed
+                    ? `Tap again to undo ${module.resultLabel} ${undoHand}`
+                    : `Undo last ${module.resultLabel}`}
                 </button>
-              )}
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                class="dealer-shell__btn"
-                onClick={handleUndo}
-                disabled={!!editingEnvelope || readOnly || !undoCheck.ok}
-                data-testid="undo-btn"
-                title={undoCheck.reason}
-              >
-                {undoArmed
-                  ? `Tap again to undo ${module.resultLabel} ${undoHand}`
-                  : `Undo last ${module.resultLabel}`}
-              </button>
-              <button
-                type="button"
-                class={`dealer-shell__btn dealer-shell__btn--confirm${!confirmState?.enabled || readOnly ? " dealer-shell__btn--disabled" : ""}`}
-                style={confirmStyle}
-                aria-disabled={!confirmState?.enabled || readOnly}
-                onClick={handleConfirmClick}
-                data-testid="confirm-btn"
-              >
-                {confirming && (
-                  <span
-                    class="dealer-shell__confirm-progress"
-                    style={{ transform: `scaleX(${confirmProgress})` }}
-                  />
-                )}
-                <span>
-                  {editingEnvelope ? "✓ SAVE EDIT" : (confirmState?.label ?? "CONFIRM")}
-                  {confirmState?.badges && (
-                    <span class="dealer-shell__badges"> · {confirmState.badges.join(" · ")}</span>
+                <button
+                  type="button"
+                  class={`dealer-shell__btn dealer-shell__btn--confirm${!confirmState?.enabled || readOnly ? " dealer-shell__btn--disabled" : ""}`}
+                  style={confirmStyle}
+                  aria-disabled={!confirmState?.enabled || readOnly}
+                  onClick={handleConfirmClick}
+                  data-testid="confirm-btn"
+                >
+                  {confirming && (
+                    <span
+                      class="dealer-shell__confirm-progress"
+                      style={{ transform: `scaleX(${confirmProgress})` }}
+                    />
                   )}
-                </span>
-              </button>
-              {confirming && (
-                <button type="button" class="dealer-shell__btn" onClick={clearConfirmTimer}>
-                  Cancel
+                  <span>
+                    {editingEnvelope ? "✓ SAVE EDIT" : (confirmState?.label ?? "CONFIRM")}
+                    {confirmState?.badges && (
+                      <span class="dealer-shell__badges"> · {confirmState.badges.join(" · ")}</span>
+                    )}
+                  </span>
                 </button>
-              )}
-            </>
-          )}
-        </div>
+                {confirming && (
+                  <button type="button" class="dealer-shell__btn" onClick={clearConfirmTimer}>
+                    Cancel
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {activeDialog === "bank" && bankHouse && (
