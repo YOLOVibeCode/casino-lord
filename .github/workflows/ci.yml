@@ -53,6 +53,9 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      - name: Install native build deps
+        run: apt-get update && apt-get install -y build-essential python3
+
       - run: pnpm install --frozen-lockfile
       - run: VITE_SYNC_URL=/ pnpm build
 
