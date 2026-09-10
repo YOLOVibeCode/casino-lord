@@ -12,7 +12,7 @@ import {
 import { createTableBodySchema, joinPlayerBodySchema } from "../schemas/event-input.js";
 import { buildExportText } from "../tables/export.js";
 import { buildTableMeta } from "../tables/meta.js";
-import { buildFairnessResponse } from "../tables/fairness.js";
+import { buildFairnessResponse, listSeriesFairness } from "../tables/fairness.js";
 import { buildSeriesFromEvents, maxExportableSeries } from "../tables/series.js";
 import type { TableRegistry } from "../tables/registry.js";
 
@@ -235,6 +235,7 @@ export function registerTableRoutes(
       rules: table.getEffectiveRules(),
       module,
       series,
+      events: table.persistedEvents,
     });
 
     return reply.type("text/plain").send(text);
@@ -242,7 +243,7 @@ export function registerTableRoutes(
 
   app.get("/tables/:code/fairness", async (request, reply) => {
     const params = request.params as { code: string };
-    const query = request.query as { series?: string };
+    const query = request.query as { series?: string; list?: string };
     const code = normalizeTableCode(params.code);
     const table = registry.get(code);
 
@@ -253,6 +254,10 @@ export function registerTableRoutes(
     const composed = table.getComposed();
     if (composed.platform.participation.outcomeSource !== "virtual") {
       return reply.code(400).send({ error: "NOT_VIRTUAL" });
+    }
+
+    if (query.list === "1") {
+      return reply.send({ series: listSeriesFairness([...table.allEvents]) });
     }
 
     const seriesNumber = query.series ? Number.parseInt(query.series, 10) : 1;

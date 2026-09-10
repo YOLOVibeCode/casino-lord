@@ -15,6 +15,7 @@ import { isSyncStore } from "../table/sync-store-types.js";
 import type { TableStore } from "../table/store.js";
 import { useStore } from "../hooks/use-store.js";
 import { buildExportText, buildSeriesFromStoreEvents } from "../table/export.js";
+import { parseExportForImport } from "../verify/replay-fairness.js";
 import { currentSeriesCommit } from "../table/meta.js";
 import { BankPanel } from "./BankPanel.js";
 import { BettingBar } from "./BettingBar.js";
@@ -253,6 +254,7 @@ export function DealerShell({
           rules,
           module,
           series,
+          events: store.events,
         });
       }
 
@@ -266,7 +268,9 @@ export function DealerShell({
   const handleImport = () => {
     const text = window.prompt("Paste series import text:");
     if (!text) return;
-    const imported = module.importSeries(text, rules);
+    const envelope = parseExportForImport(text);
+    const body = "error" in envelope ? text : envelope.body;
+    const imported = module.importSeries(body, rules);
     if ("error" in imported) {
       window.alert(imported.error);
       return;
