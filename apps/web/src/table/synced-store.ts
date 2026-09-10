@@ -129,6 +129,14 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     for (const l of listeners) l();
   };
 
+  let composedCache: ComposedState<unknown> | null = null;
+  let composedCacheKey = "";
+
+  const invalidateComposedCache = (): void => {
+    composedCache = null;
+    composedCacheKey = "";
+  };
+
   const setConnectionState = (state: ConnectionState): void => {
     connectionState = state;
     notify();
@@ -158,6 +166,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     if (replace) {
       events.length = 0;
       latestSeq = 0;
+      invalidateComposedCache();
     }
     for (const event of incoming) {
       if (event.seq <= latestSeq) continue;
@@ -195,6 +204,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       }
     }
     recomputeLatestSeq();
+    invalidateComposedCache();
     notify();
   };
 
@@ -479,9 +489,6 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     return list;
   };
 
-  let composedCache: ComposedState<unknown> | null = null;
-  let composedCacheKey = "";
-
   const composedCacheKeyFor = (): string => {
     const lastSeq = events.length > 0 ? events[events.length - 1]!.seq : 0;
     const liveSeq = liveInput?.seq ?? 0;
@@ -504,7 +511,9 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       const curLive = curParts[2] ?? 0;
       const lastSeq = events.length > 0 ? events[events.length - 1]!.seq : 0;
 
-      if (curLive === prevLive && curLive === 0 && curLen > prevLen && lastSeq >= prevSeq) {
+      if (curLen < prevLen) {
+        // fall through to full replay
+      } else if (curLive === prevLive && curLive === 0 && curLen > prevLen && lastSeq > prevSeq) {
         let state = composedCache;
         for (let i = prevLen; i < events.length; i++) {
           state = applyEvent(state, events[i]!, module, rules);
