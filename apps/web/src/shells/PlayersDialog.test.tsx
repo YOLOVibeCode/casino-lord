@@ -331,6 +331,14 @@ describe("PlayersDialog", () => {
     });
   });
 
+  it("closes on Escape via dialog a11y", () => {
+    const onClose = vi.fn();
+    const store = mockBaccaratSyncStore();
+    render(<PlayersDialog store={store} onClose={onClose} />);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("shows Issue button when player bankroll is zero", () => {
     const store = mockStoreWithZeroBankroll();
     render(<PlayersDialog store={store} onClose={() => undefined} />);

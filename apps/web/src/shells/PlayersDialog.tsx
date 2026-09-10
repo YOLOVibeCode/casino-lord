@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "preact/hooks";
+import { useDialogA11y } from "./use-dialog-a11y.js";
 import { getBankroll } from "@casino-lord/core";
 import type { BlackjackRules } from "@casino-lord/game-blackjack";
 import type { CrapsState } from "@casino-lord/game-craps";
@@ -54,6 +55,12 @@ export function PlayersDialog({ store, onClose, seatsConfig }: PlayersDialogProp
   const [reissueState, setReissueState] = useState<{ qr: string; url: string } | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { dialogProps } = useDialogA11y({
+    panelRef,
+    onClose,
+    titleId: "players-dialog-title",
+  });
   const dealerToken = store.getDealerToken();
 
   const dismissToast = useCallback(() => {
@@ -155,9 +162,14 @@ export function PlayersDialog({ store, onClose, seatsConfig }: PlayersDialogProp
 
   return (
     <div class="players-dialog__backdrop" data-testid="players-dialog">
-      <div class="players-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={panelRef}
+        class="players-dialog"
+        {...dialogProps}
+        onClick={(e) => e.stopPropagation()}
+      >
         <header class="players-dialog__header">
-          <h2>Players</h2>
+          <h2 id="players-dialog-title">Players</h2>
           <button type="button" onClick={onClose} aria-label="Close">
             ✕
           </button>

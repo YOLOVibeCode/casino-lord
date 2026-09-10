@@ -2,6 +2,7 @@ import { getBankroll, getChipsInPlay } from "@casino-lord/core";
 import type { ComposedState, TableSettings } from "@casino-lord/core";
 import { useCallback, useRef, useState } from "preact/hooks";
 import type { TableStore } from "../table/store.js";
+import { useDialogA11y } from "./use-dialog-a11y.js";
 import "./bank-panel.css";
 
 export interface BankPanelProps {
@@ -21,6 +22,12 @@ export function BankPanel({ store, composed, settings, onClose }: BankPanelProps
   const [issueReason, setIssueReason] = useState<IssueReason>("buyin");
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { dialogProps } = useDialogA11y({
+    panelRef,
+    onClose,
+    titleId: "bank-panel-title",
+  });
 
   const chips = getChipsInPlay(composed.platform);
   const activePlayers = composed.platform.players.filter((p) => p.status !== "removed");
@@ -76,9 +83,9 @@ export function BankPanel({ store, composed, settings, onClose }: BankPanelProps
 
   return (
     <div class="bank-panel__backdrop" data-testid="bank-panel" onClick={onClose}>
-      <div class="bank-panel" onClick={(e) => e.stopPropagation()}>
+      <div ref={panelRef} class="bank-panel" {...dialogProps} onClick={(e) => e.stopPropagation()}>
         <header class="bank-panel__header">
-          <h2>Bank</h2>
+          <h2 id="bank-panel-title">Bank</h2>
           <button type="button" onClick={onClose} aria-label="Close">
             ✕
           </button>

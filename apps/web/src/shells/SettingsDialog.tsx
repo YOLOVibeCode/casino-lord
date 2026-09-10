@@ -1,5 +1,6 @@
 import { createElement } from "preact";
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
+import { useDialogA11y } from "./use-dialog-a11y.js";
 import type { ComponentType } from "preact";
 import type { LayoutPreset, Participation, TableSettings } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
@@ -30,6 +31,12 @@ export function SettingsDialog({
 }: SettingsDialogProps) {
   const [tab, setTab] = useState<Tab>("rules");
   const [localDevice, setLocalDevice] = useState<DeviceSettings>(deviceSettings);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { dialogProps } = useDialogA11y({
+    panelRef,
+    onClose,
+    titleId: "settings-dialog-title",
+  });
   const composed = store.getComposed();
   const tableSettings = composed.platform.settings;
   const moduleResults = (composed.module as { results?: unknown[] }).results;
@@ -51,10 +58,15 @@ export function SettingsDialog({
   return (
     <div class="settings-dialog__backdrop" data-testid="settings-dialog" onClick={onClose}>
       <div
+        ref={panelRef}
         class={`settings-dialog${tab === "animations" ? " settings-dialog--wide" : ""}`}
+        {...dialogProps}
         onClick={(e) => e.stopPropagation()}
       >
         <header class="settings-dialog__header">
+          <h2 id="settings-dialog-title" class="settings-dialog__sr-title">
+            Settings
+          </h2>
           <div class="settings-dialog__tabs">
             <button
               type="button"

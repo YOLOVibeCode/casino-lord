@@ -1,4 +1,5 @@
-import { useMemo, useState } from "preact/hooks";
+import { useMemo, useRef, useState } from "preact/hooks";
+import { useDialogA11y } from "./use-dialog-a11y.js";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { TableStore } from "../table/store.js";
 import { computeAllBetRows } from "../calculator/payout-calculator.js";
@@ -13,6 +14,12 @@ export interface CalculatorDialogProps {
 
 export function CalculatorDialog({ store, module, rules, onClose }: CalculatorDialogProps) {
   const [amountStr, setAmountStr] = useState("100");
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { dialogProps } = useDialogA11y({
+    panelRef,
+    onClose,
+    titleId: "calculator-dialog-title",
+  });
   const composed = store.getComposed();
   const amount = Number(amountStr) || 0;
   const roundingMode = composed.platform.settings.bank.roundingMode;
@@ -39,9 +46,14 @@ export function CalculatorDialog({ store, module, rules, onClose }: CalculatorDi
 
   return (
     <div class="calculator-dialog__backdrop" data-testid="calculator-dialog" onClick={onClose}>
-      <div class="calculator-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={panelRef}
+        class="calculator-dialog"
+        {...dialogProps}
+        onClick={(e) => e.stopPropagation()}
+      >
         <header class="calculator-dialog__header">
-          <span>Payout Calculator</span>
+          <span id="calculator-dialog-title">Payout Calculator</span>
           <button type="button" onClick={onClose} aria-label="Close">
             ✕
           </button>
