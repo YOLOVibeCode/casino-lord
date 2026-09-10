@@ -1,4 +1,9 @@
-import { replay, type AnimationTrigger, type TableEvent } from "@casino-lord/core";
+import {
+  replay,
+  type AnimationTrigger,
+  type ComposedState,
+  type TableEvent,
+} from "@casino-lord/core";
 import { derivePlatformAnimations } from "./platform-triggers.js";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { DeviceSettings } from "../settings/device-settings.js";
@@ -211,13 +216,14 @@ export function useAnimationRuntime({
   );
 
   const scheduleForEvent = useCallback(
-    (event: TableEvent, events: readonly TableEvent[]) => {
-      if (!enabled || !module) return;
+    (
+      event: TableEvent,
+      events: readonly TableEvent[],
+      threadedPrev?: ComposedState<unknown>,
+    ): ComposedState<unknown> | undefined => {
+      if (!enabled || !module) return undefined;
 
-      const tableSettings = replay([...events], module, rules, {
-        code: store.code,
-        includeEphemeral: true,
-      }).platform.settings;
+      const tableSettings = store.getComposed().platform.settings;
 
       const allEventDefs = [...module.animationEvents, ...PLATFORM_ANIMATION_EVENTS];
 
@@ -229,14 +235,15 @@ export function useAnimationRuntime({
           resolvePreset: (eventId) => resolvePreset(eventId, module, tableSettings),
         });
         if (timeline) playTimeline(timeline, null);
-        return;
+        return undefined;
       }
 
       const index = events.findIndex((e) => e.seq === event.seq);
-      if (index < 0) return;
+      if (index < 0) return undefined;
 
       const prevComposed =
-        index === 0
+        threadedPrev ??
+        (index === 0
           ? {
               module: module.initialState(rules),
               platform: replay([], module, rules, { code: store.code }).platform,
@@ -244,28 +251,32 @@ export function useAnimationRuntime({
           : replay(events.slice(0, index), module, rules, {
               code: store.code,
               includeEphemeral: true,
-            });
+            }));
 
-      const nextComposed = replay(events.slice(0, index + 1), module, rules, {
-        code: store.code,
-        includeEphemeral: true,
-      });
+      const nextComposed =
+        index === events.length - 1
+          ? store.getComposed()
+          : replay(events.slice(0, index + 1), module, rules, {
+              code: store.code,
+              includeEphemeral: true,
+            });
 
       const gameTriggers = module.deriveAnimations(prevComposed.module, nextComposed.module, event);
       const platformTriggers = derivePlatformAnimations(prevComposed, nextComposed, event);
       const triggers = [...gameTriggers, ...platformTriggers];
-      if (triggers.length === 0) return;
+      if (triggers.length === 0) return nextComposed;
 
       const timeline = buildAnimationTimeline(triggers, allEventDefs, {
         prefersReducedMotion: prefersReducedMotion(),
         phoneMode,
         resolvePreset: (eventId) => resolvePreset(eventId, module, tableSettings),
       });
-      if (!timeline) return;
+      if (!timeline) return nextComposed;
 
       playTimeline(timeline, prevComposed.module);
+      return nextComposed;
     },
-    [enabled, module, phoneMode, playTimeline, rules, store.code],
+    [enabled, module, phoneMode, playTimeline, rules, store],
   );
 
   useEffect(() => {
@@ -285,9 +296,15 @@ export function useAnimationRuntime({
       );
       if (fresh.length === 0) return;
 
+      let threadedPrev: ComposedState<unknown> | undefined;
+      let prevIndex = -1;
+
       for (const event of fresh) {
         if (timelineRef.current) finishTimeline();
-        scheduleForEvent(event, events);
+        const index = events.findIndex((e) => e.seq === event.seq);
+        const canThread = prevIndex >= 0 && index === prevIndex + 1;
+        threadedPrev = scheduleForEvent(event, events, canThread ? threadedPrev : undefined);
+        prevIndex = index;
         lastSeenSeq.current = Math.max(lastSeenSeq.current, event.seq);
       }
     };

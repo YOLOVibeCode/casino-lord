@@ -154,6 +154,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   };
 
   const applyServerEvents = (incoming: TableEvent[], replace = false): void => {
+    invalidateComposedCache();
     if (replace) {
       events.length = 0;
       latestSeq = 0;
@@ -177,6 +178,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       socket.emit("message", { op: "resync", sinceSeq: latestSeq });
       return;
     }
+    invalidateComposedCache();
     events.push(event);
     latestSeq = event.seq;
     persist();
@@ -184,6 +186,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   };
 
   const rollbackPending = (clientId: string): void => {
+    invalidateComposedCache();
     const p = pending.get(clientId);
     if (!p) return;
     events.splice(p.eventIndex, 1);
@@ -198,6 +201,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   };
 
   const applyOptimistic = (body: TableEventInput, clientId: string): void => {
+    invalidateComposedCache();
     const event = { seq: latestSeq + 1, at: now(), ...body } as TableEvent;
     events.push(event);
     latestSeq = event.seq;
@@ -206,6 +210,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   };
 
   const confirmPending = (clientId: string, seq: number): void => {
+    invalidateComposedCache();
     const p = pending.get(clientId);
     if (!p) return;
     const event = events[p.eventIndex];
@@ -317,6 +322,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     }
 
     if (msg.live && typeof msg.live === "object") {
+      invalidateComposedCache();
       liveInput = { seq: latestSeq + 1, at: now(), ...(msg.live as object) } as TableEvent;
     }
 
@@ -383,6 +389,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
         return;
       }
       if (event.type === "LIVE_INPUT") {
+        invalidateComposedCache();
         liveInput = event;
       }
       if (event.seq <= 0) {
@@ -458,6 +465,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   void loadTable(code)
     .then((stored) => {
       if (stored && stored.events.length > 0 && events.length === 0) {
+        invalidateComposedCache();
         events.push(...stored.events);
         game = stored.game;
         recomputeLatestSeq();
@@ -478,8 +486,25 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     return list;
   };
 
-  const getComposed = (): ComposedState<unknown> =>
-    replay(getEventsForReplay(), module, rules, { code, includeEphemeral: true });
+  let cachedComposed: ComposedState<unknown> | null = null;
+  let composedCacheKey = "";
+
+  const invalidateComposedCache = (): void => {
+    cachedComposed = null;
+    composedCacheKey = "";
+  };
+
+  const composedCacheKeyFor = (): string => `${events.length}:${latestSeq}:${liveInput?.seq ?? 0}`;
+
+  const getComposed = (): ComposedState<unknown> => {
+    const key = composedCacheKeyFor();
+    if (cachedComposed && composedCacheKey === key) {
+      return cachedComposed;
+    }
+    cachedComposed = replay(getEventsForReplay(), module, rules, { code, includeEphemeral: true });
+    composedCacheKey = key;
+    return cachedComposed;
+  };
 
   const getRules = (): unknown => {
     const composed = getComposed();
@@ -494,6 +519,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   const emitLive = (body: TableEventInput): void => {
     if (role === "display" || readOnly) return;
     if (body.type === "LIVE_INPUT") {
+      invalidateComposedCache();
       liveInput = { seq: latestSeq + 1, at: now(), ...body } as TableEvent;
       notify();
       if (joined && connectionState === "connected") {
