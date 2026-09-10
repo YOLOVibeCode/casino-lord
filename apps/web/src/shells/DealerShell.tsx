@@ -1,5 +1,6 @@
 import { createElement } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { useLocation } from "preact-iso";
 import type { ComponentType } from "preact";
 import { buildBetsView, type ResultEnvelope } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
@@ -30,6 +31,7 @@ export interface DealerShellProps {
   deviceSettings: DeviceSettings;
   onDeviceSettingsChange: (settings: DeviceSettings) => void;
   onNewTable?: () => void;
+  onDisconnect?: () => void;
 }
 
 type ActiveDialog = "settings" | "history" | "calculator" | "qr" | "players" | "bank" | null;
@@ -43,7 +45,9 @@ export function DealerShell({
   deviceSettings,
   onDeviceSettingsChange,
   onNewTable,
+  onDisconnect,
 }: DealerShellProps) {
+  const { route } = useLocation();
   useStore(store);
   const composed = store.getComposed();
   const table = store.getTableMeta();
@@ -545,6 +549,20 @@ export function DealerShell({
                   }}
                 >
                   Show QR
+                </button>
+                <button
+                  type="button"
+                  data-testid="menu-disconnect"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    if (onDisconnect) {
+                      onDisconnect();
+                    } else {
+                      route("/");
+                    }
+                  }}
+                >
+                  Disconnect
                 </button>
               </div>
             )}
