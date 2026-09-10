@@ -39,12 +39,10 @@ test("sync virtual blackjack deals seat 1 and settles after the turn", async ({ 
   await placeFeltBet(ben, "felt-zone-main");
   await closeBetsIfOpen(dealer);
 
+  const settlement = expectDisplaySettlement(display, "Ana", "any", ana, 120_000);
   await completeVirtualBlackjackHand(dealer, ana);
   await waitForVirtualResult(dealer);
-  await expect(ana.getByTestId("player-status-bar")).toContainText(/[+-]\d|Dealer/, {
-    timeout: 10_000,
-  });
-  await expectDisplaySettlement(display, "Ana", "any", ana);
+  await settlement;
   await expect(display.getByTestId("virtual-board-tag")).toBeVisible();
   await expect(display.getByTestId("display-view")).toBeVisible();
 

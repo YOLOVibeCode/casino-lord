@@ -1,4 +1,9 @@
-import { getCurrentSeriesResults, type TableEvent, type TableSettings } from "@casino-lord/core";
+import {
+  getClosedRound,
+  getCurrentSeriesResults,
+  type TableEvent,
+  type TableSettings,
+} from "@casino-lord/core";
 import type { UntypedGameModule } from "./module-types.js";
 import type { VirtualPendingState } from "./sync-store-types.js";
 import {
@@ -165,6 +170,7 @@ function appendPacedEvent(input: {
 
   if (typedEvent.type === "RESULT_RECORDED") {
     const composed = ctx.getComposed();
+    const closedRound = getClosedRound(composed.platform);
     body = {
       type: "RESULT_RECORDED",
       result: {
@@ -172,6 +178,7 @@ function appendPacedEvent(input: {
         id: id(),
         index: getCurrentSeriesResults(composed.platform).length,
         recordedAt: at,
+        ...(closedRound ? { roundId: closedRound.id } : {}),
       },
     } as Omit<TableEvent, "seq" | "at">;
   }

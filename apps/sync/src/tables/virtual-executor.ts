@@ -4,7 +4,7 @@ import type { UntypedModule } from "../modules.js";
 import type { TableRegistry } from "./registry.js";
 import type { TableInstance } from "./table-instance.js";
 import type { VirtualActionTimer } from "./action-timer.js";
-import { triggerForKind } from "@casino-lord/core";
+import { getClosedRound, triggerForKind } from "@casino-lord/core";
 import { VirtualDealer, type ScheduledEvent, type VirtualStepRequest } from "./virtual-dealer.js";
 
 function room(code: string): string {
@@ -220,6 +220,7 @@ function appendPacedEvent(input: {
   if (typedEvent.type === "RESULT_RECORDED") {
     const latest = liveTable.getComposed();
     const results = (latest.module as { results?: unknown[] }).results ?? [];
+    const closedRound = getClosedRound(latest.platform);
     body = {
       type: "RESULT_RECORDED",
       result: {
@@ -227,6 +228,7 @@ function appendPacedEvent(input: {
         id: crypto.randomUUID(),
         index: results.length,
         recordedAt: at,
+        ...(closedRound ? { roundId: closedRound.id } : {}),
       },
     } as Omit<TableEvent, "seq" | "at">;
   }

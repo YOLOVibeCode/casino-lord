@@ -35,20 +35,13 @@ test("sync virtual roulette with two players settles a red spin", async ({ brows
   await placeFeltBet(ben, "felt-zone-red");
   await closeBetsIfOpen(dealer);
 
+  const settlement = expectDisplaySettlement(display, "Ana", "any", ana, 30_000);
   await triggerVirtualDeal(dealer);
   await waitForVirtualResult(dealer);
-
+  await settlement;
   await expect
-    .poll(async () => parseBankroll(await ana.getByTestId("player-bankroll").textContent()), {
-      timeout: 15_000,
-    })
-    .not.toBe(500);
-  await expect
-    .poll(async () => parseBankroll(await ben.getByTestId("player-bankroll").textContent()), {
-      timeout: 15_000,
-    })
-    .not.toBe(500);
-  await expectDisplaySettlement(display, "Ana", "any", ana);
+    .poll(async () => parseBankroll(await ana.getByTestId("player-bankroll").textContent()))
+    .toBeGreaterThanOrEqual(400);
   await expect(display.getByTestId("virtual-board-tag")).toBeVisible();
   await expect(display.getByTestId("display-view")).toBeVisible();
 

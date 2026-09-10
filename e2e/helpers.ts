@@ -208,6 +208,7 @@ export async function expectDisplaySettlement(
   playerName: string,
   kind: "any" | "win" | "lose" | "nonzero" = "any",
   player?: Page,
+  timeout = 25_000,
 ): Promise<void> {
   const pattern =
     kind === "win"
@@ -230,7 +231,7 @@ export async function expectDisplaySettlement(
           : "";
         return `${strip} | ${bar}`;
       },
-      { timeout: 25_000 },
+      { timeout },
     )
     .toMatch(pattern);
 }
@@ -339,6 +340,13 @@ export async function completeVirtualBlackjackHand(dealer: Page, player: Page): 
       continue;
     }
 
+    const deal = dealer.getByTestId("deal-btn");
+    if (await deal.isEnabled().catch(() => false)) {
+      await deal.click();
+      await dealer.waitForTimeout(1_200);
+      continue;
+    }
+
     const force = dealer.getByTestId("force-btn");
     if (
       (await force.isVisible().catch(() => false)) &&
@@ -346,13 +354,6 @@ export async function completeVirtualBlackjackHand(dealer: Page, player: Page): 
     ) {
       await force.click();
       await dealer.waitForTimeout(VIRTUAL_TRIGGER_GAP_MS);
-      continue;
-    }
-
-    const deal = dealer.getByTestId("deal-btn");
-    if (await deal.isEnabled().catch(() => false)) {
-      await deal.click();
-      await dealer.waitForTimeout(1_200);
       continue;
     }
 
