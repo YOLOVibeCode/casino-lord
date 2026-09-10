@@ -1,8 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/preact";
+import { afterEach, describe, expect, it } from "vitest";
 import { LeaderboardInterstitial } from "./LeaderboardInterstitial.js";
 
 const entries = [
@@ -20,18 +20,19 @@ describe("LeaderboardInterstitial", () => {
     expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
   });
 
-  it("shows Continue when persistent and dismisses on click", () => {
-    const onDismiss = vi.fn();
+  it("shows session-ended caption when persistent and no Continue button", () => {
     render(
       <LeaderboardInterstitial
         byBankroll={entries}
         byNet={entries}
-        onDismiss={onDismiss}
+        onDismiss={() => {}}
         persistent
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("leaderboard-session-ended-caption").textContent).toBe(
+      "Session ended — thanks for playing",
+    );
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
   });
 });

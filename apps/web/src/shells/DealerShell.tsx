@@ -360,8 +360,7 @@ export function DealerShell({
         }
 
         const resultCount = countSeriesResults(store.events);
-        const successMessage =
-          opts?.toastMessage ?? `Export copied — ${resultCount} results`;
+        const successMessage = opts?.toastMessage ?? `Export copied — ${resultCount} results`;
         try {
           await navigator.clipboard.writeText(text);
           toast.success(successMessage, { testId: "dealer-toast" });
@@ -380,7 +379,15 @@ export function DealerShell({
         toast.error("Export failed", { testId: "dealer-toast" });
       }
     },
-    [composed.platform.participation.outcomeSource, module, prompt, rules, store, table.seriesNumber, toast],
+    [
+      composed.platform.participation.outcomeSource,
+      module,
+      prompt,
+      rules,
+      store,
+      table.seriesNumber,
+      toast,
+    ],
   );
 
   useEffect(() => {
@@ -817,86 +824,86 @@ export function DealerShell({
         </div>
 
         {!sessionEnded && (
-        <div class="dealer-shell__actions">
-          {virtualTable ? (
-            <>
-              {awaitingPlayerAction && (
-                <span class="dealer-shell__virtual-hint" data-testid="virtual-action-hint">
-                  Waiting for {virtualStatus?.turnPrompt ?? "player action"}
-                </span>
-              )}
-              <button
-                type="button"
-                class="dealer-shell__btn dealer-shell__btn--confirm"
-                disabled={readOnly || !!awaitingPlayerAction}
-                data-testid="deal-btn"
-                title={awaitingPlayerAction ? "Awaiting player action" : undefined}
-                onClick={() => {
-                  tapHaptic(deviceSettings.haptics);
-                  store.sendVirtual("trigger");
-                }}
-              >
-                {virtualTriggerLabel}
-              </button>
-              {showForceBtn && (
+          <div class="dealer-shell__actions">
+            {virtualTable ? (
+              <>
+                {awaitingPlayerAction && (
+                  <span class="dealer-shell__virtual-hint" data-testid="virtual-action-hint">
+                    Waiting for {virtualStatus?.turnPrompt ?? "player action"}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  class="dealer-shell__btn dealer-shell__btn--confirm"
+                  disabled={readOnly || !!awaitingPlayerAction}
+                  data-testid="deal-btn"
+                  title={awaitingPlayerAction ? "Awaiting player action" : undefined}
+                  onClick={() => {
+                    tapHaptic(deviceSettings.haptics);
+                    store.sendVirtual("trigger");
+                  }}
+                >
+                  {virtualTriggerLabel}
+                </button>
+                {showForceBtn && (
+                  <button
+                    type="button"
+                    class="dealer-shell__btn"
+                    disabled={forceDisabled}
+                    data-testid="force-btn"
+                    title="Deals now even though it is a player's turn"
+                    onClick={() => {
+                      setForceTapped(true);
+                      store.sendVirtual("force");
+                    }}
+                  >
+                    {forceLabel}
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
                 <button
                   type="button"
                   class="dealer-shell__btn"
-                  disabled={forceDisabled}
-                  data-testid="force-btn"
-                  title="Deals now even though it is a player's turn"
-                  onClick={() => {
-                    setForceTapped(true);
-                    store.sendVirtual("force");
-                  }}
+                  onClick={handleUndo}
+                  disabled={!!editingEnvelope || readOnly || !undoCheck.ok}
+                  data-testid="undo-btn"
+                  title={undoCheck.reason}
                 >
-                  {forceLabel}
+                  {undoArmed
+                    ? `Tap again to undo ${module.resultLabel} ${undoHand}`
+                    : `Undo last ${module.resultLabel}`}
                 </button>
-              )}
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                class="dealer-shell__btn"
-                onClick={handleUndo}
-                disabled={!!editingEnvelope || readOnly || !undoCheck.ok}
-                data-testid="undo-btn"
-                title={undoCheck.reason}
-              >
-                {undoArmed
-                  ? `Tap again to undo ${module.resultLabel} ${undoHand}`
-                  : `Undo last ${module.resultLabel}`}
-              </button>
-              <button
-                type="button"
-                class={`dealer-shell__btn dealer-shell__btn--confirm${!confirmState?.enabled || readOnly ? " dealer-shell__btn--disabled" : ""}`}
-                style={confirmStyle}
-                aria-disabled={!confirmState?.enabled || readOnly}
-                onClick={handleConfirmClick}
-                data-testid="confirm-btn"
-              >
-                {confirming && (
-                  <span
-                    class="dealer-shell__confirm-progress"
-                    style={{ transform: `scaleX(${confirmProgress})` }}
-                  />
-                )}
-                <span>
-                  {editingEnvelope ? "✓ SAVE EDIT" : (confirmState?.label ?? "CONFIRM")}
-                  {confirmState?.badges && (
-                    <span class="dealer-shell__badges"> · {confirmState.badges.join(" · ")}</span>
+                <button
+                  type="button"
+                  class={`dealer-shell__btn dealer-shell__btn--confirm${!confirmState?.enabled || readOnly ? " dealer-shell__btn--disabled" : ""}`}
+                  style={confirmStyle}
+                  aria-disabled={!confirmState?.enabled || readOnly}
+                  onClick={handleConfirmClick}
+                  data-testid="confirm-btn"
+                >
+                  {confirming && (
+                    <span
+                      class="dealer-shell__confirm-progress"
+                      style={{ transform: `scaleX(${confirmProgress})` }}
+                    />
                   )}
-                </span>
-              </button>
-              {confirming && (
-                <button type="button" class="dealer-shell__btn" onClick={clearConfirmTimer}>
-                  Cancel
+                  <span>
+                    {editingEnvelope ? "✓ SAVE EDIT" : (confirmState?.label ?? "CONFIRM")}
+                    {confirmState?.badges && (
+                      <span class="dealer-shell__badges"> · {confirmState.badges.join(" · ")}</span>
+                    )}
+                  </span>
                 </button>
-              )}
-            </>
-          )}
-        </div>
+                {confirming && (
+                  <button type="button" class="dealer-shell__btn" onClick={clearConfirmTimer}>
+                    Cancel
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         )}
       </div>
 
