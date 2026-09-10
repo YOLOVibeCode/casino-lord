@@ -2,7 +2,7 @@ import { createElement } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { useLocation } from "preact-iso";
 import type { ComponentType } from "preact";
-import { buildBetsView, type ResultEnvelope } from "@casino-lord/core";
+import { buildBetsView, type ResultEnvelope, type TableEvent } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
 import { tapHaptic } from "../settings/haptics.js";
@@ -39,6 +39,124 @@ type ActiveDialog = "settings" | "history" | "calculator" | "qr" | "players" | "
 
 const ROTATE_HINT_KEY = "casino-lord:dealer-rotate-hint-dismissed";
 
+export const SOLO_PLAYERS_HINT =
+  "Players requires a synced table — use Create Table on the home screen.";
+
+const REJECT_MESSAGES: Record<string, string> = {
+  SESSION_ENDED: "This table session has ended.",
+  NOT_FOUND: "That table code was not found.",
+  BAD_TOKEN: "The dealer token is invalid.",
+  DECLINED: "The action was declined by the server.",
+};
+
+export function describeReject(reason: string): string {
+  return REJECT_MESSAGES[reason] ?? `Action rejected: ${reason}`;
+}
+
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  return target.isContentEditable;
+}
+
+export function lastRecordedEvent(
+  events: TableEvent[],
+): Extract<TableEvent, { type: "RESULT_RECORDED" }> | undefined {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i];
+    if (event?.type === "RESULT_RECORDED") return event;
+  }
+  return undefined;
+}
+
+function resultDetail(data: unknown): string | undefined {
+  if (typeof data !== "object" || data === null) return undefined;
+  const r = data as Record<string, unknown>;
+  if (typeof r.total === "number") {
+    return r.hard === true ? `${r.total}H` : String(r.total);
+  }
+  const pt = r.playerTotal;
+  const bt = r.bankerTotal;
+  if (typeof pt === "number" && typeof bt === "number") return `${pt}–${bt}`;
+  if (typeof r.value === "number") return String(r.value);
+  if (typeof r.outcome === "string") return r.outcome;
+  return undefined;
+}
+
+export function formatRecordedToast(resultLabel: string, index: number, detail?: string): string {
+  const base = `${resultLabel} ${index + 1} recorded`;
+  return detail ? `${base} · ${detail}` : base;
+}
+
+export interface InlineConfirmProps {
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+export function InlineConfirm({ message, onConfirm, onCancel }: InlineConfirmProps) {
+  return (
+    <div class="dealer-shell__overlay" data-testid="inline-confirm" role="dialog" aria-modal="true">
+      <div class="dealer-shell__overlay-card">
+        <p>{message}</p>
+        <div class="dealer-shell__overlay-actions">
+          <button type="button" data-testid="inline-confirm-yes" onClick={onConfirm}>
+            Confirm
+          </button>
+          <button type="button" data-testid="inline-confirm-no" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export interface InlinePromptProps {
+  message: string;
+  defaultValue?: string;
+  onSubmit: (value: string) => void;
+  onCancel: () => void;
+}
+
+export function InlinePrompt({
+  message,
+  defaultValue = "",
+  onSubmit,
+  onCancel,
+}: InlinePromptProps) {
+  const [value, setValue] = useState(defaultValue);
+  return (
+    <div class="dealer-shell__overlay" data-testid="inline-prompt" role="dialog" aria-modal="true">
+      <div class="dealer-shell__overlay-card">
+        <p>{message}</p>
+        <textarea
+          class="dealer-shell__prompt-input"
+          data-testid="inline-prompt-input"
+          value={value}
+          onInput={(e) => setValue((e.target as HTMLTextAreaElement).value)}
+        />
+        <div class="dealer-shell__overlay-actions">
+          <button type="button" data-testid="inline-prompt-submit" onClick={() => onSubmit(value)}>
+            OK
+          </button>
+          <button type="button" data-testid="inline-prompt-cancel" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type PendingConfirm = { message: string; onConfirm: () => void } | null;
+type PendingPrompt = {
+  message: string;
+  defaultValue?: string;
+  onSubmit: (value: string) => void;
+} | null;
+
 export function DealerShell({
   store,
   module,
@@ -57,6 +175,7 @@ export function DealerShell({
   const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
   const seriesCommit = virtualTable ? currentSeriesCommit(store.events) : null;
   const virtualStatus = store.getVirtualStatus?.() ?? null;
+  const virtualPending = store.getVirtualPending?.() ?? null;
   const virtualTriggerLabel =
     module.virtual?.kind === "wheel" ? "SPIN" : module.virtual?.kind === "dice" ? "ROLL" : "DEAL";
   const awaitingPlayerAction =
@@ -71,6 +190,9 @@ export function DealerShell({
   const [rotateHintDismissed, setRotateHintDismissed] = useState(
     () => sessionStorage.getItem(ROTATE_HINT_KEY) === "1",
   );
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm>(null);
+  const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt>(null);
+  const [forceUsed, setForceUsed] = useState(false);
 
   const settings = composed.platform.settings;
   const undoCheck = store.canUndoLastResult();
@@ -88,6 +210,7 @@ export function DealerShell({
   const [confirmProgress, setConfirmProgress] = useState(0);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRejectReason = useRef<string | null>(null);
 
   const showToast = useCallback((message: string, kind: "error" | "info" = "error") => {
     setToastMsg(message);
@@ -115,6 +238,30 @@ export function DealerShell({
     store.emit({ type: "LIVE_INPUT", payload: { slots: {} }, source: "dealer" });
   }, [store]);
 
+  const toastForRecorded = useCallback(
+    (result: unknown, index: number) => {
+      const detail =
+        confirmState?.label?.replace(/^✓\s*/, "").replace(/^CONFIRM\s+/i, "") ??
+        resultDetail(result);
+      showToast(formatRecordedToast(module.resultLabel, index, detail), "info");
+    },
+    [confirmState?.label, module.resultLabel, showToast],
+  );
+
+  const handleRecord = useCallback(
+    (result: unknown, opts: { quick: boolean }) => {
+      betting.onDealerEntry();
+      const index = Array.isArray((composed.module as { results?: unknown[] }).results)
+        ? (composed.module as { results: unknown[] }).results.length
+        : 0;
+      store.record(result, opts);
+      if (!opts.quick) {
+        toastForRecorded(result, index);
+      }
+    },
+    [betting, composed.module, store, toastForRecorded],
+  );
+
   const executeConfirm = useCallback(() => {
     if (!confirmState?.enabled || !confirmState.result) return;
     tapHaptic(deviceSettings.haptics);
@@ -131,8 +278,12 @@ export function DealerShell({
       setEditingEnvelope(null);
       store.emit(clearLiveInput);
     } else {
+      const index = Array.isArray((composed.module as { results?: unknown[] }).results)
+        ? (composed.module as { results: unknown[] }).results.length
+        : 0;
       betting.onDealerEntry();
       store.record(confirmState.result, { quick: false });
+      toastForRecorded(confirmState.result, index);
       if (confirmState.autoSeries) {
         store.startNewSeries(undefined, { auto: true });
       }
@@ -141,11 +292,13 @@ export function DealerShell({
   }, [
     betting,
     clearConfirmTimer,
+    composed.module,
     confirmState,
     deviceSettings.haptics,
     editingEnvelope,
     module.id,
     store,
+    toastForRecorded,
   ]);
 
   const startConfirmDelay = useCallback(() => {
@@ -190,10 +343,22 @@ export function DealerShell({
     store.undoLastResult();
     setUndoArmed(false);
     if (undoTimer.current) clearTimeout(undoTimer.current);
-  }, [composed.module, editingEnvelope, store, undoArmed]);
+  }, [composed.module, editingEnvelope, showToast, store, undoArmed]);
+
+  const requestNewSeries = useCallback(() => {
+    setPendingConfirm({
+      message: `Start new ${module.seriesLabel}?`,
+      onConfirm: () => {
+        store.startNewSeries();
+        setMenuOpen(false);
+        setPendingConfirm(null);
+      },
+    });
+  }, [module.seriesLabel, store]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return;
       if (e.key === "z" || e.key === "Z") {
         e.preventDefault();
         handleUndo();
@@ -202,10 +367,20 @@ export function DealerShell({
         e.preventDefault();
         startConfirmDelay();
       }
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        requestNewSeries();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [confirmState?.enabled, handleUndo, startConfirmDelay]);
+  }, [confirmState?.enabled, handleUndo, requestNewSeries, startConfirmDelay]);
+
+  useEffect(() => {
+    if (!virtualPending) {
+      setForceUsed(false);
+    }
+  }, [virtualPending?.untilAt]);
 
   const dismissRotateHint = useCallback(() => {
     sessionStorage.setItem(ROTATE_HINT_KEY, "1");
@@ -258,29 +433,48 @@ export function DealerShell({
         });
       }
 
-      await navigator.clipboard.writeText(text);
-      setMenuOpen(false);
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast("Export copied to clipboard", "info");
+        setMenuOpen(false);
+      } catch {
+        setPendingPrompt({
+          message: "Clipboard unavailable — copy export text:",
+          defaultValue: text,
+          onSubmit: () => {
+            setMenuOpen(false);
+            setPendingPrompt(null);
+          },
+        });
+      }
     } catch {
       showToast("Export failed", "error");
     }
   };
 
-  const handleImport = () => {
-    const text = window.prompt("Paste series import text:");
-    if (!text) return;
-    const envelope = parseExportForImport(text);
-    const body = "error" in envelope ? text : envelope.body;
-    const imported = module.importSeries(body, rules);
-    if ("error" in imported) {
-      window.alert(imported.error);
-      return;
-    }
-    store.importResults(imported.results);
-    if (imported.warnings.length > 0) {
-      window.alert(imported.warnings.join("\n"));
-    }
-    setMenuOpen(false);
-  };
+  const handleImportSubmit = useCallback(
+    (text: string) => {
+      if (!text.trim()) {
+        setPendingPrompt(null);
+        return;
+      }
+      const envelope = parseExportForImport(text);
+      const body = "error" in envelope ? text : envelope.body;
+      const imported = module.importSeries(body, rules);
+      if ("error" in imported) {
+        showToast(imported.error, "error");
+        setPendingPrompt(null);
+        return;
+      }
+      store.importResults(imported.results);
+      if (imported.warnings.length > 0) {
+        showToast(imported.warnings.join("\n"), "info");
+      }
+      setMenuOpen(false);
+      setPendingPrompt(null);
+    },
+    [module, rules, showToast, store],
+  );
 
   const handleQuickEdit = useCallback(
     (result: unknown) => {
@@ -295,6 +489,20 @@ export function DealerShell({
     [editingEnvelope, store],
   );
 
+  const handleVoidBets = useCallback(() => {
+    const count = betsView.openBets.length;
+    if (count === 0) return;
+    setPendingConfirm({
+      message: `Void all ${count} open bet${count === 1 ? "" : "s"}?`,
+      onConfirm: () => {
+        for (const bet of betsView.openBets) {
+          store.emit({ type: "BET_REMOVED", betId: bet.id });
+        }
+        setPendingConfirm(null);
+      },
+    });
+  }, [betsView.openBets, store]);
+
   const editMode =
     editingEnvelope !== null
       ? {
@@ -308,10 +516,21 @@ export function DealerShell({
   const connectionState = syncStore?.getConnectionState() ?? null;
   const readOnly = syncStore?.isReadOnly() ?? false;
 
+  useEffect(() => {
+    if (!syncStore) return;
+    return syncStore.subscribe(() => {
+      const reason = syncStore.getRejectReason();
+      if (reason && reason !== lastRejectReason.current) {
+        lastRejectReason.current = reason;
+        showToast(describeReject(reason), "error");
+      }
+    });
+  }, [showToast, syncStore]);
+
   const handleConfirmClick = useCallback(() => {
     if (readOnly) return;
     if (!confirmState?.enabled || !confirmState.result) {
-      showToast("Complete the hand before confirming.", "info");
+      showToast(`Complete the ${module.resultLabel.toLowerCase()} before confirming.`, "info");
       return;
     }
     startConfirmDelay();
@@ -332,6 +551,12 @@ export function DealerShell({
           ? "Offline"
           : "Local / Solo";
 
+  const undoLabel = undoArmed
+    ? `Tap again to undo ${module.resultLabel} ${undoHand}`
+    : `Undo last ${module.resultLabel}`;
+
+  const forceLabel = virtualPending ? "Deal now" : "Force";
+
   return (
     <div class="dealer-shell" data-testid="dealer-shell">
       {!rotateHintDismissed && (
@@ -351,7 +576,7 @@ export function DealerShell({
             data-testid="edit-banner"
             onClick={cancelEdit}
           >
-            Editing Hand {editingEnvelope.index + 1} · Cancel
+            Editing {module.resultLabel} {editingEnvelope.index + 1} · Cancel
           </button>
         ) : (
           <>
@@ -384,6 +609,7 @@ export function DealerShell({
             if (betting.round?.status === "open") betting.closeBets();
             else betting.openBets();
           }}
+          onVoidBets={handleVoidBets}
         />
       )}
 
@@ -399,7 +625,7 @@ export function DealerShell({
               if (body.type === "LIVE_INPUT") betting.onDealerEntry();
               store.emit(body);
             },
-            record: store.record,
+            record: handleRecord,
             autoAdvance: deviceSettings.autoAdvance,
             expressMode: deviceSettings.expressMode,
             haptics: deviceSettings.haptics,
@@ -436,9 +662,13 @@ export function DealerShell({
                 data-testid="players-btn"
                 disabled={!syncStore}
                 aria-label="Players"
+                title={!syncStore ? SOLO_PLAYERS_HINT : "Players"}
                 onClick={() => setActiveDialog("players")}
               >
-                👥
+                <span class="dealer-shell__tool-icon" aria-hidden="true">
+                  👥
+                </span>
+                <span class="dealer-shell__tool-label">Players</span>
               </button>
               <button
                 type="button"
@@ -449,7 +679,10 @@ export function DealerShell({
                 aria-label="Bank"
                 onClick={() => setActiveDialog("bank")}
               >
-                🏦
+                <span class="dealer-shell__tool-icon" aria-hidden="true">
+                  🏦
+                </span>
+                <span class="dealer-shell__tool-label">Bank</span>
               </button>
             </>
           )}
@@ -458,117 +691,140 @@ export function DealerShell({
               type="button"
               class="dealer-shell__tool-btn"
               aria-label="Menu"
+              aria-expanded={menuOpen}
+              aria-haspopup="true"
+              data-testid="menu-btn"
               onClick={() => setMenuOpen((o) => !o)}
             >
-              ⚙
+              <span class="dealer-shell__tool-icon" aria-hidden="true">
+                ⚙
+              </span>
+              <span class="dealer-shell__tool-label">Menu</span>
             </button>
             {menuOpen && (
-              <div class="dealer-shell__menu-panel">
-                {onNewTable && (
+              <>
+                <button
+                  type="button"
+                  class="dealer-shell__menu-backdrop"
+                  aria-label="Close menu"
+                  data-testid="menu-backdrop"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div class="dealer-shell__menu-panel">
+                  {onNewTable && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingConfirm({
+                          message: "Start a new table?",
+                          onConfirm: () => {
+                            onNewTable();
+                            setMenuOpen(false);
+                            setPendingConfirm(null);
+                          },
+                        });
+                      }}
+                    >
+                      New Table
+                    </button>
+                  )}
+                  <button type="button" data-testid="menu-new-series" onClick={requestNewSeries}>
+                    New {module.seriesLabel}
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm("Start a new table?")) {
-                        onNewTable();
-                        setMenuOpen(false);
+                      setPendingConfirm({
+                        message: "End session?",
+                        onConfirm: () => {
+                          store.endSession();
+                          setMenuOpen(false);
+                          setPendingConfirm(null);
+                        },
+                      });
+                    }}
+                  >
+                    End Session
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="menu-export"
+                    onClick={() => void handleExport()}
+                  >
+                    Export
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="menu-import"
+                    onClick={() => {
+                      setPendingPrompt({
+                        message: "Paste series import text:",
+                        onSubmit: handleImportSubmit,
+                      });
+                    }}
+                  >
+                    Import
+                  </button>
+                  <a href={tableUrl(`/verify?code=${store.code}`)} data-testid="menu-verify">
+                    {virtualTable ? "Verify export" : "Verify fairness"}
+                  </a>
+                  <button
+                    type="button"
+                    data-testid="menu-settings"
+                    onClick={() => {
+                      setActiveDialog("settings");
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Settings
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="menu-history"
+                    onClick={() => {
+                      setActiveDialog("history");
+                      setMenuOpen(false);
+                    }}
+                  >
+                    History
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="menu-calculator"
+                    onClick={() => {
+                      setActiveDialog("calculator");
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Calculator
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!syncStore}
+                    data-testid="menu-show-qr"
+                    onClick={() => {
+                      setActiveDialog("qr");
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Show QR
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="menu-disconnect"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (onDisconnect) {
+                        onDisconnect();
+                      } else {
+                        route("/");
                       }
                     }}
                   >
-                    New Table
+                    Disconnect
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm(`Start new ${module.seriesLabel}?`)) {
-                      store.startNewSeries();
-                      setMenuOpen(false);
-                    }
-                  }}
-                >
-                  New {module.seriesLabel}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm("End session?")) {
-                      store.endSession();
-                      setMenuOpen(false);
-                    }
-                  }}
-                >
-                  End Session
-                </button>
-                <button type="button" onClick={() => void handleExport()}>
-                  Export
-                </button>
-                {virtualTable && (
-                  <a href={tableUrl(`/verify?code=${store.code}`)} data-testid="menu-export-verify">
-                    Verify export
-                  </a>
-                )}
-                <button type="button" onClick={handleImport}>
-                  Import
-                </button>
-                <a href={tableUrl(`/verify?code=${store.code}`)} data-testid="menu-verify">
-                  Verify fairness
-                </a>
-                <button
-                  type="button"
-                  data-testid="menu-settings"
-                  onClick={() => {
-                    setActiveDialog("settings");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Settings
-                </button>
-                <button
-                  type="button"
-                  data-testid="menu-history"
-                  onClick={() => {
-                    setActiveDialog("history");
-                    setMenuOpen(false);
-                  }}
-                >
-                  History
-                </button>
-                <button
-                  type="button"
-                  data-testid="menu-calculator"
-                  onClick={() => {
-                    setActiveDialog("calculator");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Calculator
-                </button>
-                <button
-                  type="button"
-                  disabled={!syncStore}
-                  data-testid="menu-show-qr"
-                  onClick={() => {
-                    setActiveDialog("qr");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Show QR
-                </button>
-                <button
-                  type="button"
-                  data-testid="menu-disconnect"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    if (onDisconnect) {
-                      onDisconnect();
-                    } else {
-                      route("/");
-                    }
-                  }}
-                >
-                  Disconnect
-                </button>
-              </div>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -579,6 +835,11 @@ export function DealerShell({
               {awaitingPlayerAction && (
                 <span class="dealer-shell__virtual-hint" data-testid="virtual-action-hint">
                   Waiting for {virtualStatus?.turnPrompt ?? "player action"}
+                </span>
+              )}
+              {virtualPending && (
+                <span class="dealer-shell__virtual-hint" data-testid="virtual-pending-hint">
+                  Dealing…
                 </span>
               )}
               <button
@@ -597,11 +858,15 @@ export function DealerShell({
               <button
                 type="button"
                 class="dealer-shell__btn"
-                disabled={readOnly}
+                disabled={readOnly || forceUsed}
                 data-testid="force-btn"
-                onClick={() => store.sendVirtual("force")}
+                onClick={() => {
+                  if (forceUsed) return;
+                  setForceUsed(true);
+                  store.sendVirtual("force");
+                }}
               >
-                Force
+                {forceLabel}
               </button>
             </>
           ) : (
@@ -614,7 +879,7 @@ export function DealerShell({
                 data-testid="undo-btn"
                 title={undoCheck.reason}
               >
-                {undoArmed ? `Tap again to undo Hand ${undoHand}` : "UNDO"}
+                {undoLabel}
               </button>
               <button
                 type="button"
@@ -646,6 +911,25 @@ export function DealerShell({
           )}
         </div>
       </div>
+
+      {pendingConfirm && (
+        <InlineConfirm
+          message={pendingConfirm.message}
+          onConfirm={pendingConfirm.onConfirm}
+          onCancel={() => setPendingConfirm(null)}
+        />
+      )}
+
+      {pendingPrompt && (
+        <InlinePrompt
+          message={pendingPrompt.message}
+          {...(pendingPrompt.defaultValue !== undefined
+            ? { defaultValue: pendingPrompt.defaultValue }
+            : {})}
+          onSubmit={pendingPrompt.onSubmit}
+          onCancel={() => setPendingPrompt(null)}
+        />
+      )}
 
       {activeDialog === "bank" && bankHouse && (
         <BankPanel

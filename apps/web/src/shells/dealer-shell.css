@@ -150,8 +150,24 @@
   color: var(--text-primary);
   font-size: 1.25rem;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.125rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.dealer-shell__tool-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.dealer-shell__tool-label {
+  font-size: max(0.625rem, 10px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1;
 }
 
 .dealer-shell__tool-btn:disabled {
@@ -162,6 +178,15 @@
 .dealer-shell__menu {
   position: relative;
   margin-left: auto;
+}
+
+.dealer-shell__menu-backdrop {
+  position: fixed;
+  inset: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 19;
+  cursor: default;
 }
 
 .dealer-shell__menu-panel {
@@ -235,6 +260,70 @@
   display: block;
   font-size: 0.75rem;
   opacity: 0.85;
+}
+
+.dealer-shell__virtual-hint {
+  flex: 1;
+  align-self: center;
+  font-size: max(0.8125rem, 14px);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.72));
+  text-align: center;
+}
+
+.dealer-shell__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.dealer-shell__overlay-card {
+  width: min(100%, 24rem);
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--gold-hairline);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+}
+
+.dealer-shell__overlay-card p {
+  margin: 0 0 0.75rem;
+  font-size: max(0.9375rem, 16px);
+}
+
+.dealer-shell__overlay-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.dealer-shell__overlay-actions button {
+  min-height: 48px;
+  min-width: 5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--gold-hairline);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.dealer-shell__prompt-input {
+  display: block;
+  width: 100%;
+  min-height: 6rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  border: 1px solid var(--gold-hairline);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-primary);
+  font: inherit;
+  resize: vertical;
 }
 
 @media (min-width: 769px) {
