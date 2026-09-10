@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useCallback, useRef, useState } from "preact/hooks";
 import { getBankroll } from "@casino-lord/core";
 import type { BlackjackRules } from "@casino-lord/game-blackjack";
 import type { CrapsState } from "@casino-lord/game-craps";
@@ -16,6 +16,16 @@ export interface PlayersDialogProps {
   seatsConfig?: { max: number; assign: "dealer" | "player" | "auto" };
 }
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+interface ToastState {
+  message: string;
+  action?: ToastAction;
+}
+
 function crapsState(module: unknown): CrapsState | null {
   if (typeof module !== "object" || module === null) return null;
   if (!("currentShooterId" in module) || !("liveInput" in module)) return null;
@@ -27,6 +37,8 @@ export function PlayersDialog({ store, onClose, seatsConfig }: PlayersDialogProp
   const pending = store.getPendingPlayers();
   const players = composed.platform.players.filter((p) => p.status !== "removed");
   const joiningOpen = composed.platform.settings.players.joiningOpen;
+  const defaultBuyIn = composed.platform.settings.bank.defaultBuyIn;
+  const autoBuyIn = composed.platform.settings.bank.autoBuyIn;
   const isCraps = store.game === "craps";
   const craps = isCraps ? crapsState(composed.module) : null;
   const shooterRotation = composed.platform.settings.virtual.shooterRotation;
@@ -39,8 +51,41 @@ export function PlayersDialog({ store, onClose, seatsConfig }: PlayersDialogProp
     store.game === "blackjack" && seatConfig !== undefined && seatConfig.assign !== "player";
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [reissueQr, setReissueQr] = useState("");
+  const [reissueState, setReissueState] = useState<{ qr: string; url: string } | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dealerToken = store.getDealerToken();
+
+  const dismissToast = useCallback(() => {
+    setToast(null);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
+  const showToast = useCallback(
+    (message: string, action?: ToastAction) => {
+      setToast({ message, ...(action !== undefined ? { action } : {}) });
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), 4000);
+    },
+    [],
+  );
+
+  const issueBuyIn = (playerId: string, amount: number): void => {
+    void store.emit({ type: "BANK_ISSUED", playerId, amount, reason: "buyin" });
+  };
+
+  const handleApprove = (player: { id: string; name: string }): void => {
+    store.sendAdmit(player.id, true);
+    if (!autoBuyIn) {
+      showToast(`${player.name} joined — issue ${defaultBuyIn} chips?`, {
+        label: `Issue ${defaultBuyIn}`,
+        onClick: () => {
+          issueBuyIn(player.id, defaultBuyIn);
+          dismissToast();
+        },
+      });
+    }
+  };
 
   const toggleJoining = (): void => {
     void store.emit({
@@ -94,12 +139,17 @@ export function PlayersDialog({ store, onClose, seatsConfig }: PlayersDialogProp
   const handleReissue = async (playerId: string): Promise<void> => {
     if (!dealerToken) return;
     try {
-      await reissuePlayerToken(getSyncBaseUrl(), store.code, playerId, dealerToken);
-      const playUrl = tableUrl(`/play/${store.code}`);
+      const { playerToken } = await reissuePlayerToken(
+        getSyncBaseUrl(),
+        store.code,
+        playerId,
+        dealerToken,
+      );
+      const playUrl = tableUrl(`/play/${store.code}?t=${encodeURIComponent(playerToken)}`);
       const qr = await qrDataUrl(playUrl);
-      setReissueQr(qr);
+      setReissueState({ qr, url: playUrl });
     } catch {
-      setReissueQr("");
+      setReissueState(null);
     }
   };
 
@@ -123,7 +173,7 @@ export function PlayersDialog({ store, onClose, seatsConfig }: PlayersDialogProp
                 <button
                   type="button"
                   data-testid={`approve-${p.id}`}
-                  onClick={() => store.sendAdmit(p.id, true)}
+                  onClick={() => handleApprove(p)}
                 >
                   Approve
                 </button>
@@ -161,6 +211,7 @@ export function PlayersDialog({ store, onClose, seatsConfig }: PlayersDialogProp
               .players.some((entry) => entry.id === p.id && entry.connected);
             const isShooter = craps !== null && p.id === craps.currentShooterId;
             const canAssign = isCraps && craps !== null && p.status === "active" && !isShooter;
+            const needsBuyIn = p.status === "active" && bankroll === 0;
             return (
               <div key={p.id} class="players-dialog__row" data-testid={`player-row-${p.id}`}>
                 <span class="players-dialog__dot" style={{ background: p.color }} />
@@ -179,6 +230,15 @@ export function PlayersDialog({ store, onClose, seatsConfig }: PlayersDialogProp
                   </span>
                 </span>
                 <span class="players-dialog__bank">{bankroll}</span>
+                {needsBuyIn && (
+                  <button
+                    type="button"
+                    data-testid={`issue-buyin-${p.id}`}
+                    onClick={() => issueBuyIn(p.id, defaultBuyIn)}
+                  >
+                    Issue {defaultBuyIn}
+                  </button>
+                )}
                 {showSeatSelect && (
                   <select
                     class="players-dialog__seat-select"
@@ -258,11 +318,27 @@ export function PlayersDialog({ store, onClose, seatsConfig }: PlayersDialogProp
           </button>
         </footer>
 
-        {reissueQr && (
+        {reissueState && (
           <div class="players-dialog__reissue" data-testid="reissue-qr">
             <p>Share this link with the player:</p>
-            <img src={reissueQr} alt="Join QR" />
-            <a href={tableUrl(`/play/${store.code}`)}>{tableUrl(`/play/${store.code}`)}</a>
+            <p class="players-dialog__reissue-warning" data-testid="reissue-warning">
+              Anyone with this link can join as this player.
+            </p>
+            <img src={reissueState.qr} alt="Join QR" />
+            <a href={reissueState.url} data-testid="reissue-link">
+              {reissueState.url}
+            </a>
+          </div>
+        )}
+
+        {toast && (
+          <div class="players-dialog__toast" data-testid="players-toast" role="alert">
+            <span>{toast.message}</span>
+            {toast.action && (
+              <button type="button" data-testid="players-toast-action" onClick={toast.action.onClick}>
+                {toast.action.label}
+              </button>
+            )}
           </div>
         )}
       </div>
