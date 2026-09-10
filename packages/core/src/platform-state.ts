@@ -1,5 +1,5 @@
 import type { GameId, Participation } from "./types.js";
-import type { BettingRound, PlacedBet, Player } from "./data-model.js";
+import type { BettingRound, PlacedBet, Player, ResultEnvelope } from "./data-model.js";
 import type { Settlement } from "./betting.js";
 import type { TableSettings } from "./settings.js";
 
@@ -13,6 +13,7 @@ export interface PlatformState {
   rounds: BettingRound[];
   bets: PlacedBet[];
   settlements: Record<string, Settlement[]>;
+  results: ResultEnvelope<unknown>[];
   currentSeriesId: string | null;
   currentSeriesCommit: string | null;
   currentSeriesSeed: string | null;
@@ -30,6 +31,7 @@ export function initialPlatformState(): PlatformState {
     rounds: [],
     bets: [],
     settlements: {},
+    results: [],
     currentSeriesId: null,
     currentSeriesCommit: null,
     currentSeriesSeed: null,

@@ -84,6 +84,25 @@ function reverseSettlementForRound(state: PlatformState, roundId: string): Platf
   return { ...next, settlements, rounds };
 }
 
+function appendResult(state: PlatformState, result: ResultEnvelope<unknown>): PlatformState {
+  if (state.results.some((r) => r.id === result.id)) {
+    return state;
+  }
+  return { ...state, results: [...state.results, result] };
+}
+
+function removeResult(state: PlatformState, resultId: string): PlatformState {
+  return { ...state, results: state.results.filter((r) => r.id !== resultId) };
+}
+
+function replaceResult(state: PlatformState, result: ResultEnvelope<unknown>): PlatformState {
+  const idx = state.results.findIndex((r) => r.id === result.id);
+  if (idx < 0) return state;
+  const results = [...state.results];
+  results[idx] = result;
+  return { ...state, results };
+}
+
 function settleRound<Rules, Result, LiveInput, State, BetTarget, Action>(
   state: PlatformState,
   roundId: string,
@@ -150,6 +169,7 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
         currentSeriesId: event.seriesId,
         currentSeriesCommit: event.commit ?? null,
         currentSeriesSeed: null,
+        results: [],
       };
 
     case "PLAYER_JOINED": {
@@ -260,15 +280,17 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
     }
 
     case "RESULT_RECORDED": {
-      const roundId = event.result.roundId;
-      if (!roundId) return state;
-      const round = state.rounds.find((r) => r.id === roundId);
-      if (!round || round.status === "settled") return state;
+      const envelope = event.result as ResultEnvelope<unknown>;
+      let next = appendResult(state, envelope);
 
-      const priorSettlements = state.settlements[roundId];
-      let next = state;
-      if (priorSettlements && state.participation.bank === "house") {
-        const roundBets = state.bets.filter((b) => b.roundId === roundId);
+      const roundId = event.result.roundId;
+      if (!roundId) return next;
+      const round = next.rounds.find((r) => r.id === roundId);
+      if (!round || round.status === "settled") return next;
+
+      const priorSettlements = next.settlements[roundId];
+      if (priorSettlements && next.participation.bank === "house") {
+        const roundBets = next.bets.filter((b) => b.roundId === roundId);
         next = applySettlementBankrolls(next, priorSettlements, roundBets, true);
       }
 
@@ -279,20 +301,26 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
     case "RESULT_DELETED": {
       const resultId = event.type === "RESULT_EDITED" ? event.result.id : event.resultId;
       const affectedRound = state.rounds.find((r) => r.resultId === resultId);
-      if (!affectedRound) return state;
 
-      let next = reverseSettlementForRound(state, affectedRound.id);
+      let next = affectedRound ? reverseSettlementForRound(state, affectedRound.id) : state;
 
-      if (event.type === "RESULT_EDITED" && event.result.roundId) {
-        return settleRound(next, event.result.roundId, event.result as ResultEnvelope<Result>, ctx);
+      if (event.type === "RESULT_EDITED") {
+        next = replaceResult(next, event.result as ResultEnvelope<unknown>);
+        if (event.result.roundId) {
+          return settleRound(next, event.result.roundId, event.result as ResultEnvelope<Result>, ctx);
+        }
+        return next;
       }
-      return next;
+
+      return removeResult(next, resultId);
     }
 
     case "RESULT_UNDONE": {
       const affectedRound = state.rounds.find((r) => r.resultId === event.resultId);
-      if (!affectedRound) return state;
-      return reverseSettlementForRound(state, affectedRound.id);
+      const next = affectedRound
+        ? reverseSettlementForRound(state, affectedRound.id)
+        : state;
+      return removeResult(next, event.resultId);
     }
 
     case "SERIES_ENDED":
