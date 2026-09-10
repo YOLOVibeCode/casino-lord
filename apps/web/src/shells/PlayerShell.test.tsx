@@ -7,6 +7,7 @@ import { DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
 import { houseSettings } from "@casino-lord/core/testing";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
 import { PlayerShell } from "./PlayerShell.js";
@@ -367,6 +368,58 @@ describe("PlayerShell", () => {
     const link = screen.getByTestId("player-session-verify-link") as HTMLAnchorElement;
     expect(link.getAttribute("href")).toBe(`https://test.example/verify?code=${store.code}`);
     tableUrlSpy.mockRestore();
+  });
+
+  it("history shows would pay in declared-bets mode", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+    });
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: true,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: 4,
+        bankerTotal: 9,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.getByTestId("player-history-profit-b1").textContent).toBe("would pay +95");
+  });
+
+  it("opens player settings sheet and persists phoneAnimations", () => {
+    localStorage.clear();
+    const { store } = setupStore();
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("player-settings-open"));
+    expect(screen.getByTestId("player-settings-sheet")).toBeTruthy();
+    fireEvent.change(screen.getByTestId("player-phone-animations"), {
+      target: { value: "off" },
+    });
+    const stored = JSON.parse(localStorage.getItem("casino-lord:device-settings") ?? "{}");
+    expect(stored.phoneAnimations).toBe("off");
+    expect(stored.shakeSensitivity).toBe(DEFAULT_DEVICE_SETTINGS.shakeSensitivity);
   });
 
   it("history tab shows outcome and profit after settlement", () => {

@@ -110,9 +110,7 @@ export function buildHistoryRows(
 ): HistoryRow[] {
   const bets = platform.bets
     .filter((b) => b.playerId === playerId)
-    .sort(
-      (a, b) => new Date(a.placedAt).getTime() - new Date(b.placedAt).getTime(),
-    );
+    .sort((a, b) => new Date(a.placedAt).getTime() - new Date(b.placedAt).getTime());
 
   let runningNet = 0;
   return bets.map((bet: PlacedBet) => {
@@ -201,8 +199,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const settlementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  const animationsEnabled =
-    deviceSettings.animations && deviceSettings.phoneAnimations !== "off";
+  const animationsEnabled = deviceSettings.animations && deviceSettings.phoneAnimations !== "off";
   const phoneMode = deviceSettings.phoneAnimations === "reduced";
   const shakeThreshold = shakeThresholdForSensitivity(deviceSettings.shakeSensitivity);
 
@@ -698,7 +695,10 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
       <PlayerBettingContext.Provider value={bettingContext}>
         {sessionEnded && (
-          <div class="player-shell__panel player-shell__session-summary" data-testid="player-session-summary">
+          <div
+            class="player-shell__panel player-shell__session-summary"
+            data-testid="player-session-summary"
+          >
             <h2>Session summary</h2>
             <dl class="player-shell__summary-stats">
               <dt>Chips issued</dt>

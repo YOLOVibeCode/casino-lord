@@ -67,10 +67,7 @@ describe("device settings", () => {
   });
 
   it("defaults phoneAnimations and shakeSensitivity when missing from stored JSON", () => {
-    store.setItem(
-      "casino-lord:device-settings",
-      JSON.stringify({ layoutId: "classic" }),
-    );
+    store.setItem("casino-lord:device-settings", JSON.stringify({ layoutId: "classic" }));
     expect(loadDeviceSettings(store)).toMatchObject({
       phoneAnimations: "reduced",
       shakeSensitivity: "medium",
