@@ -5,7 +5,22 @@
   text-align: center;
 }
 
-.sync-error a {
-  display: inline-block;
+.sync-error__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
   margin-top: 1.5rem;
+}
+
+.sync-error__action {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid currentColor;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
 }

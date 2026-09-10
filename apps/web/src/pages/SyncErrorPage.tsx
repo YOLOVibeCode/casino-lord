@@ -1,10 +1,5 @@
+import { describeSyncError } from "../sync/error-copy.js";
 import "./sync-error.css";
-
-const MESSAGES: Record<string, string> = {
-  NOT_FOUND: "That table code was not found. It may have expired.",
-  BAD_TOKEN: "The dealer token is invalid. Ask the host for a new dealer link.",
-  SESSION_ENDED: "This table session has ended.",
-};
 
 export interface SyncErrorPageProps {
   path?: string;
@@ -14,13 +9,32 @@ export interface SyncErrorPageProps {
 export function SyncErrorPage({ code = "UNKNOWN" }: SyncErrorPageProps) {
   const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
   const errorCode = params.get("reason") ?? code;
-  const message = MESSAGES[errorCode] ?? "Unable to join this table.";
+  const { title, body, actions } = describeSyncError(errorCode);
 
   return (
     <main class="sync-error" data-testid="sync-error-page">
-      <h1>Cannot join table</h1>
-      <p>{message}</p>
-      <a href="/">Home</a>
+      <h1>{title}</h1>
+      <p>{body}</p>
+      <div class="sync-error__actions">
+        {actions.map((action) =>
+          action.onRetry ? (
+            <button
+              key={action.label}
+              type="button"
+              class="sync-error__action"
+              onClick={() => {
+                if (typeof window !== "undefined") window.history.back();
+              }}
+            >
+              {action.label}
+            </button>
+          ) : (
+            <a key={action.label} class="sync-error__action" href={action.href ?? "/"}>
+              {action.label}
+            </a>
+          ),
+        )}
+      </div>
     </main>
   );
 }

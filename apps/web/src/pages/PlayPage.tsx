@@ -10,6 +10,7 @@ import { useLocation, useRoute } from "preact-iso";
 import { PlayerShell } from "../shells/PlayerShell.js";
 import { getTableMeta, joinTablePlayer } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
+import { describeSyncError } from "../sync/error-copy.js";
 import { clearPlayerToken, loadPlayerToken, savePlayerToken } from "../sync/player-token.js";
 import { getGame } from "../table/games.js";
 import { createSyncedTableStore, waitForSyncReady } from "../table/synced-store.js";
@@ -49,12 +50,12 @@ export function PlayPage(_props: { path?: string }) {
   useEffect(() => {
     if (!isSyncConfigured()) {
       setPhase("error");
-      setError("Sync server not configured");
+      setError("NOT_CONFIGURED");
       return;
     }
     if (!isValidTableCode(code)) {
       setPhase("error");
-      setError("Invalid table code");
+      setError("INVALID_CODE");
       return;
     }
 
@@ -65,14 +66,14 @@ export function PlayPage(_props: { path?: string }) {
         if (!meta.exists) {
           if (!cancelled) {
             setPhase("error");
-            setError("Table not found");
+            setError("NOT_FOUND");
           }
           return;
         }
         if (meta.participation?.playerMode !== "on") {
           if (!cancelled) {
             setPhase("error");
-            setError("Player mode is not enabled on this table");
+            setError("PLAYERS_DISABLED");
           }
           return;
         }
@@ -91,7 +92,7 @@ export function PlayPage(_props: { path?: string }) {
       } catch {
         if (!cancelled) {
           setPhase("error");
-          setError("Could not load table");
+          setError("LOAD_FAILED");
         }
       }
     })();
@@ -110,7 +111,7 @@ export function PlayPage(_props: { path?: string }) {
     const entry = getGame(gameId);
     if (!entry?.module) {
       setPhase("error");
-      setError("Unsupported game");
+      setError("UNSUPPORTED_GAME");
       return;
     }
 
@@ -181,7 +182,7 @@ export function PlayPage(_props: { path?: string }) {
         store.destroy();
         setStore(null);
         setPhase("error");
-        setError("The dealer declined your join request");
+        setError("DECLINED");
       }
     });
     return unsub;
@@ -216,12 +217,34 @@ export function PlayPage(_props: { path?: string }) {
   }
 
   if (phase === "error") {
+    const { title, body, actions } = describeSyncError(error);
     return (
       <main class="play-page play-page--error" data-testid="play-page">
-        <p class="play-page__error">{error}</p>
-        <button type="button" onClick={() => route("/")}>
-          Home
-        </button>
+        <h1 class="play-page__error-title">{title}</h1>
+        <p class="play-page__error">{body}</p>
+        <div class="play-page__error-actions">
+          {actions.map((action) =>
+            action.onRetry ? (
+              <button
+                key={action.label}
+                type="button"
+                class="play-page__error-action"
+                onClick={() => window.location.reload()}
+              >
+                {action.label}
+              </button>
+            ) : (
+              <button
+                key={action.label}
+                type="button"
+                class="play-page__error-action"
+                onClick={() => route(action.href ?? "/")}
+              >
+                {action.label}
+              </button>
+            ),
+          )}
+        </div>
       </main>
     );
   }

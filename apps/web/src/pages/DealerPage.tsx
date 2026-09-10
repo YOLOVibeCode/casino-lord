@@ -94,8 +94,7 @@ export function DealerPage(_props: { path?: string }) {
 
   useEffect(() => {
     if (!loading && (error || !store)) {
-      const reason = error === "NOT_CONFIGURED" ? "NOT_FOUND" : (error ?? "NOT_FOUND");
-      route(`/sync-error?reason=${encodeURIComponent(reason)}`);
+      route(`/sync-error?reason=${encodeURIComponent(error ?? "NOT_FOUND")}`);
     }
   }, [error, loading, store, route]);
 
