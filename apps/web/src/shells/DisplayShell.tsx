@@ -266,6 +266,7 @@ export function DisplayShell({
           betsView={betsView}
           countdownSec={betting.countdownSec}
           settlementTicker={settlementTicker}
+          betTimerSec={settings.betting?.betTimerSec ?? 0}
         />
       )}
 
