@@ -104,34 +104,6 @@
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
-.dealer-shell__toast {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: rgba(244, 67, 54, 0.15);
-  color: #f44336;
-  font-size: max(0.875rem, 16px);
-  border-bottom: 1px solid rgba(244, 67, 54, 0.25);
-}
-
-.dealer-shell__toast--info {
-  background: rgba(255, 152, 0, 0.15);
-  color: #ff9800;
-  border-bottom-color: rgba(255, 152, 0, 0.25);
-}
-
-.dealer-shell__toast-dismiss {
-  flex-shrink: 0;
-  min-width: 48px;
-  min-height: 48px;
-  border: none;
-  background: transparent;
-  color: inherit;
-  font-size: 1.25rem;
-}
-
 .dealer-shell__toolbar {
   display: flex;
   align-items: center;

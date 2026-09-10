@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStubModule, houseSettings, STUB_RULES } from "@casino-lord/core/testing";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
+import { renderWithUiProviders } from "../ui/test-providers.js";
 import { DealerShell } from "./DealerShell.js";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 
@@ -28,7 +29,7 @@ describe("BettingBar", () => {
     });
     store.emit({ type: "PARTICIPATION_CHANGED", participation: houseSettings().participation });
 
-    render(
+    renderWithUiProviders(
       <DealerShell
         store={store}
         module={module}
@@ -61,7 +62,7 @@ describe("BettingBar", () => {
     store.emit({ type: "PARTICIPATION_CHANGED", participation: settings.participation });
     store.emit({ type: "SETTINGS_CHANGED", patch: settings });
 
-    render(
+    renderWithUiProviders(
       <DealerShell
         store={store}
         module={module}
