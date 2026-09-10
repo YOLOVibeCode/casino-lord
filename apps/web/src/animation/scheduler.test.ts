@@ -3,7 +3,12 @@ import { baccaratModule } from "@casino-lord/game-baccarat";
 import { describe, expect, it } from "vitest";
 
 const baccaratAnimationEvents = baccaratModule.animationEvents;
-import { applyReducedMotion, buildAnimationTimeline, isTimelineInterrupted } from "./scheduler.js";
+import {
+  applyPhoneMainPreset,
+  applyReducedMotion,
+  buildAnimationTimeline,
+  isTimelineInterrupted,
+} from "./scheduler.js";
 
 const APPENDIX_C: Record<string, AnimationPreset> = Object.fromEntries(
   baccaratAnimationEvents.map((def) => [def.id, def.defaultPreset]),
@@ -147,6 +152,44 @@ describe("buildAnimationTimeline", () => {
     )!;
     expect(isTimelineInterrupted(timeline, 100)).toBe(true);
     expect(isTimelineInterrupted(timeline, timeline.totalMs + 1)).toBe(false);
+  });
+
+  it("phoneMode caps main to flash/banner at intensity 1 within 1.2s", () => {
+    const timeline = buildAnimationTimeline(
+      [
+        { eventId: "banker_win", vars: { total: 8 } },
+        { eventId: "dragon", vars: { outcome: "BANKER", streak: 7 }, path: [{ x: 0, y: 0 }] },
+      ],
+      baccaratAnimationEvents,
+      {
+        prefersReducedMotion: false,
+        phoneMode: true,
+        resolvePreset: resolve,
+      },
+    );
+
+    expect(timeline).not.toBeNull();
+    expect(timeline!.totalMs).toBeLessThanOrEqual(1200);
+    expect(timeline!.segments).toHaveLength(1);
+    const main = timeline!.segments[0]!;
+    expect(main.phase).toBe("main");
+    expect(main.preset.intensity).toBe(1);
+    expect(["flash", "banner"]).toContain(main.preset.style);
+  });
+
+  it("applyPhoneMainPreset converts dragon to flash", () => {
+    const phone = applyPhoneMainPreset({
+      enabled: true,
+      style: "dragon",
+      durationMs: 3000,
+      intensity: 3,
+      sound: null,
+      soundVolume: 0.5,
+      blockBoardUpdate: false,
+    });
+    expect(phone.style).toBe("flash");
+    expect(phone.intensity).toBe(1);
+    expect(phone.durationMs).toBeLessThanOrEqual(1200);
   });
 
   it("returns null when all triggers disabled", () => {
