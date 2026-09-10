@@ -281,6 +281,12 @@ export function DealerShell({
       return;
     }
     store.importResults(imported.results);
+    if (!("error" in envelope) && (envelope.players.length > 0 || envelope.bets.length > 0)) {
+      toast.info(
+        `${envelope.players.length} players, ${envelope.bets.length} bets in this export — not imported`,
+        { testId: "dealer-toast" },
+      );
+    }
     for (const warning of imported.warnings) {
       toast.info(warning, { testId: "dealer-toast" });
     }
