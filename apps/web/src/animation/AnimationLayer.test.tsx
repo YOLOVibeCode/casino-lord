@@ -60,15 +60,22 @@ describe("AnimationLayer", () => {
     expect(document.querySelector('[data-style="dragon"]')).toBeTruthy();
   });
 
-  it("renders shake marker and omits spin/chips/none", () => {
+  it("renders spin and chips segments", () => {
     render(
       <AnimationLayer
-        segments={[segment("shake"), segment("spin"), segment("chips"), segment("none")]}
+        segments={[
+          segment("spin", { vars: { pocket: "17" } }),
+          segment("chips", { anchor: { x: 100, y: 200 } }),
+        ]}
       />,
     );
+    expect(document.querySelector('[data-style="spin"][data-phase="main"]')).toBeTruthy();
+    expect(document.querySelector('[data-style="chips"][data-phase="main"]')).toBeTruthy();
+  });
+
+  it("renders shake marker and omits none", () => {
+    render(<AnimationLayer segments={[segment("shake"), segment("none")]} />);
     expect(document.querySelector('[data-style="shake"]')).toBeTruthy();
-    expect(document.querySelector('[data-style="spin"]')).toBeNull();
-    expect(document.querySelector('[data-style="chips"]')).toBeNull();
     expect(document.querySelector('[data-style="none"]')).toBeNull();
   });
 });

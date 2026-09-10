@@ -78,6 +78,30 @@ describe("AnimationEditorTab", () => {
     expect(store.events.some((e) => e.type === "ANIMATION_PREVIEW")).toBe(true);
   });
 
+  it("lists spin and chips as enabled style options", () => {
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(<AnimationEditorTab store={store} module={baccarat} />);
+    expandEventRow("banker_win");
+
+    const select = screen.getByTestId("banker_win-style") as HTMLSelectElement;
+    const spin = select.querySelector('option[value="spin"]') as HTMLOptionElement;
+    const chips = select.querySelector('option[value="chips"]') as HTMLOptionElement;
+    expect(spin).toBeTruthy();
+    expect(spin.disabled).toBe(false);
+    expect(spin.textContent).toBe("Spin");
+    expect(chips).toBeTruthy();
+    expect(chips.disabled).toBe(false);
+    expect(chips.textContent).toBe("Chips");
+  });
+
   it("removes override on reset", () => {
     const store = createTableStore({
       game: "baccarat",

@@ -139,6 +139,49 @@ describe("buildAnimationTimeline", () => {
     expect(reduced.intensity).toBe(1);
   });
 
+  it("applyReducedMotion converts spin and chips to flash", () => {
+    for (const style of ["spin", "chips"] as const) {
+      const reduced = applyReducedMotion({
+        enabled: true,
+        style,
+        durationMs: 1800,
+        intensity: 2,
+        sound: null,
+        soundVolume: 0.5,
+        blockBoardUpdate: false,
+      });
+      expect(reduced.style).toBe("flash");
+      expect(reduced.intensity).toBe(1);
+    }
+  });
+
+  it("buildAnimationTimeline collapses spin preset under reduced motion", () => {
+    const spinDefs: AnimationEventDef[] = [
+      {
+        id: "red_win",
+        label: "red win",
+        defaultPreset: {
+          enabled: true,
+          style: "spin",
+          durationMs: 1800,
+          intensity: 2,
+          sound: null,
+          soundVolume: 0.6,
+          blockBoardUpdate: true,
+        },
+      },
+    ];
+    const timeline = buildAnimationTimeline(
+      [{ eventId: "red_win", vars: { pocket: "1" } }],
+      spinDefs,
+      {
+        prefersReducedMotion: true,
+        resolvePreset: (id) => spinDefs.find((d) => d.id === id)!.defaultPreset,
+      },
+    );
+    expect(timeline!.segments[0]!.preset.style).toBe("flash");
+  });
+
   it("reports interruption while timeline still running", () => {
     const timeline = buildAnimationTimeline(
       [{ eventId: "player_win", vars: { total: 7 } }],
