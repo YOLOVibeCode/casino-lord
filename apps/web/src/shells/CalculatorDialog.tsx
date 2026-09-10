@@ -95,7 +95,7 @@ export function CalculatorDialog({ store, module, rules, onClose }: CalculatorDi
                     </div>
                     <div class="calculator-dialog__returns">
                       <div>+{row.profit}</div>
-                      <div class="calculator-dialog__bet-meta">ret {row.returned}</div>
+                      <div class="calculator-dialog__bet-meta">returns {row.returned}</div>
                     </div>
                   </div>
                 ))}
