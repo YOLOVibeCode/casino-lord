@@ -185,7 +185,7 @@ describe("DisplayShell", () => {
     });
 
     expect(screen.getByTestId("history-toast").textContent).toMatch(/history re-evaluated/i);
-    expect(screen.getByTestId("history-toast").textContent).toMatch(/1 bet\(s\) affected/i);
+    expect(screen.getByTestId("history-toast").textContent).toMatch(/1 bet affected/i);
   });
 
   it("activates idle attract after 90s without events and clears on next event", () => {
@@ -220,6 +220,59 @@ describe("DisplayShell", () => {
     expect(screen.getByTestId("display-shell").className).not.toContain(
       "display-shell--idle-attract",
     );
+  });
+
+  it("auto-dismisses series leaderboard after 15s but keeps session leaderboard", () => {
+    vi.useFakeTimers();
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    store.emit({ type: "PARTICIPATION_CHANGED", participation: houseSettings().participation });
+    store.emit({
+      type: "PLAYER_JOINED",
+      player: {
+        id: "p1",
+        name: "Ana",
+        color: "#f00",
+        status: "active",
+        joinedAt: "2026-01-01T00:00:01.000Z",
+      },
+    });
+    store.emit({ type: "BANK_ISSUED", playerId: "p1", amount: 500, reason: "buyin" });
+
+    render(
+      <DisplayShell
+        store={store}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+
+    act(() => {
+      store.emit({ type: "SERIES_ENDED", seriesId: "s1" });
+    });
+    expect(screen.getByTestId("leaderboard-interstitial")).toBeTruthy();
+
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+    expect(screen.queryByTestId("leaderboard-interstitial")).toBeNull();
+
+    act(() => {
+      store.emit({ type: "SESSION_ENDED" });
+    });
+    expect(screen.getByTestId("leaderboard-interstitial")).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+    expect(screen.getByTestId("leaderboard-interstitial")).toBeTruthy();
   });
 
   it("shows offline banner and reconnecting pill from sync connection state", () => {

@@ -28,6 +28,7 @@ import { useAnimationRuntime } from "../animation/useAnimationRuntime.js";
 import { useStore } from "../hooks/use-store.js";
 import { currentSeriesCommit } from "../table/meta.js";
 import { formatBoardLabel } from "../i18n/board-labels.js";
+import { formatPlural } from "../i18n/plural.js";
 import { BettingStrip } from "./BettingStrip.js";
 import { LeaderboardInterstitial } from "./LeaderboardInterstitial.js";
 import { describeResultLine } from "./PlayerShell.js";
@@ -141,8 +142,10 @@ export function DisplayShell({
   const settlementTicker = settledRound
     ? getSettlementTicker(composed.platform, settledRound.id)
     : "";
+  const latestEventSeq = store.events.at(-1)?.seq ?? 0;
 
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardPersistent, setLeaderboardPersistent] = useState(false);
   const [historyToast, setHistoryToast] = useState<string | null>(null);
   const [idleAttractActive, setIdleAttractActive] = useState(false);
   const lastLeaderboardSeq = useRef(0);
@@ -167,8 +170,16 @@ export function DisplayShell({
     );
     if (triggerEvents.length === 0) return;
     lastLeaderboardSeq.current = Math.max(...triggerEvents.map((e) => e.seq));
+    const lastTrigger = triggerEvents.at(-1);
+    setLeaderboardPersistent(lastTrigger?.type === "SESSION_ENDED");
     setShowLeaderboard(true);
-  }, [store.events]);
+  }, [latestEventSeq, store]);
+
+  useEffect(() => {
+    if (!showLeaderboard || leaderboardPersistent) return;
+    const id = setTimeout(() => setShowLeaderboard(false), 15_000);
+    return () => clearTimeout(id);
+  }, [showLeaderboard, leaderboardPersistent]);
 
   useEffect(() => {
     const last = store.events.at(-1);
@@ -184,7 +195,7 @@ export function DisplayShell({
       }
     }
     prevSettlementsRef.current = composed.platform.settlements;
-  }, [store.events, composed.platform.settlements]);
+  }, [latestEventSeq, composed.platform.settlements]);
 
   useEffect(
     () => () => {
@@ -192,8 +203,6 @@ export function DisplayShell({
     },
     [],
   );
-
-  const latestEventSeq = store.events.at(-1)?.seq ?? 0;
 
   useEffect(() => {
     if (latestEventSeq !== lastEventSeq.current) {
@@ -273,7 +282,7 @@ export function DisplayShell({
         ? module.describeResult(last.result.data, rules)
         : describeResultLine(module, rules, composed.module, resultId);
     setLiveAnnouncement(`${module.resultLabel} ${resultNumber}: ${description}`);
-  }, [store.events, composed.module, module, rules]);
+  }, [latestEventSeq, composed.module, module, rules, store]);
 
   useEffect(() => {
     if (round?.status !== "open" || !round.closesAt) return;
@@ -551,6 +560,7 @@ export function DisplayShell({
         <LeaderboardInterstitial
           byBankroll={topByBankroll}
           byNet={topByNet}
+          persistent={leaderboardPersistent}
           onDismiss={() => setShowLeaderboard(false)}
         />
       )}
