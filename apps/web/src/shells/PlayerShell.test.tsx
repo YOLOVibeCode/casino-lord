@@ -80,8 +80,8 @@ describe("PlayerShell", () => {
 
     fireEvent.click(screen.getByTestId("chip-denom-100"));
     const zone = screen.getByTestId("felt-zone-banker");
-    fireEvent.mouseDown(zone);
-    fireEvent.mouseUp(zone);
+    fireEvent.pointerDown(zone, { pointerId: 1 });
+    fireEvent.pointerUp(zone, { pointerId: 1 });
     fireEvent.click(screen.getByTestId("bet-slip-place"));
 
     expect(emitSpy).toHaveBeenCalledWith(
@@ -112,8 +112,8 @@ describe("PlayerShell", () => {
 
     fireEvent.click(screen.getByTestId("chip-denom-100"));
     const zone = screen.getByTestId("felt-zone-banker");
-    fireEvent.mouseDown(zone);
-    fireEvent.mouseUp(zone);
+    fireEvent.pointerDown(zone, { pointerId: 1 });
+    fireEvent.pointerUp(zone, { pointerId: 1 });
     expect(screen.getByTestId("player-toast").textContent).toContain("Insufficient");
   });
 
@@ -127,8 +127,8 @@ describe("PlayerShell", () => {
 
     fireEvent.click(screen.getByTestId("chip-denom-100"));
     const zone = screen.getByTestId("felt-zone-banker");
-    fireEvent.mouseDown(zone);
-    fireEvent.mouseUp(zone);
+    fireEvent.pointerDown(zone, { pointerId: 1 });
+    fireEvent.pointerUp(zone, { pointerId: 1 });
     expect(screen.getByTestId("player-toast").textContent).toContain("Maximum");
   });
 

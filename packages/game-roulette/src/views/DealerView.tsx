@@ -34,12 +34,6 @@ export interface DealerViewProps {
   haptics?: boolean;
 }
 
-function tapHaptic(enabled: boolean): void {
-  if (enabled && typeof navigator.vibrate === "function") {
-    navigator.vibrate(10);
-  }
-}
-
 function hintLine(state: RouletteState, rules: RouletteRules): string {
   if (state.livePending !== null) {
     const info = classifyPocket(state.livePending, rules);
@@ -91,7 +85,6 @@ export function DealerView({ state, rules, emit, record, haptics = false }: Deal
         emitPending(null);
         return;
       }
-      tapHaptic(haptics);
       const resolved = fromGridPocket(pocket);
       if (rules.autoConfirm) {
         record({ pocket: resolved }, { quick: false });
@@ -100,7 +93,7 @@ export function DealerView({ state, rules, emit, record, haptics = false }: Deal
       }
       emitPending(resolved);
     },
-    [emitPending, record, rules.autoConfirm, haptics],
+    [emitPending, record, rules.autoConfirm],
   );
 
   const handleNoSpin = useCallback(() => {
@@ -131,6 +124,7 @@ export function DealerView({ state, rules, emit, record, haptics = false }: Deal
           selected={toGridPocket(state.livePending)}
           onSelect={handleSelect}
           requireConfirm={false}
+          haptics={haptics}
         />
       </div>
 
