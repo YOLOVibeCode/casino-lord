@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import "fake-indexeddb/auto";
-import { cleanup, render, screen } from "@testing-library/preact";
+import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LocationProvider, Router } from "preact-iso";
 
@@ -54,7 +54,9 @@ vi.mock("../table/synced-store.js", async (importOriginal) => {
   };
 });
 
+import { PLAYER_COLORS } from "@casino-lord/core";
 import { baccaratModule, DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
+import { getTableMeta } from "../sync/api.js";
 import { houseSettings } from "@casino-lord/core/testing";
 import { PlayPage } from "./PlayPage.js";
 import { createTableStore } from "../table/store.js";
@@ -178,5 +180,38 @@ describe("PlayPage", () => {
     });
     expect(clearPlayerToken).toHaveBeenCalledWith("K7X2PQ");
     expect(screen.getByText(/join link is no longer valid/i)).toBeTruthy();
+  });
+
+  it("shows name counter and disables join for short names", async () => {
+    renderPlayPage("/play/K7X2PQ");
+    const input = await screen.findByTestId("player-name-input");
+    fireEvent.input(input, { target: { value: "A" } });
+    expect(screen.getByTestId("name-counter").textContent).toBe("1/16");
+    expect(screen.getByTestId("join-btn")).toHaveProperty("disabled", true);
+    expect(screen.getByTestId("join-disabled-reason").textContent).toMatch(/2–16/);
+  });
+
+  it("enables join when name is valid", async () => {
+    renderPlayPage("/play/K7X2PQ");
+    const input = await screen.findByTestId("player-name-input");
+    fireEvent.input(input, { target: { value: "Ana" } });
+    expect(screen.getByTestId("name-counter").textContent).toBe("3/16");
+    expect(screen.getByTestId("join-btn")).toHaveProperty("disabled", false);
+  });
+
+  it("disables taken colours and selects first available", async () => {
+    vi.mocked(getTableMeta).mockResolvedValueOnce({
+      exists: true,
+      game: "baccarat",
+      participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+      joiningOpen: true,
+      takenColors: [PLAYER_COLORS[0]!],
+    });
+    renderPlayPage("/play/K7X2PQ");
+    const takenSwatch = await screen.findByTestId(`color-${PLAYER_COLORS[0]}`);
+    expect(takenSwatch).toHaveProperty("disabled", true);
+    expect(screen.getByText("taken")).toBeTruthy();
+    const availableSwatch = screen.getByTestId(`color-${PLAYER_COLORS[1]}`);
+    expect(availableSwatch.className).toContain("play-page__swatch--selected");
   });
 });

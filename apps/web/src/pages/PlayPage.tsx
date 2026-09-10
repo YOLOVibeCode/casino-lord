@@ -20,6 +20,13 @@ type Phase = "loading" | "join" | "pending" | "playing" | "error";
 const BAD_TOKEN_JOIN_MESSAGE =
   "This join link is no longer valid. Enter your name to join as a new player.";
 
+const NAME_HELPER = "Display name must be 2–16 characters.";
+const NAME_MAX_LENGTH = 16;
+
+function firstAvailableColor(takenColors: string[]): string {
+  return PLAYER_COLORS.find((c) => !takenColors.includes(c)) ?? PLAYER_COLORS[0]!;
+}
+
 const COLOR_LABELS = [
   "Red",
   "Blue",
@@ -46,6 +53,7 @@ export function PlayPage(_props: { path?: string }) {
   const [color, setColor] = useState<string>(PLAYER_COLORS[0]!);
   const [store, setStore] = useState<SyncStore | null>(null);
   const [playerName, setPlayerName] = useState("");
+  const [takenColors, setTakenColors] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isSyncConfigured()) {
@@ -76,6 +84,14 @@ export function PlayPage(_props: { path?: string }) {
             setError("Player mode is not enabled on this table");
           }
           return;
+        }
+
+        const taken = meta.takenColors ?? [];
+        if (!cancelled) {
+          setTakenColors(taken);
+          setColor((current) =>
+            taken.includes(current) ? firstAvailableColor(taken) : current,
+          );
         }
 
         const queryToken = query.t;
@@ -203,6 +219,10 @@ export function PlayPage(_props: { path?: string }) {
     return unsub;
   }, [store]);
 
+  const trimmedNameLength = name.trim().length;
+  const nameValidation = validatePlayerName(name);
+  const joinDisabledReason = nameValidation.ok ? "" : nameValidation.error;
+
   const handleJoin = async () => {
     const validated = validatePlayerName(name);
     if (!validated.ok) {
@@ -248,41 +268,57 @@ export function PlayPage(_props: { path?: string }) {
         <h1>Join table {code}</h1>
         <p class="play-page__disclaimer">Play chips — no cash value</p>
         <label class="play-page__field">
-          <span>Display name</span>
+          <span class="play-page__field-header">
+            <span>Display name</span>
+            <span class="play-page__name-counter" data-testid="name-counter">
+              {trimmedNameLength}/{NAME_MAX_LENGTH}
+            </span>
+          </span>
           <input
             type="text"
             name="nickname"
             autocomplete="nickname"
             value={name}
-            maxLength={16}
+            maxLength={NAME_MAX_LENGTH}
             onInput={(e) => setName((e.target as HTMLInputElement).value)}
             data-testid="player-name-input"
           />
+          <span class="play-page__name-helper">{NAME_HELPER}</span>
         </label>
         <fieldset class="play-page__colors">
           <legend>Colour</legend>
           <div class="play-page__swatch-row">
-            {PLAYER_COLORS.map((c, i) => (
-              <div key={c} class="play-page__swatch-wrap">
-                <button
-                  type="button"
-                  class={`play-page__swatch${color === c ? " play-page__swatch--selected" : ""}`}
-                  style={{ background: c }}
-                  aria-label={COLOR_LABELS[i] ?? c}
-                  aria-pressed={color === c}
-                  onClick={() => setColor(c)}
-                  data-testid={`color-${c}`}
-                />
-                <span class="play-page__swatch-label">{COLOR_LABELS[i] ?? c}</span>
-              </div>
-            ))}
+            {PLAYER_COLORS.map((c, i) => {
+              const isTaken = takenColors.includes(c);
+              return (
+                <div key={c} class="play-page__swatch-wrap">
+                  <button
+                    type="button"
+                    class={`play-page__swatch${color === c ? " play-page__swatch--selected" : ""}${isTaken ? " play-page__swatch--taken" : ""}`}
+                    style={{ background: c }}
+                    aria-label={isTaken ? `${COLOR_LABELS[i] ?? c} taken` : (COLOR_LABELS[i] ?? c)}
+                    aria-pressed={color === c}
+                    disabled={isTaken}
+                    onClick={() => setColor(c)}
+                    data-testid={`color-${c}`}
+                  />
+                  <span class="play-page__swatch-label">{isTaken ? "taken" : (COLOR_LABELS[i] ?? c)}</span>
+                </div>
+              );
+            })}
           </div>
         </fieldset>
         {error && <p class="play-page__error">{error}</p>}
         <div class="play-page__join-wrap">
+          {joinDisabledReason && (
+            <p class="play-page__join-hint" data-testid="join-disabled-reason">
+              {joinDisabledReason}
+            </p>
+          )}
           <button
             type="button"
             class="play-page__join"
+            disabled={!nameValidation.ok}
             onClick={() => void handleJoin()}
             data-testid="join-btn"
           >

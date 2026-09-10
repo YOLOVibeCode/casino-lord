@@ -38,8 +38,12 @@ describe("player REST routes", () => {
     expect(joined.playerId).toBeTruthy();
     expect(joined.playerToken).toHaveLength(32);
 
-    const meta = await fetch(`${server.url}/tables/${code}`).then((r) => r.json());
+    const meta = (await fetch(`${server.url}/tables/${code}`).then((r) => r.json())) as {
+      players: number;
+      takenColors: string[];
+    };
     expect(meta.players).toBe(1);
+    expect(meta.takenColors).toEqual([PLAYER_COLORS[0]]);
   });
 
   it("broadcasts PLAYER_JOINED to connected sockets when a player joins over REST", async () => {
@@ -96,6 +100,30 @@ describe("player REST routes", () => {
       body: JSON.stringify({ name: "Ana", color: PLAYER_COLORS[0] }),
     });
     expect(response.status).toBe(403);
+  });
+
+  it("includes pending player colours in takenColors", async () => {
+    const server = await boot();
+    const createResponse = await fetch(`${server.url}/tables`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        game: "baccarat",
+        participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+        settings: { players: { joinApproval: true } },
+      }),
+    });
+    const { code } = (await createResponse.json()) as { code: string };
+
+    await joinPlayerViaRest(server.url, code, {
+      name: "Cy",
+      color: PLAYER_COLORS[2]!,
+    });
+
+    const meta = (await fetch(`${server.url}/tables/${code}`).then((r) => r.json())) as {
+      takenColors: string[];
+    };
+    expect(meta.takenColors).toEqual([PLAYER_COLORS[2]]);
   });
 
   it("reissue rotates token and requires dealer auth", async () => {
