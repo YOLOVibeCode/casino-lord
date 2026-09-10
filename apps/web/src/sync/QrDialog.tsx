@@ -47,12 +47,14 @@ export function QrDialog({ entries, onClose, playerModeOn, joinUrl }: QrDialogPr
   );
 
   const stableKey = useMemo(() => entriesKey(displayEntries), [displayEntries]);
+  const displayEntriesRef = useRef(displayEntries);
+  displayEntriesRef.current = displayEntries;
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const next: Record<string, string> = {};
-      for (const entry of displayEntries) {
+      for (const entry of displayEntriesRef.current) {
         if (!entry.url) continue;
         next[entry.label] = await qrDataUrl(entry.url);
       }
