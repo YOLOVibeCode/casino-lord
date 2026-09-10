@@ -242,6 +242,39 @@
   font-variant-numeric: tabular-nums;
 }
 
+.player-shell__session-summary h2 {
+  margin: 0 0 1rem;
+  font-size: max(1.125rem, 18px);
+}
+
+.player-shell__summary-stats {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.35rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.player-shell__summary-stats dt {
+  opacity: 0.85;
+}
+
+.player-shell__summary-stats dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.player-shell__verify-link {
+  display: inline-block;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
 .player-shell button,
 .player-shell .chip-tray__denom,
 .player-shell .felt-zones__zone {

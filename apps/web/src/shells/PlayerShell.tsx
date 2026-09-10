@@ -4,6 +4,7 @@ import {
   getCurrentRound,
   getRoundBets,
   getRoundSettlements,
+  sortPlayers,
   type BetCatalogue,
   type BetDef,
   type PlacedBet,
@@ -28,6 +29,7 @@ import { useCountUp } from "../hooks/use-count-up.js";
 import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { useStore } from "../hooks/use-store.js";
 import { tapHaptic } from "../settings/haptics.js";
+import { tableUrl } from "../sync/urls.js";
 import { getGame } from "../table/games.js";
 import { currentSeriesCommit } from "../table/meta.js";
 import type { TableStore } from "../table/store.js";
@@ -140,6 +142,19 @@ export function buildHistoryRows(
       runningNet: null,
     };
   });
+}
+
+function sumSettlementProfit(platform: PlatformState, playerId: string): number {
+  let total = 0;
+  for (const settlements of Object.values(platform.settlements)) {
+    for (const s of settlements) {
+      const bet = platform.bets.find((b) => b.id === s.betId);
+      if (bet?.playerId === playerId) {
+        total += s.profit;
+      }
+    }
+  }
+  return total;
 }
 
 function buildSettlementSummary(
@@ -584,6 +599,21 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
   const buyInByPlayer = buildBuyInMap(store.events);
   const leaderboard = buildLeaderboard(composed.platform, buyInByPlayer);
+  const sessionEnded = store.events.some((e) => e.type === "SESSION_ENDED");
+  const chipsIssued = playerId ? (buyInByPlayer[playerId] ?? 0) : 0;
+  const sessionNet = houseBank
+    ? bankroll - chipsIssued
+    : playerId
+      ? sumSettlementProfit(composed.platform, playerId)
+      : 0;
+  const leaderboardRank =
+    playerId && settings.players.showBankrolls
+      ? sortPlayers(
+          composed.platform.players,
+          composed.platform,
+          settings.players.playersSort,
+        ).findIndex((p) => p.id === playerId) + 1
+      : null;
 
   const historyRows = useMemo(
     () =>
@@ -645,11 +675,43 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       )}
 
       <div class="player-shell__status" data-testid="player-status-bar">
-        {statusLine}
+        {sessionEnded ? "Session ended" : statusLine}
       </div>
 
       <PlayerBettingContext.Provider value={bettingContext}>
-        {activeTab === "play" && (
+        {sessionEnded && (
+          <div class="player-shell__panel player-shell__session-summary" data-testid="player-session-summary">
+            <h2>Session summary</h2>
+            <dl class="player-shell__summary-stats">
+              <dt>Chips issued</dt>
+              <dd data-testid="player-session-issued">{chipsIssued.toLocaleString()}</dd>
+              <dt>Net</dt>
+              <dd data-testid="player-session-net">
+                {sessionNet >= 0 ? "+" : ""}
+                {sessionNet.toLocaleString()}
+              </dd>
+              <dt>Final bankroll</dt>
+              <dd data-testid="player-session-bankroll">{bankroll.toLocaleString()}</dd>
+              {leaderboardRank !== null && leaderboardRank > 0 && (
+                <>
+                  <dt>Leaderboard rank</dt>
+                  <dd data-testid="player-session-rank">#{leaderboardRank}</dd>
+                </>
+              )}
+            </dl>
+            {virtualTable && (
+              <a
+                href={tableUrl(`/verify?code=${store.code}`)}
+                class="player-shell__verify-link"
+                data-testid="player-session-verify-link"
+              >
+                Verify fairness
+              </a>
+            )}
+          </div>
+        )}
+
+        {activeTab === "play" && !sessionEnded && (
           <>
             <main class="player-shell__main">
               {createElement(PlayerView, {
