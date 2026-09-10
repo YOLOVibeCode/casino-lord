@@ -406,15 +406,17 @@ export function DisplayShell({
       }}
     >
       <header class="display-shell__header">
-        <span
+        <button
+          type="button"
           class="display-shell__logo"
+          aria-label="Table info"
           onClick={(e) => {
             e.stopPropagation();
             handleLogoTap();
           }}
         >
           ♠ CASINO LORD
-        </span>
+        </button>
         <span>{module.name}</span>
         <span>Table {store.code}</span>
         <span>
@@ -437,8 +439,8 @@ export function DisplayShell({
             </span>
           ))}
         </div>
-        {displayQrUrl && <QrBadge url={displayQrUrl} />}
-        {playUrl && <QrBadge url={playUrl} title="Join QR" />}
+        {displayQrUrl && <QrBadge url={displayQrUrl} tableCode={store.code} />}
+        {playUrl && <QrBadge url={playUrl} title="Join QR" tableCode={store.code} />}
         {syncStore && connectionState === "reconnecting" && (
           <span class="display-shell__connection-pill" data-testid="connection-pill">
             Reconnecting…

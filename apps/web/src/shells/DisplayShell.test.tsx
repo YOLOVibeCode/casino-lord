@@ -62,7 +62,7 @@ describe("DisplayShell", () => {
     );
 
     expect(screen.getByTestId("display-shell")).toBeTruthy();
-    expect(screen.getByText(/CASINO LORD/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Table info" }).textContent).toMatch(/CASINO LORD/);
   });
 
   it("shows on-board VIRTUAL tag when outcomeSource is virtual", () => {
