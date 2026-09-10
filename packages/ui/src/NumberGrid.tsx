@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
+import { tapHaptic } from "./haptics.js";
 import "./number-grid.css";
 
 export type NumberGridPocket = 0 | "00" | number;
@@ -45,6 +46,17 @@ export interface NumberGridProps {
   requireConfirm?: boolean;
   onConfirm?: () => void;
   disabled?: boolean;
+  haptics?: boolean;
+}
+
+function shouldIgnoreKeyboard(e: KeyboardEvent): boolean {
+  const target = e.target;
+  if (target instanceof HTMLElement) {
+    if (target.closest('input, textarea, select, [contenteditable="true"]')) {
+      return true;
+    }
+  }
+  return document.querySelector('[role="dialog"][aria-modal="true"]') !== null;
 }
 
 export function NumberGrid({
@@ -54,6 +66,7 @@ export function NumberGrid({
   requireConfirm = false,
   onConfirm,
   disabled = false,
+  haptics = false,
 }: NumberGridProps) {
   const [digitBuffer, setDigitBuffer] = useState("");
 
@@ -62,10 +75,11 @@ export function NumberGrid({
   const trySelectPocket = useCallback(
     (pocket: NumberGridPocket) => {
       if (disabled) return;
+      tapHaptic(haptics);
       onSelect(pocket);
       clearBuffer();
     },
-    [clearBuffer, disabled, onSelect],
+    [clearBuffer, disabled, haptics, onSelect],
   );
 
   const tryConfirm = useCallback(() => {
@@ -94,7 +108,7 @@ export function NumberGrid({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (disabled) return;
+      if (disabled || shouldIgnoreKeyboard(e)) return;
       const key = e.key;
 
       if (key === "Backspace") {

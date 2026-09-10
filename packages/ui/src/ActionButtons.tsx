@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "preact/hooks";
+import { tapHaptic } from "./haptics.js";
 import "./action-buttons.css";
 
 export interface ActionButtonDef<Action> {
@@ -13,12 +14,7 @@ export interface ActionButtonsProps<Action> {
   countdownSec: number | null;
   countdownTotalSec?: number;
   onAction: (action: Action) => void;
-}
-
-function hapticTick(): void {
-  if (typeof navigator !== "undefined" && navigator.vibrate) {
-    navigator.vibrate(10);
-  }
+  haptics?: boolean;
 }
 
 export function ActionButtons<Action>({
@@ -26,16 +22,17 @@ export function ActionButtons<Action>({
   countdownSec,
   countdownTotalSec = 20,
   onAction,
+  haptics = false,
 }: ActionButtonsProps<Action>) {
   const lastSec = useRef<number | null>(null);
 
   useEffect(() => {
     if (countdownSec === null) return;
     if (lastSec.current !== countdownSec && (countdownSec === 10 || countdownSec === 5)) {
-      hapticTick();
+      tapHaptic(haptics);
     }
     lastSec.current = countdownSec;
-  }, [countdownSec]);
+  }, [countdownSec, haptics]);
 
   const progress = countdownSec !== null ? Math.max(0, countdownSec / countdownTotalSec) : null;
   const circumference = 2 * Math.PI * 36;
@@ -49,6 +46,7 @@ export function ActionButtons<Action>({
           <div key={def.id} class="action-buttons__btn-wrap">
             {countdownSec !== null && (
               <div class="action-buttons__countdown" data-testid="action-countdown-ring">
+                <span class="action-buttons__sr-only">{countdownSec} s left</span>
                 <svg viewBox="0 0 80 80" aria-hidden="true">
                   <circle class="action-buttons__countdown-track" cx="40" cy="40" r="36" />
                   <circle
