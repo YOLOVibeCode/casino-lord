@@ -24,6 +24,12 @@ describe("presets", () => {
     expect(substituteBannerText("PLAYER {total}", { total: 9 })).toBe("PLAYER 9");
   });
 
+  it("uses chips as default big_win platform preset", () => {
+    const module = asUntypedModule(createStubModule());
+    const preset = resolvePreset("big_win", module, {});
+    expect(preset.style).toBe("chips");
+  });
+
   it("falls back to module default preset", () => {
     const module = asUntypedModule(baccaratModule);
     const preset = resolvePreset("player_win", module, {});
