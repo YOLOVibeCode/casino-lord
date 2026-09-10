@@ -120,6 +120,45 @@
   }
 }
 
+.animation-layer__chips {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.animation-layer__chip {
+  position: absolute;
+  left: var(--chip-origin-x, 50%);
+  top: var(--chip-origin-y, 50%);
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 35%,
+    color-mix(in srgb, var(--anim-color, #d4af37) 80%, white),
+    var(--anim-color, #d4af37)
+  );
+  border: 2px solid color-mix(in srgb, var(--anim-color, #d4af37) 60%, white);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  animation: animation-chips-fly var(--anim-duration, 1s) ease-out forwards;
+}
+
+@keyframes animation-chips-fly {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(180px, -120px) scale(0.6);
+  }
+}
+
 .display-shell__module--shake {
   animation: animation-shake var(--anim-duration, 0.5s) ease-in-out;
 }

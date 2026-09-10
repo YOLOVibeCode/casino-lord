@@ -92,8 +92,11 @@ function toActiveSegment(
     intensity: preset.intensity,
     durationMs: segment.endMs - segment.startMs,
     ...(preset.text !== undefined ? { text: substituteBannerText(preset.text, vars) } : {}),
-    ...(preset.style === "burst" || preset.style === "particles" ? { anchor } : {}),
+    ...(preset.style === "burst" || preset.style === "particles" || preset.style === "chips"
+      ? { anchor }
+      : {}),
     ...(preset.style === "trail" || preset.style === "dragon" ? { path: path ?? [] } : {}),
+    ...(preset.style === "spin" ? { vars } : {}),
     phase: segment.phase,
   };
 }

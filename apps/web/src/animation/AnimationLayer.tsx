@@ -1,7 +1,9 @@
 import type { AnimationStyle } from "@casino-lord/core";
 import { createElement } from "preact";
 import { useEffect, useRef } from "preact/hooks";
+import { ChipsSegment } from "./chips-segment.js";
 import type { Point } from "./measure-path.js";
+import { SpinSegment } from "./spin-segment.js";
 import type { TimelinePhase } from "./scheduler.js";
 import "./animation-layer.css";
 
@@ -14,6 +16,7 @@ export interface ActiveSegment {
   text?: string;
   anchor?: Point;
   path?: Point[];
+  vars?: Record<string, string | number>;
   phase: TimelinePhase;
 }
 
@@ -287,11 +290,17 @@ function StyleSegment({ segment }: { segment: ActiveSegment }) {
     case "shake":
       return <div data-style="shake" data-phase={segment.phase} aria-hidden="true" />;
     case "spin":
-      // Roulette/craps wheel timing stub — module renders the graphic in a later milestone.
-      return null;
+      return <SpinSegment segment={segment} />;
     case "chips":
-      // Settlement chip ticker stub — player/display M5 slice.
-      return null;
+      return (
+        <ChipsSegment
+          color={segment.color}
+          intensity={segment.intensity}
+          durationMs={segment.durationMs}
+          anchor={segment.anchor ?? { x: 0, y: 0 }}
+          phase={segment.phase}
+        />
+      );
     default: {
       const _exhaustive: never = segment.style;
       return _exhaustive;

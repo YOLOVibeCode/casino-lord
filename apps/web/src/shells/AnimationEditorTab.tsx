@@ -31,8 +31,8 @@ const STYLE_OPTIONS: Array<{ value: AnimationStyle; label: string; disabled?: bo
   { value: "trail", label: "Trail" },
   { value: "dragon", label: "Dragon" },
   { value: "shake", label: "Shake" },
-  { value: "spin", label: "Spin (not yet available)", disabled: true },
-  { value: "chips", label: "Chips (not yet available)", disabled: true },
+  { value: "spin", label: "Spin" },
+  { value: "chips", label: "Chips" },
 ];
 
 const SOUND_OPTIONS = [
