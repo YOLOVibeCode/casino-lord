@@ -216,3 +216,64 @@ describe("DealerShell virtual panel", () => {
     expect(screen.getByTestId("virtual-empty").textContent).toBe("No hands yet — tap DEAL");
   });
 });
+
+describe("DealerShell virtual Force", () => {
+  afterEach(() => cleanup());
+
+  it("shows Force only when awaiting player action", () => {
+    const sendVirtual = vi.fn();
+    const storeTrigger = makeVirtualStore({
+      sendVirtual,
+      getVirtualStatus: () => ({ awaiting: "trigger" as const }),
+    });
+
+    renderDealerShell({
+      store: storeTrigger,
+      module: asUntypedModule(createStubModule()),
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+    expect(screen.queryByTestId("force-btn")).toBeNull();
+
+    cleanup();
+
+    const storeAction = makeVirtualStore({
+      sendVirtual,
+      getVirtualStatus: () => ({
+        awaiting: "action" as const,
+        turnPrompt: "Seat 3 to act",
+      }),
+    });
+
+    renderDealerShell({
+      store: storeAction,
+      module: asUntypedModule(createStubModule()),
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    const forceBtn = screen.getByTestId("force-btn");
+    expect(forceBtn.textContent).toBe("Force — skip Seat 3 to act");
+    expect(forceBtn.getAttribute("title")).toBe("Deals now even though it is a player's turn");
+    fireEvent.click(forceBtn);
+    expect(sendVirtual).toHaveBeenCalledWith("force");
+  });
+
+  it("uses Force deal fallback when turnPrompt is missing", () => {
+    const store = makeVirtualStore({
+      getVirtualStatus: () => ({ awaiting: "action" as const }),
+    });
+
+    renderDealerShell({
+      store,
+      module: asUntypedModule(createStubModule()),
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    expect(screen.getByTestId("force-btn").textContent).toBe("Force deal");
+  });
+});

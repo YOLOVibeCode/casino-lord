@@ -441,8 +441,11 @@ export function DealerShell({
     return unsub;
   }, [store, syncStore, toast]);
 
-  const showDealNow = virtualTable && virtualStatus?.awaiting === "trigger";
-  const dealNowDisabled = readOnly || !!virtualPending || forceTapped;
+  const showForceBtn = virtualTable && virtualStatus?.awaiting === "action";
+  const forceDisabled = readOnly || !!virtualPending || forceTapped;
+  const forceLabel = virtualStatus?.turnPrompt
+    ? `Force — skip ${virtualStatus.turnPrompt}`
+    : "Force deal";
 
   const handleConfirmClick = useCallback(() => {
     if (readOnly) return;
