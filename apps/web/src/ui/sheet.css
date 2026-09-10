@@ -1,0 +1,135 @@
+.ui-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.ui-sheet {
+  width: 100%;
+  max-width: 28rem;
+  background: var(--panel-bg, #1a1a1a);
+  color: var(--text-primary, #f5f5f5);
+  border: 1px solid var(--gold-hairline, rgba(212, 175, 55, 0.35));
+  border-radius: 0.75rem 0.75rem 0 0;
+  padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom, 0));
+}
+
+.ui-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  font-weight: 700;
+  font-size: max(1.125rem, 18px);
+}
+
+.ui-sheet__body {
+  margin-bottom: 1rem;
+  font-size: max(0.9375rem, 15px);
+  line-height: 1.45;
+  color: var(--text-muted, rgba(245, 245, 245, 0.85));
+  white-space: pre-wrap;
+}
+
+.ui-sheet__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ui-sheet__btn {
+  flex: 1;
+  min-height: 3rem;
+  border-radius: 8px;
+  border: 1px solid var(--gold-hairline, rgba(212, 175, 55, 0.35));
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font-size: max(1rem, 16px);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ui-sheet__btn--primary {
+  position: relative;
+  overflow: hidden;
+}
+
+.ui-sheet__btn--destructive {
+  border-color: rgba(244, 67, 54, 0.5);
+  color: #f44336;
+}
+
+.ui-sheet__btn--cancel {
+  background: transparent;
+}
+
+.ui-sheet__hold-progress {
+  position: absolute;
+  inset: 0;
+  background: rgba(244, 67, 54, 0.25);
+  transform-origin: left;
+  pointer-events: none;
+}
+
+.ui-sheet__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.ui-sheet__field label {
+  font-size: max(0.875rem, 14px);
+  opacity: 0.85;
+}
+
+.ui-sheet__input,
+.ui-sheet__textarea {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: max(1rem, 16px);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.ui-sheet__textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+.ui-sheet__error {
+  color: #e57373;
+  font-size: max(0.875rem, 14px);
+}
+
+.ui-sheet__preview {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: max(0.875rem, 14px);
+  color: var(--text-muted, rgba(245, 245, 245, 0.75));
+}
+
+.ui-sheet__secondary {
+  margin-bottom: 0.75rem;
+}
+
+.ui-sheet__secondary-btn {
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--gold-hairline, rgba(212, 175, 55, 0.35));
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font-size: max(0.9375rem, 15px);
+  cursor: pointer;
+}
