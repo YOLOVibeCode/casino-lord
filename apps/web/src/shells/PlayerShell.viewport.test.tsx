@@ -6,6 +6,7 @@ import { baccaratModule } from "@casino-lord/game-baccarat";
 import { DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
 import { houseSettings } from "@casino-lord/core/testing";
 import { cleanup, render, screen } from "@testing-library/preact";
+import { LocationProvider } from "preact-iso";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
@@ -20,6 +21,7 @@ beforeAll(() => {
   const style = document.createElement("style");
   style.textContent = `
     .player-shell__tab { min-height: 48px; min-width: 48px; width: 48px; height: 48px; }
+    .player-shell__settings { min-height: 48px; min-width: 48px; width: 48px; height: 48px; }
     .chip-tray__denom { min-width: 56px; min-height: 56px; width: 56px; height: 56px; }
     .chip-tray__clear { min-height: 48px; min-width: 48px; width: 48px; height: 48px; }
     .bet-slip__place { min-height: 64px; min-width: 48px; width: 100%; height: 64px; }
@@ -75,6 +77,7 @@ function setupPlayerStore(width: number, height: number) {
     ...store,
     getPlayerId: () => "p1",
     getConnectionState: () => "connected" as const,
+    getRejectReason: () => null,
   };
 
   return syncStore;
@@ -82,7 +85,11 @@ function setupPlayerStore(width: number, height: number) {
 
 function assertViewportLayout(width: number, height: number): void {
   const store = setupPlayerStore(width, height);
-  render(<PlayerShell store={store} playerName="Ana" />);
+  render(
+    <LocationProvider>
+      <PlayerShell store={store} playerName="Ana" />
+    </LocationProvider>,
+  );
 
   const bottomBar = screen.getByTestId("player-bottom-bar");
   const chipTray = screen.getByTestId("chip-tray");
@@ -125,7 +132,8 @@ function assertViewportLayout(width: number, height: number): void {
     placeBtn,
     screen.getByTestId("chip-tray-clear"),
     ...screen.getAllByTestId(/^chip-denom-/),
-    ...screen.getAllByRole("button", { name: /History|Leaderboard|Rules|Information/i }),
+    ...screen.getAllByRole("tab"),
+    screen.getByTestId("player-settings-open"),
   ];
   for (const btn of keyControls) {
     const style = window.getComputedStyle(btn);

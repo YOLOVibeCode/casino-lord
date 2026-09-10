@@ -26,6 +26,7 @@ import { DealerView } from "./views/DealerView.js";
 import { DisplayView } from "./views/DisplayView.js";
 import { PlayerView } from "./views/PlayerView.js";
 import { ResultDetailView } from "./views/ResultDetailView.js";
+import { describeBlackjackResult } from "./describe-result.js";
 import { RulesSettingsView } from "./views/RulesSettingsView.js";
 
 const playerActions: ActionDef<BlackjackAction>[] = [
@@ -183,5 +184,9 @@ export const blackjackModule: GameModule<
       results: result.rounds.map((r) => r.result),
       warnings: result.warnings,
     };
+  },
+
+  describeResult(result, rules) {
+    return describeBlackjackResult(result, rules);
   },
 };

@@ -41,4 +41,19 @@ describe("BetSlip", () => {
     );
     expect(screen.getByTestId("bet-slip-locked").textContent).toContain("Bets closed");
   });
+
+  it("shows idle message before first round", () => {
+    render(
+      <BetSlip
+        entries={[]}
+        total={0}
+        locked={false}
+        idle
+        canPlace={false}
+        onRemove={vi.fn()}
+        onPlace={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("bet-slip-idle").textContent).toContain("Bets open soon");
+  });
 });
