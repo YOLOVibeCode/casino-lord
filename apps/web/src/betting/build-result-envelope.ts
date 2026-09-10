@@ -1,4 +1,9 @@
-import { getClosedRound, type ComposedState, type ResultEnvelope } from "@casino-lord/core";
+import {
+  getClosedRound,
+  getCurrentSeriesResults,
+  type ComposedState,
+  type ResultEnvelope,
+} from "@casino-lord/core";
 
 export function buildResultEnvelope(
   composed: ComposedState<unknown>,
@@ -8,9 +13,7 @@ export function buildResultEnvelope(
   const closedRound = getClosedRound(composed.platform);
   return {
     id: opts.id,
-    index: Array.isArray((composed.module as { results?: unknown[] }).results)
-      ? (composed.module as { results: unknown[] }).results.length
-      : 0,
+    index: getCurrentSeriesResults(composed.platform).length,
     recordedAt: opts.now,
     quick: opts.quick,
     source: "physical",

@@ -1,7 +1,7 @@
 import { createElement, Fragment } from "preact";
 import { useMemo, useState } from "preact/hooks";
 import type { ComponentType } from "preact";
-import type { ResultEnvelope } from "@casino-lord/core";
+import { getCurrentSeriesResults, type ResultEnvelope } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { TableStore } from "../table/store.js";
 import { buildResultList, type ResultListItem } from "../table/result-envelopes.js";
@@ -48,11 +48,14 @@ function outcomeLetter(data: unknown): string {
 export function HistoryDialog({ store, module, rules, onClose, onEdit }: HistoryDialogProps) {
   const { confirm } = useConfirm();
   const composed = store.getComposed();
-  const moduleResults =
-    (composed.module as { results?: { id: string; data: unknown }[] }).results ?? [];
+  const seriesResults = getCurrentSeriesResults(composed.platform);
   const items = useMemo(
-    () => buildResultList(moduleResults, store.events),
-    [moduleResults, store.events],
+    () =>
+      buildResultList(
+        seriesResults.map((r) => ({ id: r.id, data: r.data })),
+        store.events,
+      ),
+    [seriesResults, store.events],
   );
   const newestFirst = useMemo(() => [...items].reverse(), [items]);
 

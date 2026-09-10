@@ -2,7 +2,7 @@ import { createElement } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { useLocation } from "preact-iso";
 import type { ComponentType } from "preact";
-import { buildBetsView, type ResultEnvelope } from "@casino-lord/core";
+import { buildBetsView, getCurrentSeriesResults, type ResultEnvelope } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
 import { tapHaptic } from "../settings/haptics.js";
@@ -165,8 +165,7 @@ export function DealerShell({
       store.emit(clearLiveInput);
     } else {
       betting.onDealerEntry();
-      const results = (composed.module as { results?: unknown[] }).results;
-      const nextIndex = (Array.isArray(results) ? results.length : 0) + 1;
+      const nextIndex = getCurrentSeriesResults(composed.platform).length + 1;
       store.record(confirmState.result, { quick: false });
       toastResultRecorded(confirmState.result, nextIndex);
       if (confirmState.autoSeries) {
@@ -207,8 +206,7 @@ export function DealerShell({
 
   const handleUndo = useCallback(() => {
     if (editingEnvelope) return;
-    const results = (composed.module as { results?: unknown[] }).results;
-    const count = Array.isArray(results) ? results.length : 0;
+    const count = getCurrentSeriesResults(composed.platform).length;
     if (count === 0) return;
 
     const check = store.canUndoLastResult();

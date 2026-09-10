@@ -1,5 +1,6 @@
 import {
   canUndoResult,
+  getCurrentSeriesResults,
   replay,
   resolveEffectiveRules,
   type ComposedState,
@@ -572,8 +573,8 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
 
   const canUndoLastResult = (): { ok: boolean; reason?: string } => {
     const composed = getComposed();
-    const results = (composed.module as { results?: { id: string }[] }).results;
-    if (!Array.isArray(results) || results.length === 0) {
+    const results = getCurrentSeriesResults(composed.platform);
+    if (results.length === 0) {
       return { ok: false, reason: "No result to undo." };
     }
     const last = results[results.length - 1]!;
@@ -611,8 +612,8 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       const check = canUndoLastResult();
       if (!check.ok) return;
       const composed = getComposed();
-      const results = (composed.module as { results?: { id: string }[] }).results;
-      if (!Array.isArray(results) || results.length === 0) return;
+      const results = getCurrentSeriesResults(composed.platform);
+      if (results.length === 0) return;
       void sendPersistedEvent({ type: "RESULT_UNDONE", resultId: results[results.length - 1]!.id });
     },
     editResult: (result) => {
