@@ -89,9 +89,7 @@ export function PlayPage(_props: { path?: string }) {
         const taken = meta.takenColors ?? [];
         if (!cancelled) {
           setTakenColors(taken);
-          setColor((current) =>
-            taken.includes(current) ? firstAvailableColor(taken) : current,
-          );
+          setColor((current) => (taken.includes(current) ? firstAvailableColor(taken) : current));
         }
 
         const queryToken = query.t;
@@ -302,7 +300,9 @@ export function PlayPage(_props: { path?: string }) {
                     onClick={() => setColor(c)}
                     data-testid={`color-${c}`}
                   />
-                  <span class="play-page__swatch-label">{isTaken ? "taken" : (COLOR_LABELS[i] ?? c)}</span>
+                  <span class="play-page__swatch-label">
+                    {isTaken ? "taken" : (COLOR_LABELS[i] ?? c)}
+                  </span>
                 </div>
               );
             })}

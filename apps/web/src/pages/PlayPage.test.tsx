@@ -62,11 +62,7 @@ import { PlayPage } from "./PlayPage.js";
 import { createTableStore } from "../table/store.js";
 import { asUntypedModule } from "../table/module-types.js";
 
-function buildMockStore(options?: {
-  onJoinError?: (code: string) => void;
-  rejectToken?: boolean;
-}) {
-
+function buildMockStore(options?: { onJoinError?: (code: string) => void; rejectToken?: boolean }) {
   const store = createTableStore({
     game: "baccarat",
     module: asUntypedModule(baccaratModule),

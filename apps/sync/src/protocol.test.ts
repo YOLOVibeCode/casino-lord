@@ -14,8 +14,8 @@ import {
 
 interface JoinedMessage {
   op: "joined";
-  events?: Array<{ seq: number }>;
-  snapshot?: Array<{ seq: number }>;
+  events?: Array<{ seq: number; type?: string }>;
+  snapshot?: Array<{ seq: number; type?: string }>;
 }
 
 const servers: Array<Awaited<ReturnType<typeof startTestServer>>> = [];
@@ -286,10 +286,7 @@ describe("sync protocol", () => {
     const display = connectClient(server.url);
     await new Promise<void>((resolve) => display.on("connect", () => resolve()));
     display.emit("message", { op: "join", code, role: "display" });
-    const displayJoined = await waitForMessage<JoinedMessage & { snapshot?: Array<{ type: string }> }>(
-      display,
-      (m) => m.op === "joined",
-    );
+    const displayJoined = await waitForMessage<JoinedMessage>(display, (m) => m.op === "joined");
     const snapshotTypes = (displayJoined.snapshot ?? []).map((e) => e.type);
     expect(snapshotTypes).toContain("SESSION_ENDED");
 
