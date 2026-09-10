@@ -5,6 +5,7 @@ import type { LayoutPreset, TableSettings } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { TableStore } from "../table/store.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
+import { parseChipDenominations } from "../settings/chip-denominations.js";
 import { AnimationEditorTab } from "./AnimationEditorTab.js";
 import "./settings-dialog.css";
 
@@ -17,7 +18,7 @@ export interface SettingsDialogProps {
   onClose: () => void;
 }
 
-type Tab = "rules" | "device" | "animations" | "bank" | "virtual";
+type Tab = "rules" | "device" | "animations" | "bank" | "players" | "virtual";
 
 export function SettingsDialog({
   store,
@@ -68,6 +69,14 @@ export function SettingsDialog({
             >
               Bank &amp; Betting
             </button>
+            <button
+              type="button"
+              class={`settings-dialog__tab${tab === "players" ? " settings-dialog__tab--active" : ""}`}
+              data-testid="tab-players"
+              onClick={() => setTab("players")}
+            >
+              Players
+            </button>
             {composed.platform.participation.outcomeSource === "virtual" && (
               <button
                 type="button"
@@ -109,6 +118,12 @@ export function SettingsDialog({
             )}
           {tab === "bank" && (
             <BankBettingSettingsForm
+              settings={tableSettings}
+              onPatch={(patch) => store.emit({ type: "SETTINGS_CHANGED", patch })}
+            />
+          )}
+          {tab === "players" && (
+            <PlayersSettingsForm
               settings={tableSettings}
               onPatch={(patch) => store.emit({ type: "SETTINGS_CHANGED", patch })}
             />
@@ -243,6 +258,42 @@ function BankBettingSettingsForm({
           />
         </label>
       </div>
+      <div class="settings-dialog__field">
+        <label>
+          Chip denominations (comma-separated)
+          <input
+            type="text"
+            data-testid="bank-chip-denominations"
+            defaultValue={settings.bank.chipDenominations.join(", ")}
+            onBlur={(e) => {
+              const parsed = parseChipDenominations((e.target as HTMLInputElement).value);
+              if (parsed) patchBank({ chipDenominations: parsed });
+            }}
+          />
+        </label>
+      </div>
+      <div class="settings-dialog__field">
+        <label>
+          Table name
+          <input
+            type="text"
+            data-testid="table-name"
+            value={settings.tableName ?? ""}
+            onChange={(e) => onPatch({ tableName: (e.target as HTMLInputElement).value })}
+          />
+        </label>
+      </div>
+      <div class="settings-dialog__field">
+        <label>
+          Currency (calculator)
+          <input
+            type="text"
+            data-testid="table-currency"
+            value={settings.currency ?? ""}
+            onChange={(e) => onPatch({ currency: (e.target as HTMLInputElement).value })}
+          />
+        </label>
+      </div>
       <div class="settings-dialog__checks">
         <label>
           <input
@@ -263,6 +314,91 @@ function BankBettingSettingsForm({
             onChange={(e) => patchBank({ autoBuyIn: (e.target as HTMLInputElement).checked })}
           />{" "}
           Auto buy-in on join
+        </label>
+      </div>
+    </>
+  );
+}
+
+function PlayersSettingsForm({
+  settings,
+  onPatch,
+}: {
+  settings: TableSettings;
+  onPatch: (patch: Partial<TableSettings>) => void;
+}) {
+  const patchPlayers = (patch: Partial<TableSettings["players"]>) => {
+    onPatch({ players: { ...settings.players, ...patch } });
+  };
+
+  return (
+    <>
+      <div class="settings-dialog__field">
+        <label>
+          Max players
+          <input
+            type="number"
+            min={2}
+            max={50}
+            data-testid="players-max"
+            value={settings.players.maxPlayers}
+            onChange={(e) => {
+              const n = Number((e.target as HTMLInputElement).value);
+              if (n >= 2 && n <= 50) patchPlayers({ maxPlayers: n });
+            }}
+          />
+        </label>
+      </div>
+      <div class="settings-dialog__field">
+        <label>
+          Player sort
+          <select
+            data-testid="players-sort"
+            value={settings.players.playersSort}
+            onChange={(e) =>
+              patchPlayers({
+                playersSort: (e.target as HTMLSelectElement).value as
+                  "bankroll" | "seat" | "joined",
+              })
+            }
+          >
+            <option value="bankroll">Bankroll</option>
+            <option value="seat">Seat</option>
+            <option value="joined">Joined</option>
+          </select>
+        </label>
+      </div>
+      <div class="settings-dialog__checks">
+        <label>
+          <input
+            type="checkbox"
+            data-testid="players-join-approval"
+            checked={settings.players.joinApproval}
+            onChange={(e) => patchPlayers({ joinApproval: (e.target as HTMLInputElement).checked })}
+          />{" "}
+          Require join approval
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            data-testid="players-show-bankrolls"
+            checked={settings.players.showBankrolls}
+            onChange={(e) =>
+              patchPlayers({ showBankrolls: (e.target as HTMLInputElement).checked })
+            }
+          />{" "}
+          Show bankrolls on display
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            data-testid="players-show-others-bets"
+            checked={settings.players.showOthersBets}
+            onChange={(e) =>
+              patchPlayers({ showOthersBets: (e.target as HTMLInputElement).checked })
+            }
+          />{" "}
+          Show others&apos; bets on phones
         </label>
       </div>
     </>
@@ -383,6 +519,40 @@ function DeviceSettingsForm({
   return (
     <>
       <div class="settings-dialog__field">
+        <label for="theme-select">Theme</label>
+        <select
+          id="theme-select"
+          data-testid="device-theme"
+          value={settings.theme}
+          onChange={(e) =>
+            onChange({ theme: (e.target as HTMLSelectElement).value as DeviceSettings["theme"] })
+          }
+        >
+          <option value="table-felt">Table Felt</option>
+          <option value="midnight">Midnight</option>
+          <option value="crimson">Crimson</option>
+          <option value="high-contrast">High Contrast</option>
+        </select>
+      </div>
+      <div class="settings-dialog__field">
+        <label for="board-language-select">Board language</label>
+        <select
+          id="board-language-select"
+          data-testid="device-board-language"
+          value={settings.boardLanguage}
+          onChange={(e) =>
+            onChange({
+              boardLanguage: (e.target as HTMLSelectElement)
+                .value as DeviceSettings["boardLanguage"],
+            })
+          }
+        >
+          <option value="EN">EN</option>
+          <option value="ZH">ZH</option>
+          <option value="EN+ZH">EN+ZH</option>
+        </select>
+      </div>
+      <div class="settings-dialog__field">
         <label for="layout-select">Layout preset</label>
         <select
           id="layout-select"
@@ -417,6 +587,15 @@ function DeviceSettingsForm({
             onChange={(e) => onChange({ roadFit: (e.target as HTMLInputElement).checked })}
           />{" "}
           Road fit
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            data-testid="device-animations"
+            checked={settings.animations}
+            onChange={(e) => onChange({ animations: (e.target as HTMLInputElement).checked })}
+          />{" "}
+          Animations
         </label>
         <label>
           <input
