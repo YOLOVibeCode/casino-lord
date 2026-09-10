@@ -5,12 +5,23 @@ import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { DisplayShell } from "../shells/DisplayShell.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
 import { SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
-import { tableUrl } from "../sync/urls.js";
 import { getGame } from "../table/games.js";
 import type { UntypedGameModule } from "../table/module-types.js";
+import { UpdatePromptProvider } from "../pwa/UpdatePrompt.js";
 import { createSyncedTableStore, waitForSyncReady } from "../table/synced-store.js";
 import type { SyncStore } from "../table/sync-store-types.js";
 import "./display-page.css";
+
+function isDisplayTableIdle(store: SyncStore): boolean {
+  const composed = store.getComposed();
+  if (composed.platform.rounds.some((round) => round.status === "open")) return false;
+  if (store.getVirtualPending?.()) return false;
+  const virtualStatus = store.getVirtualStatus();
+  if (virtualStatus?.awaiting === "action" || virtualStatus?.awaiting === "trigger") {
+    return false;
+  }
+  return true;
+}
 
 export function DisplayPage(_props: { path?: string }) {
   const { route } = useLocation();
@@ -127,26 +138,27 @@ export function DisplayPage(_props: { path?: string }) {
     );
   }
 
-  const displayQrUrl = tableUrl(`/display/${code}`);
+  const isTableIdle = isDisplayTableIdle(store);
 
   return (
-    <main class="display-page">
-      {offlineJoin && (
-        <div class="display-page__waiting" data-testid="reconnect-bar">
-          Reconnecting… ·{" "}
-          <button type="button" onClick={handleRetryConnect}>
-            Retry
-          </button>
-        </div>
-      )}
-      <DisplayShell
-        store={store}
-        module={store.getModule()}
-        rules={store.getRules()}
-        deviceSettings={deviceSettings}
-        displayQrUrl={displayQrUrl}
-        syncBaseUrl={getSyncBaseUrl()}
-      />
-    </main>
+    <UpdatePromptProvider unattended isTableIdle={isTableIdle}>
+      <main class="display-page">
+        {offlineJoin && (
+          <div class="display-page__waiting" data-testid="reconnect-bar">
+            Reconnecting… ·{" "}
+            <button type="button" onClick={handleRetryConnect}>
+              Retry
+            </button>
+          </div>
+        )}
+        <DisplayShell
+          store={store}
+          module={store.getModule()}
+          rules={store.getRules()}
+          deviceSettings={deviceSettings}
+          syncBaseUrl={getSyncBaseUrl()}
+        />
+      </main>
+    </UpdatePromptProvider>
   );
 }

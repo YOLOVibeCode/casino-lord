@@ -1,7 +1,37 @@
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { createContext } from "preact";
+import { useCallback, useContext, useEffect, useRef, useState } from "preact/hooks";
+import type { ComponentChildren } from "preact";
 import { useToast } from "../ui/Toast.js";
 import { getServiceWorkerRegistration, whenServiceWorkerReady } from "./sw-registration.js";
 import "./update-prompt.css";
+
+const IDLE_RELOAD_MS = 30_000;
+
+interface UpdatePromptContextValue {
+  unattended: boolean;
+  isTableIdle: boolean;
+}
+
+const UpdatePromptContext = createContext<UpdatePromptContextValue>({
+  unattended: false,
+  isTableIdle: true,
+});
+
+export function UpdatePromptProvider({
+  children,
+  unattended = false,
+  isTableIdle = true,
+}: {
+  children: ComponentChildren;
+  unattended?: boolean;
+  isTableIdle?: boolean;
+}) {
+  return (
+    <UpdatePromptContext.Provider value={{ unattended, isTableIdle }}>
+      {children}
+    </UpdatePromptContext.Provider>
+  );
+}
 
 function postSkipWaiting(worker: ServiceWorker): void {
   worker.postMessage({ type: "SKIP_WAITING" });
@@ -9,9 +39,17 @@ function postSkipWaiting(worker: ServiceWorker): void {
 
 export function UpdatePrompt() {
   const toast = useToast();
+  const { unattended, isTableIdle } = useContext(UpdatePromptContext);
   const [updateReady, setUpdateReady] = useState(false);
   const toastShown = useRef(false);
   const pendingReload = useRef(false);
+  const autoApplied = useRef(false);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unattendedRef = useRef(unattended);
+
+  useEffect(() => {
+    unattendedRef.current = unattended;
+  }, [unattended]);
 
   const reload = useCallback(() => {
     pendingReload.current = true;
@@ -38,10 +76,12 @@ export function UpdatePrompt() {
     const notifyUpdate = (): void => {
       if (toastShown.current) return;
       toastShown.current = true;
-      toast.info("New version available — Reload", {
-        testId: "pwa-update-toast",
-        durationMs: 20_000,
-      });
+      if (!unattendedRef.current) {
+        toast.info("New version available — Reload", {
+          testId: "pwa-update-toast",
+          durationMs: 20_000,
+        });
+      }
       setUpdateReady(true);
     };
 
@@ -81,7 +121,36 @@ export function UpdatePrompt() {
     };
   }, [toast]);
 
-  if (!updateReady) return null;
+  useEffect(() => {
+    if (!updateReady || !unattended || autoApplied.current) return;
+
+    if (isTableIdle) {
+      if (idleTimer.current) return;
+      idleTimer.current = setTimeout(() => {
+        idleTimer.current = null;
+        if (autoApplied.current || !unattendedRef.current) return;
+        autoApplied.current = true;
+        reload();
+      }, IDLE_RELOAD_MS);
+      return;
+    }
+
+    if (idleTimer.current) {
+      clearTimeout(idleTimer.current);
+      idleTimer.current = null;
+    }
+  }, [updateReady, unattended, isTableIdle, reload]);
+
+  useEffect(() => {
+    return () => {
+      if (idleTimer.current) {
+        clearTimeout(idleTimer.current);
+        idleTimer.current = null;
+      }
+    };
+  }, []);
+
+  if (!updateReady || unattended) return null;
 
   return (
     <div class="pwa-update-prompt">
