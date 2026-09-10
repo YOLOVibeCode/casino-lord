@@ -1,4 +1,5 @@
 import type { ComposedState, GameModule, TableEvent, TableMeta } from "@casino-lord/core";
+import { getCurrentSeriesResults } from "@casino-lord/core";
 
 export function countSeries(events: TableEvent[]): number {
   return events.filter((e) => e.type === "SERIES_STARTED").length;
@@ -23,11 +24,10 @@ export function buildTableMeta<State>(
   composed: ComposedState<State>,
   events: TableEvent[],
   module: GameModule<unknown, unknown, unknown, State>,
-  state: State,
+  _state: State,
 ): TableMeta {
   const seriesNumber = Math.max(1, countSeries(events));
-  const results = (state as { results?: unknown[] }).results;
-  const resultCount = Array.isArray(results) ? results.length : 0;
+  const resultCount = getCurrentSeriesResults(composed.platform).length;
 
   return {
     code: composed.platform.code,

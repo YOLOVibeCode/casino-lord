@@ -6,6 +6,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/pr
 import { afterEach, describe, expect, it } from "vitest";
 import { baccaratModule } from "@casino-lord/game-baccarat";
 import { DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
+import { DEFAULT_ROULETTE_RULES, rouletteModule } from "@casino-lord/game-roulette";
+import { getCurrentSeriesResults } from "@casino-lord/core";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
 import { UiProviders } from "../ui/test-providers.js";
@@ -52,6 +54,36 @@ describe("HistoryDialog", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("confirm-sheet")).toBeNull();
     });
-    expect((store.getComposed().module as { results?: unknown[] }).results?.length).toBe(1);
+    expect(getCurrentSeriesResults(store.getComposed().platform)).toHaveLength(1);
+  });
+
+  it("lists both roulette spins in history", () => {
+    let n = 0;
+    const store = createTableStore({
+      game: "roulette",
+      module: asUntypedModule(rouletteModule),
+      rules: DEFAULT_ROULETTE_RULES,
+      rng: () => 0,
+      now: () => `2026-01-01T00:00:0${++n}.000Z`,
+      id: () => `id-${n}`,
+    });
+
+    store.record({ pocket: 1 }, { quick: true });
+    store.record({ pocket: 17 }, { quick: true });
+
+    render(
+      <UiProviders>
+        <HistoryDialog
+          store={store}
+          module={asUntypedModule(rouletteModule)}
+          rules={DEFAULT_ROULETTE_RULES}
+          onClose={() => {}}
+          onEdit={() => {}}
+        />
+      </UiProviders>,
+    );
+
+    expect(screen.getByTestId("history-row-0")).toBeTruthy();
+    expect(screen.getByTestId("history-row-1")).toBeTruthy();
   });
 });
