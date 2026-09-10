@@ -1,4 +1,5 @@
-const CACHE_NAME = "casino-lord-v1";
+const BUILD = new URL(self.location.href).searchParams.get("v") ?? "dev";
+const CACHE_NAME = `casino-lord-${BUILD}`;
 const PRECACHE = ["/", "/index.html"];
 
 self.addEventListener("install", (event) => {
@@ -8,10 +9,18 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
       await self.skipWaiting();
       await self.clients.claim();
     })(),
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    void self.skipWaiting();
+  }
 });
 
 function isAssetRequest(url) {
