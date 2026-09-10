@@ -1,4 +1,4 @@
-import type { BettingRound, PlayerState } from "@casino-lord/core";
+import type { BettingRound, Player, PlayerState } from "@casino-lord/core";
 import { FeltZones, usePlayerBetting, type FeltZoneDef } from "@casino-lord/ui";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { canPlaceEvenMoney, isActionEnabled, isMyTurn } from "../actions-enabled.js";
@@ -30,6 +30,9 @@ export interface PlayerViewProps {
   }) => void;
   remove: (betId: string) => void;
   act: (action: BlackjackAction) => void;
+  seatAssign?: "dealer" | "player" | "auto";
+  players?: Player[];
+  selectSeat?: (seat: number) => void;
 }
 
 const ACTION_LABELS: Record<BlackjackAction, string> = {
@@ -68,7 +71,17 @@ function mainStake(me: PlayerState, seat: Seat): number {
     .reduce((s, b) => s + b.amount, 0);
 }
 
-export function PlayerView({ state, rules, me, round, place, act }: PlayerViewProps) {
+export function PlayerView({
+  state,
+  rules,
+  me,
+  round,
+  place,
+  act,
+  seatAssign,
+  players = [],
+  selectSeat,
+}: PlayerViewProps) {
   const { onZoneTap, onZoneLongPress } = usePlayerBetting();
   const [otherSeatsOpen, setOtherSeatsOpen] = useState(false);
   const [pendingIntent, setPendingIntent] = useState<BlackjackAction | null>(null);
@@ -213,7 +226,46 @@ export function PlayerView({ state, rules, me, round, place, act }: PlayerViewPr
     return parts;
   }, [mySeat, rules, liveInput.seats]);
 
+  const occupiedSeats = useMemo(() => {
+    const taken = new Set<number>();
+    for (const player of players) {
+      if (player.id !== me.player.id && player.seat !== undefined) {
+        taken.add(player.seat);
+      }
+    }
+    return taken;
+  }, [me.player.id, players]);
+
   if (mySeat === undefined) {
+    if (seatAssign === "player") {
+      return (
+        <div class="blackjack-player-view" data-testid="blackjack-player-view">
+          <section class="blackjack-player-view__seat-picker" data-testid="seat-picker">
+            <p class="blackjack-player-view__section-label">Pick a seat</p>
+            <div class="blackjack-player-view__seat-picker-grid">
+              {Array.from({ length: rules.seats }, (_, i) => {
+                const seat = i + 1;
+                const occupied = occupiedSeats.has(seat);
+                return (
+                  <button
+                    key={seat}
+                    type="button"
+                    class="blackjack-player-view__seat-pick"
+                    data-testid={`seat-pick-${seat}`}
+                    disabled={occupied}
+                    onClick={() => selectSeat?.(seat)}
+                  >
+                    {seat}
+                    {occupied && <span class="blackjack-player-view__seat-pick-taken">Taken</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      );
+    }
+
     return (
       <div class="blackjack-player-view" data-testid="blackjack-player-view">
         <p class="blackjack-player-view__no-seat" data-testid="no-seat-message">

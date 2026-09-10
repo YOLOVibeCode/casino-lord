@@ -1,6 +1,6 @@
 import { CardPicker, OutcomeChips } from "@casino-lord/ui";
 import type { PickedCard } from "@casino-lord/ui";
-import type { Emit, TableMeta } from "@casino-lord/core";
+import type { Emit, Player, TableEvent, TableMeta } from "@casino-lord/core";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { rankPoints } from "../cards.js";
 import { canSplit, handValue } from "../engine.js";
@@ -18,6 +18,7 @@ import type {
   Suit,
 } from "../types.js";
 import { formatCardGlyph, handTotalLabel, isRedSuit } from "./card-display.js";
+import { deriveSeatIntents } from "./seat-intents.js";
 import "./blackjack-tokens.css";
 import "./dealer-view.css";
 
@@ -67,6 +68,8 @@ export interface DealerViewProps {
   table: TableMeta;
   emit: Emit;
   record: (result: BlackjackResult, opts: { quick: boolean }) => void;
+  events?: readonly TableEvent[];
+  players?: readonly Player[];
   autoAdvance?: boolean;
   expressMode?: boolean;
   haptics?: boolean;
@@ -83,12 +86,15 @@ export function DealerView({
   rules,
   emit,
   record,
+  events = [],
+  players = [],
   autoAdvance = true,
   expressMode = true,
   haptics = false,
 }: DealerViewProps) {
   const { liveInput, roundEvaluation } = state;
   const [activeSeat, setActiveSeat] = useState<Seat>(1);
+  const seatIntents = deriveSeatIntents(events, players, liveInput, activeSeat);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
   const [stickySuit, setStickySuit] = useState<Suit | null>(null);
@@ -366,6 +372,11 @@ export function DealerView({
                 onClick={() => setActiveSeat(seat)}
               >
                 {seat}
+                {seatIntents[seat] && (
+                  <span class="dealer-view__seat-intent" data-testid={`seat-intent-${seat}`}>
+                    {seatIntents[seat]}
+                  </span>
+                )}
               </button>
             );
           })}
