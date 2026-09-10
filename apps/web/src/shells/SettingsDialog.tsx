@@ -1,7 +1,7 @@
 import { createElement } from "preact";
 import { useState } from "preact/hooks";
 import type { ComponentType } from "preact";
-import type { LayoutPreset, TableSettings } from "@casino-lord/core";
+import type { LayoutPreset, Participation, TableSettings } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { TableStore } from "../table/store.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
@@ -32,6 +32,8 @@ export function SettingsDialog({
   const [localDevice, setLocalDevice] = useState<DeviceSettings>(deviceSettings);
   const composed = store.getComposed();
   const tableSettings = composed.platform.settings;
+  const moduleResults = (composed.module as { results?: unknown[] }).results;
+  const seriesHasResults = Array.isArray(moduleResults) && moduleResults.length > 0;
 
   const handleRulesChange = (patch: Record<string, unknown>): void => {
     const merged = { ...(rules as Record<string, unknown>), ...patch };
@@ -108,14 +110,25 @@ export function SettingsDialog({
           </button>
         </header>
         <div class="settings-dialog__body">
-          {tab === "rules" &&
-            createElement(
-              module.RulesSettingsView as unknown as ComponentType<{
-                rules: unknown;
-                onChange: (patch: Record<string, unknown>) => void;
-              }>,
-              { rules, onChange: handleRulesChange },
-            )}
+          {tab === "rules" && (
+            <>
+              <ParticipationSettingsForm
+                participation={composed.platform.participation}
+                seriesHasResults={seriesHasResults}
+                virtualSupported={module.virtual !== undefined}
+                onChange={(participation) =>
+                  store.emit({ type: "PARTICIPATION_CHANGED", participation })
+                }
+              />
+              {createElement(
+                module.RulesSettingsView as unknown as ComponentType<{
+                  rules: unknown;
+                  onChange: (patch: Record<string, unknown>) => void;
+                }>,
+                { rules, onChange: handleRulesChange },
+              )}
+            </>
+          )}
           {tab === "bank" && (
             <BankBettingSettingsForm
               settings={tableSettings}
@@ -145,6 +158,103 @@ export function SettingsDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+function ParticipationSettingsForm({
+  participation,
+  seriesHasResults,
+  virtualSupported,
+  onChange,
+}: {
+  participation: Participation;
+  seriesHasResults: boolean;
+  virtualSupported: boolean;
+  onChange: (participation: Participation) => void;
+}) {
+  const disabled = seriesHasResults;
+  const playerModeOn = participation.playerMode === "on";
+
+  const emit = (patch: Partial<Participation>): void => {
+    if (disabled) return;
+    let next: Participation = { ...participation, ...patch };
+    if (next.bank === "house" && next.playerMode === "off") {
+      next = { ...next, bank: "none" };
+    }
+    onChange(next);
+  };
+
+  return (
+    <section class="settings-dialog__section" data-testid="participation-settings">
+      <h3 class="settings-dialog__section-title">Participation</h3>
+      <p class="settings-dialog__hint">Changeable between series only.</p>
+      {seriesHasResults && (
+        <p class="settings-dialog__hint settings-dialog__hint--warn" data-testid="participation-locked">
+          Start a new series to change participation modes (mixed series are not allowed).
+        </p>
+      )}
+      <fieldset class="settings-dialog__fieldset" disabled={disabled}>
+        <legend>Players</legend>
+        <label class="settings-dialog__option">
+          <input
+            type="radio"
+            name="participation-mode"
+            data-testid="participation-dealer-only"
+            checked={!playerModeOn}
+            onChange={() => emit({ playerMode: "off", bank: "none" })}
+          />{" "}
+          Dealer only
+        </label>
+        <label class="settings-dialog__option">
+          <input
+            type="radio"
+            name="participation-mode"
+            data-testid="participation-with-players"
+            checked={playerModeOn}
+            onChange={() => emit({ playerMode: "on" })}
+          />{" "}
+          With players
+        </label>
+        {playerModeOn && (
+          <label class="settings-dialog__option settings-dialog__option--nested">
+            <input
+              type="checkbox"
+              data-testid="participation-house-bank"
+              checked={participation.bank === "house"}
+              onChange={(e) =>
+                emit({ bank: (e.target as HTMLInputElement).checked ? "house" : "none" })
+              }
+            />{" "}
+            House bank (issue play chips)
+          </label>
+        )}
+      </fieldset>
+      <fieldset class="settings-dialog__fieldset" disabled={disabled}>
+        <legend>Outcome</legend>
+        <label class="settings-dialog__option">
+          <input
+            type="radio"
+            name="outcome-source"
+            data-testid="participation-physical"
+            checked={participation.outcomeSource === "physical"}
+            onChange={() => emit({ outcomeSource: "physical" })}
+          />{" "}
+          Physical (dealer enters results)
+        </label>
+        {virtualSupported && (
+          <label class="settings-dialog__option">
+            <input
+              type="radio"
+              name="outcome-source"
+              data-testid="participation-virtual"
+              checked={participation.outcomeSource === "virtual"}
+              onChange={() => emit({ outcomeSource: "virtual" })}
+            />{" "}
+            Virtual (fair auto-deal)
+          </label>
+        )}
+      </fieldset>
+    </section>
   );
 }
 

@@ -320,4 +320,83 @@ describe("SettingsDialog", () => {
 
     expect(onDeviceChange).toHaveBeenCalledWith(expect.objectContaining({ soundEnabled: true }));
   });
+
+  it("emits PARTICIPATION_CHANGED when player mode toggled", () => {
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceChange={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("participation-with-players"));
+
+    const changed = store.events.find((e) => e.type === "PARTICIPATION_CHANGED");
+    expect(changed?.type).toBe("PARTICIPATION_CHANGED");
+    if (changed?.type === "PARTICIPATION_CHANGED") {
+      expect(changed.participation.playerMode).toBe("on");
+    }
+  });
+
+  it("disables participation controls when series has results", () => {
+    let n = 0;
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => `2026-01-01T00:00:${String(++n).padStart(2, "0")}.000Z`,
+      id: () => `id-${n}`,
+    });
+
+    store.record(
+      {
+        cards: null,
+        outcome: "P",
+        playerTotal: 7,
+        bankerTotal: 4,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceChange={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("participation-locked")).toBeTruthy();
+    const fieldsets = screen
+      .getByTestId("participation-settings")
+      .querySelectorAll("fieldset");
+    expect(fieldsets.length).toBeGreaterThan(0);
+    for (const fieldset of fieldsets) {
+      expect(fieldset).toHaveProperty("disabled", true);
+    }
+
+    const before = store.events.length;
+    fireEvent.click(screen.getByTestId("participation-with-players"));
+    expect(store.events.length).toBe(before);
+  });
 });
