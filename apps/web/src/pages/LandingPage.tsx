@@ -107,9 +107,12 @@ export function LandingPage(_props: { path?: string }) {
           <article key={game.id} class="landing__card">
             <h2>{game.name}</h2>
             {game.enabled ? (
-              <a href={`/solo/${game.id}`} class="landing__solo-link">
-                Solo
-              </a>
+              <>
+                <a href={`/solo/${game.id}`} class="landing__solo-link">
+                  Solo
+                </a>
+                <p class="landing__action-hint">Solo — one device, you record results</p>
+              </>
             ) : (
               <span class="landing__soon">Coming soon</span>
             )}
@@ -118,28 +121,52 @@ export function LandingPage(_props: { path?: string }) {
       </div>
 
       <div class="landing__host-actions">
-        <button
-          type="button"
-          disabled={!syncConfigured}
-          title={syncConfigured ? undefined : "Sync server not configured"}
-          onClick={() => setSheet("create")}
-        >
-          Create Table
-        </button>
-        <button
-          type="button"
-          disabled={!syncConfigured}
-          title={syncConfigured ? undefined : "Sync server not configured"}
-          onClick={() => setSheet("join")}
-        >
-          Join
-        </button>
+        <div class="landing__host-action">
+          <button
+            type="button"
+            disabled={!syncConfigured}
+            title={syncConfigured ? undefined : "Sync server not configured"}
+            onClick={() => setSheet("create")}
+          >
+            Create Table
+          </button>
+          <p class="landing__action-hint">
+            Create table — a code your TV and players&apos; phones join
+          </p>
+        </div>
+        <div class="landing__host-action">
+          <button
+            type="button"
+            disabled={!syncConfigured}
+            title={syncConfigured ? undefined : "Sync server not configured"}
+            onClick={() => setSheet("join")}
+          >
+            Join
+          </button>
+          <p class="landing__action-hint">Join — enter a code someone gave you</p>
+        </div>
         {!syncConfigured && (
           <p class="landing__sync-note" data-testid="sync-note">
             Sync server not configured
           </p>
         )}
       </div>
+
+      <details class="landing__how-it-works" data-testid="how-it-works">
+        <summary>How it works</summary>
+        <ol>
+          <li>
+            <strong>Dealer</strong> (your phone): record or trigger results, manage the table.
+          </li>
+          <li>
+            <strong>Display</strong> (TV): read-only scoreboard with live animations.
+          </li>
+          <li>
+            <strong>Player</strong> (guest phones): join with a code, bet with play chips.
+          </li>
+        </ol>
+        <p>Play chips only — no real money, ever.</p>
+      </details>
 
       {sheet && (
         <div class="landing__sheet-backdrop" onClick={closeSheet}>
@@ -292,6 +319,12 @@ export function LandingPage(_props: { path?: string }) {
           </div>
         </div>
       )}
+
+      <footer class="landing__footer">
+        <a href="/verify" data-testid="landing-verify-link">
+          Verify a virtual series
+        </a>
+      </footer>
     </main>
   );
 }
