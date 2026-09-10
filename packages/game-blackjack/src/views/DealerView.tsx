@@ -3,7 +3,7 @@ import type { PickedCard } from "@casino-lord/ui";
 import type { Emit, Player, TableEvent, TableMeta } from "@casino-lord/core";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { rankPoints } from "../cards.js";
-import { canSplit, handValue } from "../engine.js";
+import { canSplit, handValue, validateDealerPlay } from "../engine.js";
 import { parseQuickDealerToken } from "../quick-entry.js";
 import type { BlackjackRules } from "../rules.js";
 import type { BlackjackState } from "../state.js";
@@ -72,6 +72,111 @@ function emptyHand(fromSplit = false): HandInput {
 
 function toCard(picked: PickedCard): Card {
   return { rank: picked.rank as Rank, suit: (picked.suit as Suit) ?? null };
+}
+
+function pickerTargetsEqual(a: PickerTarget, b: PickerTarget): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "dealer" && b.kind === "dealer") return a.index === b.index;
+  if (a.kind === "seat" && b.kind === "seat") {
+    return a.seat === b.seat && a.handIndex === b.handIndex && a.cardIndex === b.cardIndex;
+  }
+  return false;
+}
+
+function inPlaySeats(liveInput: BlackjackLiveInput, seatCount: number): Seat[] {
+  const seats: Seat[] = [];
+  for (let i = 1; i <= seatCount; i++) {
+    const seat = i as Seat;
+    if ((liveInput.seats[seat]?.length ?? 0) > 0) seats.push(seat);
+  }
+  return seats;
+}
+
+function isSeatSlotEmpty(
+  liveInput: BlackjackLiveInput,
+  seat: Seat,
+  handIndex: number,
+  cardIndex: number,
+  rules: BlackjackRules,
+): boolean {
+  const hand = liveInput.seats[seat]?.[handIndex];
+  if (!hand || hand.surrendered || hand.cards[cardIndex]) return false;
+  if (cardIndex === 0) return true;
+  if (cardIndex === 1) return hand.cards[0] !== undefined;
+  if (hand.cards.length < cardIndex) return false;
+  const hv = handValue(hand.cards, hand.fromSplit, rules.blackjackAfterSplit);
+  if (hv.bust) return false;
+  return hand.cards.length === cardIndex;
+}
+
+function findNextCardSlot(
+  liveInput: BlackjackLiveInput,
+  rules: BlackjackRules,
+): PickerTarget | null {
+  const dealerValidation = validateDealerPlay(liveInput.dealer, rules);
+
+  if (rules.entryDepth === "outcomes") {
+    if (liveInput.dealer.length === 0) return { kind: "dealer", index: 0 };
+    if (liveInput.dealer[1] === undefined) return { kind: "dealer", index: 1 };
+    if (dealerValidation.dealerStatus === "must_draw") {
+      return { kind: "dealer", index: liveInput.dealer.length };
+    }
+    return null;
+  }
+
+  const seats = inPlaySeats(liveInput, rules.seats);
+
+  for (const cardRound of [0, 1] as const) {
+    for (const seat of seats) {
+      const hands = liveInput.seats[seat]!;
+      for (let hi = 0; hi < hands.length; hi++) {
+        if (isSeatSlotEmpty(liveInput, seat, hi, cardRound, rules)) {
+          return { kind: "seat", seat, handIndex: hi, cardIndex: cardRound };
+        }
+      }
+    }
+    const dealerIdx = cardRound;
+    if (liveInput.dealer[dealerIdx] === undefined) {
+      return { kind: "dealer", index: dealerIdx };
+    }
+  }
+
+  for (let ci = 2; ci <= 10; ci++) {
+    for (const seat of seats) {
+      const hands = liveInput.seats[seat]!;
+      for (let hi = 0; hi < hands.length; hi++) {
+        if (isSeatSlotEmpty(liveInput, seat, hi, ci, rules)) {
+          return { kind: "seat", seat, handIndex: hi, cardIndex: ci };
+        }
+      }
+    }
+  }
+
+  if (dealerValidation.dealerStatus === "must_draw") {
+    return { kind: "dealer", index: liveInput.dealer.length };
+  }
+
+  return null;
+}
+
+function nextSlotHint(target: PickerTarget): string {
+  if (target.kind === "dealer") {
+    if (target.index === 0) return "Tap the dealer slot to enter the up card";
+    if (target.index === 1) return "Tap the dealer slot to enter the hole card";
+    return `Dealer · card ${target.index + 1}`;
+  }
+  return `Seat ${target.seat} — card ${target.cardIndex + 1}`;
+}
+
+function displayHint(next: PickerTarget | null, baseHint: string): string {
+  if (!next) return baseHint;
+  const splitIdx = baseHint.indexOf(" · ");
+  const suffix = splitIdx >= 0 ? baseHint.slice(splitIdx) : "";
+  return nextSlotHint(next) + suffix;
+}
+
+function slotAriaSuffix(isNext: boolean): string {
+  return isNext ? ", next" : "";
 }
 
 function SeatOutcomeChips({
@@ -358,9 +463,14 @@ export function DealerView({
   };
 
   const dealerSlotCount = Math.max(2, liveInput.dealer.length + 1);
+  const nextCardSlot = findNextCardSlot(liveInput, rules);
+  const hintText = displayHint(nextCardSlot, roundEvaluation.hint);
 
   const activeHands = seatHands(activeSeat);
   const displayHands = activeHands.length > 0 ? activeHands : [];
+
+  const isNextSlot = (target: PickerTarget): boolean =>
+    nextCardSlot !== null && pickerTargetsEqual(nextCardSlot, target);
 
   return (
     <div class="dealer-view" data-testid="dealer-view">
@@ -370,22 +480,29 @@ export function DealerView({
           {Array.from({ length: dealerSlotCount }, (_, i) => {
             const card = liveInput.dealer[i];
             const isHolePlaceholder = i === 1 && !card && liveInput.dealer.length === 1;
+            const target: PickerTarget = { kind: "dealer", index: i };
+            const isNext = isNextSlot(target);
+            const isEmpty = !card;
             return (
               <button
                 key={i}
                 type="button"
-                class={`dealer-view__slot${isHolePlaceholder ? " dealer-view__slot--hole" : ""}${card?.suit && isRedSuit(card.suit) ? " dealer-view__slot--red" : ""}`}
+                class={`dealer-view__slot${isHolePlaceholder ? " dealer-view__slot--hole" : ""}${isEmpty ? " dealer-view__slot--empty" : ""}${isNext ? " dealer-view__slot--next" : ""}${card?.suit && isRedSuit(card.suit) ? " dealer-view__slot--red" : ""}`}
                 data-testid={`dealer-slot-${i}`}
                 aria-label={
                   isHolePlaceholder
-                    ? "Dealer hole card, face down"
+                    ? `Dealer hole card, face down${slotAriaSuffix(isNext)}`
                     : card
-                      ? `Dealer card ${i + 1}, ${formatCardGlyph(card)}`
-                      : `Dealer card ${i + 1}, empty`
+                      ? `Dealer card ${i + 1}, ${formatCardGlyph(card)}${slotAriaSuffix(isNext)}`
+                      : `Dealer card ${i + 1}, empty${slotAriaSuffix(isNext)}`
                 }
-                onClick={() => openPicker({ kind: "dealer", index: i })}
+                onClick={() => openPicker(target)}
               >
-                {!isHolePlaceholder && card ? formatCardGlyph(card) : null}
+                {!isHolePlaceholder && card ? (
+                  formatCardGlyph(card)
+                ) : !isHolePlaceholder ? (
+                  <span class="dealer-view__slot-plus">+</span>
+                ) : null}
               </button>
             );
           })}
@@ -449,27 +566,32 @@ export function DealerView({
                 <div class="dealer-view__dealer-slots">
                   {Array.from({ length: slotCount }, (_, ci) => {
                     const card = hand.cards[ci];
+                    const target: PickerTarget = {
+                      kind: "seat",
+                      seat: activeSeat,
+                      handIndex: hi,
+                      cardIndex: ci,
+                    };
+                    const isNext = isNextSlot(target);
+                    const isEmpty = !card;
                     return (
                       <button
                         key={ci}
                         type="button"
-                        class={`dealer-view__slot${card?.suit && isRedSuit(card.suit) ? " dealer-view__slot--red" : ""}`}
+                        class={`dealer-view__slot${isEmpty ? " dealer-view__slot--empty" : ""}${isNext ? " dealer-view__slot--next" : ""}${card?.suit && isRedSuit(card.suit) ? " dealer-view__slot--red" : ""}`}
                         data-testid={`seat-${activeSeat}-hand-${hi}-slot-${ci}`}
                         aria-label={
                           card
-                            ? `Seat ${activeSeat} hand ${hi + 1} card ${ci + 1}, ${formatCardGlyph(card)}`
-                            : `Seat ${activeSeat} hand ${hi + 1} card ${ci + 1}, empty`
+                            ? `Seat ${activeSeat} hand ${hi + 1} card ${ci + 1}, ${formatCardGlyph(card)}${slotAriaSuffix(isNext)}`
+                            : `Seat ${activeSeat} hand ${hi + 1} card ${ci + 1}, empty${slotAriaSuffix(isNext)}`
                         }
-                        onClick={() =>
-                          openPicker({
-                            kind: "seat",
-                            seat: activeSeat,
-                            handIndex: hi,
-                            cardIndex: ci,
-                          })
-                        }
+                        onClick={() => openPicker(target)}
                       >
-                        {card ? formatCardGlyph(card) : "+"}
+                        {card ? (
+                          formatCardGlyph(card)
+                        ) : (
+                          <span class="dealer-view__slot-plus">+</span>
+                        )}
                       </button>
                     );
                   })}
@@ -529,7 +651,7 @@ export function DealerView({
       </div>
 
       <div class="dealer-view__hint" aria-live="polite" data-testid="round-hint">
-        {roundEvaluation.hint}
+        {hintText}
       </div>
 
       {showErrorBanner && (

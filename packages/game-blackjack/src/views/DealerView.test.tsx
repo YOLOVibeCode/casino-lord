@@ -260,6 +260,30 @@ describe("DealerView", () => {
     expect(screen.queryByTestId("seat-intent-3")).toBeNull();
   });
 
+  it("highlights dealer hole slot as next after up card is entered", () => {
+    const emit = vi.fn();
+    const rules = DEFAULT_BLACKJACK_RULES;
+    const live = { dealer: [c("7")], seats: {} };
+    const state = reduce(
+      initialState(rules),
+      {
+        seq: 1,
+        at: "2026-01-01T00:00:01.000Z",
+        type: "LIVE_INPUT",
+        payload: live,
+        source: "dealer",
+      },
+      rules,
+    );
+
+    renderDealer(emit, rules, state);
+
+    const holeSlot = screen.getByTestId("dealer-slot-1");
+    expect(holeSlot.className).toContain("dealer-view__slot--next");
+    expect(holeSlot.getAttribute("aria-label")).toContain("next");
+    expect(screen.getByTestId("round-hint").textContent).toContain("hole card");
+  });
+
   it("renders spec seat outcome chip labels and keyboard hints", () => {
     const emit = vi.fn();
     renderDealer(emit);
