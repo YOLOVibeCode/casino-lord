@@ -222,6 +222,9 @@ function buildStore(internals: StoreInternals): TableStore {
   };
 
   const endSession = (): void => {
+    if (isVirtual() && virtualDealer) {
+      appendPersisted(virtualDealer.endSeriesEvent() as TableEventInput, now());
+    }
     append({ type: "SESSION_ENDED" });
   };
 
@@ -452,3 +455,18 @@ export function reopenTableStore(input: {
 export function composedStateFingerprint(store: TableStore): string {
   return stableStringify(store.getComposed());
 }
+
+export {
+  attachSoloBroadcastChannel,
+  createSoloDisplayStore,
+  createSoloPlayerStore,
+  isSoloBroadcastChannelAvailable,
+  joinSoloPlayer,
+  rejoinSoloPlayer,
+  soloLocalUrl,
+  waitForSoloSnapshot,
+} from "./solo-channel.js";
+export type {
+  AttachSoloBroadcastChannelOptions,
+  SoloBroadcastChannelHandle,
+} from "./solo-channel.js";

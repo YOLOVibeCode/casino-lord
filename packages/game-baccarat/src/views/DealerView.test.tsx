@@ -364,7 +364,7 @@ describe("DealerView", () => {
     expect(screen.queryByTestId("card-picker")).toBeNull();
   });
 
-  it("opens picker on P1 after first quick-entry record when autoAdvance is on", async () => {
+  it("keeps picker closed after first quick-entry record when autoAdvance is on", async () => {
     let state = initialState();
     const quickResult: BaccaratResult = {
       cards: null,
@@ -403,7 +403,7 @@ describe("DealerView", () => {
 
     record(quickResult, { quick: true });
 
-    await waitFor(() => expect(screen.getByTestId("card-picker")).toBeTruthy());
-    expect(screen.getByTestId("card-picker").getAttribute("aria-label")).toBe("Player · Card 1");
+    await waitFor(() => expect(record).toHaveBeenCalled());
+    expect(screen.queryByTestId("card-picker")).toBeNull();
   });
 });

@@ -26,3 +26,4 @@ export * from "./crypto/sha256.js";
 export * from "./crypto/hmac.js";
 export * from "./rng.js";
 export * from "./fairness.js";
+export * from "./export-envelope.js";

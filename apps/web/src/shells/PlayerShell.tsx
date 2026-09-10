@@ -4,8 +4,12 @@ import {
   getCurrentRound,
   getRoundBets,
   getRoundSettlements,
+  sortPlayers,
   type BetCatalogue,
   type BetDef,
+  type PlacedBet,
+  type PlatformState,
+  type Settlement,
   type TableEvent,
 } from "@casino-lord/core";
 import {
@@ -24,12 +28,17 @@ import { validateBet, validatePlaceAll } from "../betting/validate-bet.js";
 import { useCountUp } from "../hooks/use-count-up.js";
 import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { useStore } from "../hooks/use-store.js";
+import { shakeThresholdForSensitivity } from "../settings/device-settings.js";
 import { tapHaptic } from "../settings/haptics.js";
+import { tableUrl } from "../sync/urls.js";
+import { PlayerSettingsSheet } from "./PlayerSettingsSheet.js";
 import { getGame } from "../table/games.js";
 import { currentSeriesCommit } from "../table/meta.js";
 import type { TableStore } from "../table/store.js";
 import { isSyncStore } from "../table/sync-store-types.js";
+import { routePlayerAct } from "./player-act.js";
 import "./player-shell.css";
+import "./player-settings-sheet.css";
 
 export interface PlayerShellProps {
   store: TableStore;
@@ -41,6 +50,18 @@ interface PendingBet {
   type: string;
   label: string;
   amount: number;
+  target?: unknown;
+}
+
+interface PlaceBetPayload {
+  playerId: string;
+  roundId: string;
+  type: string;
+  amount: number;
+  declared: boolean;
+  working: boolean;
+  originRoundId: string;
+  target?: unknown;
 }
 
 type FooterTab = "play" | "history" | "leaderboard" | "rules" | "info";
@@ -75,6 +96,81 @@ function buildBuyInMap(events: readonly TableEvent[]): Record<string, number> {
   return map;
 }
 
+interface HistoryRow {
+  id: string;
+  label: string;
+  amount: number;
+  roundId: string;
+  outcome: Settlement["outcome"] | null;
+  profit: number | null;
+  profitLabel: string | null;
+  runningNet: number | null;
+}
+
+function formatProfitLabel(profit: number, declared: boolean): string {
+  const sign = profit >= 0 ? "+" : "";
+  if (declared) {
+    return `would pay ${sign}${profit}`;
+  }
+  return `${sign}${profit}`;
+}
+
+export function buildHistoryRows(
+  platform: PlatformState,
+  playerId: string,
+  catalogue: BetCatalogue<unknown, unknown, unknown, unknown>,
+  declaredMode: boolean,
+): HistoryRow[] {
+  const bets = platform.bets
+    .filter((b) => b.playerId === playerId)
+    .sort((a, b) => new Date(a.placedAt).getTime() - new Date(b.placedAt).getTime());
+
+  let runningNet = 0;
+  return bets.map((bet: PlacedBet) => {
+    const round = platform.rounds.find((r) => r.id === bet.roundId);
+    const settlements = platform.settlements[bet.roundId] ?? [];
+    const settlement = settlements.find((s) => s.betId === bet.id);
+
+    if (settlement && round?.status === "settled") {
+      runningNet += settlement.profit;
+      return {
+        id: bet.id,
+        label: betLabel(catalogue, bet.type),
+        amount: bet.amount,
+        roundId: bet.roundId,
+        outcome: settlement.outcome,
+        profit: settlement.profit,
+        profitLabel: formatProfitLabel(settlement.profit, declaredMode),
+        runningNet,
+      };
+    }
+
+    return {
+      id: bet.id,
+      label: betLabel(catalogue, bet.type),
+      amount: bet.amount,
+      roundId: bet.roundId,
+      outcome: null,
+      profit: null,
+      profitLabel: null,
+      runningNet: null,
+    };
+  });
+}
+
+function sumSettlementProfit(platform: PlatformState, playerId: string): number {
+  let total = 0;
+  for (const settlements of Object.values(platform.settlements)) {
+    for (const s of settlements) {
+      const bet = platform.bets.find((b) => b.id === s.betId);
+      if (bet?.playerId === playerId) {
+        total += s.profit;
+      }
+    }
+  }
+  return total;
+}
+
 function buildSettlementSummary(
   outcome: string,
   playerTotal: number | null,
@@ -91,7 +187,8 @@ function buildSettlementSummary(
 
 export function PlayerShell({ store, playerName }: PlayerShellProps) {
   useStore(store);
-  const [deviceSettings] = useDeviceSettings();
+  const [deviceSettings, setDeviceSettings] = useDeviceSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const composed = store.getComposed();
   const settings = composed.platform.settings;
   const rules = store.getRules();
@@ -115,14 +212,18 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const settlementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
+  const animationsEnabled = deviceSettings.animations && deviceSettings.phoneAnimations !== "off";
+  const phoneMode = deviceSettings.phoneAnimations === "reduced";
+  const shakeThreshold = shakeThresholdForSensitivity(deviceSettings.shakeSensitivity);
+
   const { activeSegments } = useAnimationRuntime({
     store,
     module,
     rules,
     deviceSettings,
     overlayRef,
-    enabled: deviceSettings.animations,
-    phoneMode: true,
+    enabled: animationsEnabled,
+    phoneMode,
   });
 
   const round = getCurrentRound(composed.platform);
@@ -406,6 +507,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           working: false,
           placedAt: now,
           originRoundId: openRound.id,
+          ...(item.pending.target !== undefined ? { target: item.pending.target } : {}),
         },
       });
     }
@@ -436,11 +538,105 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     [store],
   );
 
+  const handlePlaceBet = useCallback(
+    (payload: PlaceBetPayload) => {
+      hapticTap();
+      if (!module || !playerId || !openRound || !me) return;
+      if (payload.playerId !== playerId) return;
+
+      const betDef = findBetDef(module.bets, payload.type);
+      if (!betDef) return;
+
+      const result = validateBet({
+        betDef,
+        settings,
+        rules,
+        round: openRound,
+        bankroll,
+        amount: payload.amount,
+        pendingTotal: placedTotal,
+        moduleState: composed.module,
+        me: { id: playerId, bankroll },
+        houseBank,
+      });
+
+      if (!result.ok) {
+        showToast(result.reason ?? "Bet rejected");
+        return;
+      }
+
+      void store.emit({
+        type: "BET_PLACED",
+        bet: {
+          id: crypto.randomUUID(),
+          playerId,
+          roundId: openRound.id,
+          type: payload.type,
+          amount: payload.amount,
+          declared: payload.declared,
+          working: payload.working,
+          placedAt: new Date().toISOString(),
+          originRoundId: payload.originRoundId,
+          ...(payload.target !== undefined ? { target: payload.target } : {}),
+        },
+      });
+    },
+    [
+      module,
+      playerId,
+      openRound,
+      me,
+      settings,
+      rules,
+      bankroll,
+      placedTotal,
+      composed.module,
+      houseBank,
+      store,
+      showToast,
+      hapticTap,
+    ],
+  );
+
+  const handleRemoveBet = useCallback(
+    (betId: string) => {
+      hapticTap();
+      if (pendingBets.some((b) => b.clientId === betId)) {
+        setPendingBets((prev) => prev.filter((b) => b.clientId !== betId));
+        return;
+      }
+      void store.emit({ type: "BET_REMOVED", betId });
+    },
+    [pendingBets, store, hapticTap],
+  );
+
   const handleAct = useCallback(
     (action: unknown) => {
       if (!playerId) return;
       hapticTap();
-      void store.emit({ type: "PLAYER_ACTION", playerId, action });
+      routePlayerAct({
+        game: store.game,
+        action,
+        playerId,
+        virtualTable,
+        isMyTurn,
+        store,
+        composed,
+        emit: store.emit,
+      });
+    },
+    [playerId, store, virtualTable, isMyTurn, composed, hapticTap],
+  );
+
+  const handleSelectSeat = useCallback(
+    (seat: number) => {
+      if (!playerId) return;
+      hapticTap();
+      void store.emit({
+        type: "PLAYER_UPDATED",
+        playerId,
+        patch: { seat },
+      });
     },
     [playerId, store, hapticTap],
   );
@@ -517,26 +713,35 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
   const buyInByPlayer = buildBuyInMap(store.events);
   const leaderboard = buildLeaderboard(composed.platform, buyInByPlayer);
+  const sessionEnded = store.events.some((e) => e.type === "SESSION_ENDED");
+  const chipsIssued = playerId ? (buyInByPlayer[playerId] ?? 0) : 0;
+  const sessionNet = houseBank
+    ? bankroll - chipsIssued
+    : playerId
+      ? sumSettlementProfit(composed.platform, playerId)
+      : 0;
+  const leaderboardRank =
+    playerId && settings.players.showBankrolls
+      ? sortPlayers(
+          composed.platform.players,
+          composed.platform,
+          settings.players.playersSort,
+        ).findIndex((p) => p.id === playerId) + 1
+      : null;
 
-  const historyRows = playerId
-    ? composed.platform.bets
-        .filter((b) => b.playerId === playerId)
-        .map((b) => ({
-          id: b.id,
-          type: b.type,
-          amount: b.amount,
-          roundId: b.roundId,
-        }))
-    : [];
+  const historyRows = useMemo(
+    () =>
+      playerId && module
+        ? buildHistoryRows(composed.platform, playerId, module.bets, !houseBank)
+        : [],
+    [composed.platform, playerId, module, houseBank],
+  );
 
   const connection = isSyncStore(store) ? store.getConnectionState() : "offline";
   const dotClass =
     connection === "connected"
       ? "player-shell__dot player-shell__dot--on"
       : "player-shell__dot player-shell__dot--off";
-
-  const noopPlace = useCallback(() => {}, []);
-  const noopRemove = useCallback(() => {}, []);
 
   if (!module || !me || !bettingContext) {
     return (
@@ -572,6 +777,15 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           ⛁ {displayBankroll.toLocaleString()}
         </span>
         <span class="player-shell__code">{store.code}</span>
+        <button
+          type="button"
+          class="player-shell__settings"
+          aria-label="Settings"
+          data-testid="player-settings-open"
+          onClick={() => setSettingsOpen(true)}
+        >
+          ⚙
+        </button>
       </header>
 
       {houseBank && bankroll === 0 && (
@@ -581,11 +795,46 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       )}
 
       <div class="player-shell__status" data-testid="player-status-bar">
-        {statusLine}
+        {sessionEnded ? "Session ended" : statusLine}
       </div>
 
       <PlayerBettingContext.Provider value={bettingContext}>
-        {activeTab === "play" && (
+        {sessionEnded && (
+          <div
+            class="player-shell__panel player-shell__session-summary"
+            data-testid="player-session-summary"
+          >
+            <h2>Session summary</h2>
+            <dl class="player-shell__summary-stats">
+              <dt>Chips issued</dt>
+              <dd data-testid="player-session-issued">{chipsIssued.toLocaleString()}</dd>
+              <dt>Net</dt>
+              <dd data-testid="player-session-net">
+                {sessionNet >= 0 ? "+" : ""}
+                {sessionNet.toLocaleString()}
+              </dd>
+              <dt>Final bankroll</dt>
+              <dd data-testid="player-session-bankroll">{bankroll.toLocaleString()}</dd>
+              {leaderboardRank !== null && leaderboardRank > 0 && (
+                <>
+                  <dt>Leaderboard rank</dt>
+                  <dd data-testid="player-session-rank">#{leaderboardRank}</dd>
+                </>
+              )}
+            </dl>
+            {virtualTable && (
+              <a
+                href={tableUrl(`/verify?code=${store.code}`)}
+                class="player-shell__verify-link"
+                data-testid="player-session-verify-link"
+              >
+                Verify fairness
+              </a>
+            )}
+          </div>
+        )}
+
+        {activeTab === "play" && !sessionEnded && (
           <>
             <main class="player-shell__main">
               {createElement(PlayerView, {
@@ -599,9 +848,13 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
                     status: "settled",
                     openedAt: new Date().toISOString(),
                   } as const),
-                place: noopPlace,
-                remove: noopRemove,
+                place: handlePlaceBet,
+                remove: handleRemoveBet,
                 act: handleAct,
+                shakeThreshold,
+                selectSeat: handleSelectSeat,
+                seatAssign: module.seats?.assign,
+                players: composed.platform.players,
               })}
             </main>
 
@@ -655,16 +908,48 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           <div class="player-shell__panel" data-testid="player-history">
             <h2>History</h2>
             {historyRows.length === 0 && <p>No bets this session</p>}
-            <ul>
+            <ul class="player-shell__history-list">
               {historyRows.map((row) => (
-                <li key={row.id}>
-                  {row.type} — {row.amount} (round {row.roundId})
+                <li
+                  key={row.id}
+                  class="player-shell__history-row"
+                  data-testid={`player-history-row-${row.id}`}
+                >
+                  <span class="player-shell__history-label">
+                    {row.label} — {row.amount}
+                  </span>
+                  {row.outcome !== null && (
+                    <span
+                      class={`player-shell__history-outcome player-shell__history-outcome--${row.outcome}`}
+                      data-testid={`player-history-outcome-${row.id}`}
+                    >
+                      {row.outcome}
+                    </span>
+                  )}
+                  {row.profitLabel !== null && (
+                    <span
+                      class="player-shell__history-profit"
+                      data-testid={`player-history-profit-${row.id}`}
+                    >
+                      {row.profitLabel}
+                    </span>
+                  )}
+                  {row.runningNet !== null && (
+                    <span
+                      class="player-shell__history-net"
+                      data-testid={`player-history-running-net-${row.id}`}
+                    >
+                      net {row.runningNet >= 0 ? "+" : ""}
+                      {row.runningNet}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
-            {playerId && (
-              <p>
-                Net: {getBankroll(composed.platform, playerId) - (buyInByPlayer[playerId] ?? 0)}
+            {playerId && historyRows.some((r) => r.runningNet !== null) && (
+              <p class="player-shell__history-total" data-testid="player-history-total-net">
+                Session net:{" "}
+                {[...historyRows].reverse().find((r) => r.runningNet !== null)?.runningNet ?? 0}
               </p>
             )}
           </div>
@@ -744,6 +1029,14 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           </button>
         )}
       </footer>
+
+      {settingsOpen && (
+        <PlayerSettingsSheet
+          settings={deviceSettings}
+          onChange={(patch) => setDeviceSettings({ ...deviceSettings, ...patch })}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </div>
   );
 }

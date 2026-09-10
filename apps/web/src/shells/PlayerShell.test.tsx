@@ -4,9 +4,15 @@
 import "fake-indexeddb/auto";
 import { baccaratModule } from "@casino-lord/game-baccarat";
 import { DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
+import { blackjackModule } from "@casino-lord/game-blackjack";
+import { crapsModule } from "@casino-lord/game-craps";
+import type { PlacedBet } from "@casino-lord/core";
+import { DEFAULT_ROULETTE_RULES, rouletteModule } from "@casino-lord/game-roulette";
+import type { CrapsBetTarget } from "@casino-lord/game-craps";
 import { houseSettings } from "@casino-lord/core/testing";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
 import { PlayerShell } from "./PlayerShell.js";
@@ -299,6 +305,164 @@ describe("PlayerShell", () => {
     expect(screen.getByTestId("player-rebuy-hint")).toBeTruthy();
   });
 
+  it("shows session summary when SESSION_ENDED", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: 4,
+        bankerTotal: 9,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    store.emit({
+      type: "PLAYER_JOINED",
+      player: {
+        id: "p2",
+        name: "Bob",
+        color: "#3366cc",
+        status: "active",
+        joinedAt: "2026-01-01T00:00:03.000Z",
+      },
+    });
+    store.emit({ type: "BANK_ISSUED", playerId: "p2", amount: 500, reason: "buyin" });
+    store.emit({ type: "SESSION_ENDED" });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("player-session-summary")).toBeTruthy();
+    expect(screen.getByTestId("player-session-issued").textContent).toBe("500");
+    expect(screen.getByTestId("player-session-net").textContent).toBe("+95");
+    expect(screen.getByTestId("player-session-bankroll").textContent).toBe("595");
+    expect(screen.getByTestId("player-session-rank").textContent).toBe("#1");
+    expect(screen.queryByTestId("player-bottom-bar")).toBeNull();
+  });
+
+  it("shows verify link on virtual table session end", async () => {
+    const urls = await import("../sync/urls.js");
+    const tableUrlSpy = vi
+      .spyOn(urls, "tableUrl")
+      .mockImplementation((path) => `https://test.example${path}`);
+    const { store } = setupStore();
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: {
+        ...houseSettings().participation,
+        outcomeSource: "virtual",
+      },
+    });
+    store.emit({ type: "SESSION_ENDED" });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    const link = screen.getByTestId("player-session-verify-link") as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toBe(`https://test.example/verify?code=${store.code}`);
+    tableUrlSpy.mockRestore();
+  });
+
+  it("history shows would pay in declared-bets mode", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+    });
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: true,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: 4,
+        bankerTotal: 9,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.getByTestId("player-history-profit-b1").textContent).toBe("would pay +95");
+  });
+
+  it("opens player settings sheet and persists phoneAnimations", () => {
+    window.localStorage.clear();
+    const { store } = setupStore();
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("player-settings-open"));
+    expect(screen.getByTestId("player-settings-sheet")).toBeTruthy();
+    fireEvent.change(screen.getByTestId("player-phone-animations"), {
+      target: { value: "off" },
+    });
+    const stored = JSON.parse(window.localStorage.getItem("casino-lord:device-settings") ?? "{}");
+    expect(stored.phoneAnimations).toBe("off");
+    expect(stored.shakeSensitivity).toBe(DEFAULT_DEVICE_SETTINGS.shakeSensitivity);
+  });
+
+  it("history tab shows outcome and profit after settlement", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: 4,
+        bankerTotal: 9,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.getByTestId("player-history-outcome-b1").textContent).toBe("win");
+    expect(screen.getByTestId("player-history-profit-b1").textContent).toBe("+95");
+    expect(screen.getByTestId("player-history-running-net-b1").textContent).toContain("+95");
+  });
+
   it("shows fairness commitment on virtual table info tab", () => {
     const { store } = setupStore();
     store.emit({
@@ -376,5 +540,260 @@ describe("PlayerShell", () => {
     );
 
     vi.useRealTimers();
+  });
+
+  function setupGameStore(
+    game: "roulette" | "craps" | "blackjack",
+    opts?: {
+      bankroll?: number;
+      roundOpen?: boolean;
+      outcomeSource?: "physical" | "virtual";
+      playerSeat?: number;
+    },
+  ) {
+    const modules = {
+      roulette: asUntypedModule(rouletteModule),
+      craps: asUntypedModule(crapsModule),
+      blackjack: asUntypedModule(blackjackModule),
+    } as const;
+    const rules = {
+      roulette: DEFAULT_ROULETTE_RULES,
+      craps: crapsModule.defaultRules,
+      blackjack: blackjackModule.defaultRules,
+    } as const;
+
+    const store = createTableStore({
+      game,
+      module: modules[game],
+      rules: rules[game],
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "bet-id-1",
+    });
+
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: {
+        ...houseSettings().participation,
+        ...(opts?.outcomeSource ? { outcomeSource: opts.outcomeSource } : {}),
+      },
+    });
+    store.emit({
+      type: "SETTINGS_CHANGED",
+      patch: { bank: { ...houseSettings().bank, chipDenominations: [5, 25, 100, 500] } },
+    });
+    store.emit({
+      type: "PLAYER_JOINED",
+      player: {
+        id: "p1",
+        name: "Ana",
+        color: "#e5322d",
+        status: "active",
+        joinedAt: "2026-01-01T00:00:01.000Z",
+        ...(opts?.playerSeat !== undefined ? { seat: opts.playerSeat } : {}),
+      },
+    });
+    store.emit({
+      type: "BANK_ISSUED",
+      playerId: "p1",
+      amount: opts?.bankroll ?? 500,
+      reason: "buyin",
+    });
+
+    if (opts?.roundOpen !== false) {
+      store.emit({ type: "BETS_OPENED", roundId: "r1" });
+    }
+
+    const syncStore = {
+      ...store,
+      getPlayerId: () => "p1",
+      getConnectionState: () => "connected" as const,
+      sendVirtual: vi.fn(),
+    };
+
+    return { store: syncStore, module: modules[game] };
+  }
+
+  it("roulette place emits BET_PLACED with straight-17 target", () => {
+    const { store } = setupGameStore("roulette");
+    const emitSpy = vi.spyOn(store, "emit");
+    render(<PlayerShell store={store} playerName="Ana" />);
+
+    fireEvent.click(screen.getByTestId("chip-denom-25"));
+    fireEvent.click(screen.getByTestId("felt-hit-straight:17"));
+
+    expect(emitSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "BET_PLACED",
+        bet: expect.objectContaining({
+          playerId: "p1",
+          roundId: "r1",
+          type: "straight",
+          amount: 25,
+          target: { kind: "straight", pocket: 17 },
+        }),
+      }),
+    );
+  });
+
+  it("virtual craps roll calls sendVirtual trigger", async () => {
+    const { store } = setupGameStore("craps", { outcomeSource: "virtual" });
+    const emitSpy = vi.spyOn(store, "emit");
+    render(<PlayerShell store={store} playerName="Ana" />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("shooter-roll"));
+    });
+
+    expect(store.sendVirtual).toHaveBeenCalledWith("trigger");
+    expect(emitSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "PLAYER_ACTION", action: { kind: "roll" } }),
+    );
+  });
+
+  it("physical blackjack hit emits PLAYER_ACTION with intent", () => {
+    const { store } = setupGameStore("blackjack", { playerSeat: 3, roundOpen: false });
+    store.emit({
+      type: "LIVE_INPUT",
+      payload: {
+        dealer: [{ rank: "7", suit: "S" }],
+        seats: {
+          3: [
+            {
+              cards: [
+                { rank: "9", suit: "H" },
+                { rank: "7", suit: "C" },
+              ],
+              doubled: false,
+              fromSplit: false,
+              surrendered: false,
+              outcome: null,
+            },
+          ],
+        },
+      },
+      source: "dealer",
+    });
+    const emitSpy = vi.spyOn(store, "emit");
+    render(<PlayerShell store={store} playerName="Ana" />);
+
+    fireEvent.click(screen.getByTestId("action-btn-hit"));
+    expect(emitSpy).toHaveBeenCalledWith({
+      type: "PLAYER_ACTION",
+      playerId: "p1",
+      action: "hit",
+      intent: true,
+    });
+  });
+
+  it("virtual blackjack hit calls sendVirtual action", () => {
+    const { store } = setupGameStore("blackjack", {
+      playerSeat: 3,
+      roundOpen: false,
+    });
+    store.emit({
+      type: "LIVE_INPUT",
+      payload: {
+        dealer: [{ rank: "7", suit: "S" }],
+        seats: {
+          3: [
+            {
+              cards: [
+                { rank: "9", suit: "H" },
+                { rank: "7", suit: "C" },
+              ],
+              doubled: false,
+              fromSplit: false,
+              surrendered: false,
+              outcome: null,
+            },
+          ],
+        },
+      },
+      source: "dealer",
+    });
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: {
+        ...houseSettings().participation,
+        outcomeSource: "virtual",
+      },
+    });
+    const emitSpy = vi.spyOn(store, "emit");
+    render(<PlayerShell store={store} playerName="Ana" />);
+
+    fireEvent.click(screen.getByTestId("action-btn-hit"));
+    expect(store.sendVirtual).toHaveBeenCalledWith("action", { playerId: "p1", action: "hit" });
+    expect(emitSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "PLAYER_ACTION", action: "hit" }),
+    );
+  });
+
+  it("craps toggle_working emits BET_UPDATED", () => {
+    const { store } = setupGameStore("craps");
+    const comeBet: PlacedBet<CrapsBetTarget> = {
+      id: "come-8",
+      playerId: "p1",
+      roundId: "r1",
+      type: "come",
+      target: { kind: "point", value: 8 },
+      amount: 25,
+      declared: false,
+      working: true,
+      placedAt: "2026-01-01T00:00:02.000Z",
+      originRoundId: "r1",
+    };
+    store.emit({ type: "BET_PLACED", bet: comeBet });
+    const emitSpy = vi.spyOn(store, "emit");
+    render(<PlayerShell store={store} playerName="Ana" />);
+
+    fireEvent.click(screen.getByTestId("come-chip-8"));
+    fireEvent.click(screen.getByTestId("working-toggle"));
+
+    expect(emitSpy).toHaveBeenCalledWith({
+      type: "BET_UPDATED",
+      betId: "come-8",
+      patch: { working: false },
+    });
+  });
+
+  it("craps take-down emits BET_REMOVED", () => {
+    const { store } = setupGameStore("craps");
+    const placeBet: PlacedBet<CrapsBetTarget> = {
+      id: "place-6",
+      playerId: "p1",
+      roundId: "r1",
+      type: "place",
+      target: { kind: "point", value: 6 },
+      amount: 30,
+      declared: false,
+      working: true,
+      placedAt: "2026-01-01T00:00:02.000Z",
+      originRoundId: "r1",
+    };
+    store.emit({ type: "BET_PLACED", bet: placeBet });
+    const emitSpy = vi.spyOn(store, "emit");
+    render(<PlayerShell store={store} playerName="Ana" />);
+
+    const placeBox = screen.getByTestId("place-box-6");
+    const chip = placeBox.querySelector(".craps-player-view__place-chip");
+    expect(chip).toBeTruthy();
+    fireEvent.click(chip!);
+    fireEvent.click(screen.getByTestId("working-take-down"));
+
+    expect(emitSpy).toHaveBeenCalledWith({ type: "BET_REMOVED", betId: "place-6" });
+  });
+
+  it("blackjack selectSeat emits PLAYER_UPDATED with seat patch", () => {
+    const { store } = setupGameStore("blackjack");
+    const emitSpy = vi.spyOn(store, "emit");
+    render(<PlayerShell store={store} playerName="Ana" />);
+
+    fireEvent.click(screen.getByTestId("seat-pick-3"));
+    expect(emitSpy).toHaveBeenCalledWith({
+      type: "PLAYER_UPDATED",
+      playerId: "p1",
+      patch: { seat: 3 },
+    });
   });
 });

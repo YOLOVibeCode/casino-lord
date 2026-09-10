@@ -3,6 +3,19 @@ import { browserStorage, type StorageLike } from "./storage.js";
 
 export type DeviceTheme = "table-felt" | "midnight" | "crimson" | "high-contrast";
 export type BoardLanguage = "EN" | "ZH" | "EN+ZH";
+export type PhoneAnimations = "full" | "reduced" | "off";
+export type ShakeSensitivity = "low" | "medium" | "high";
+
+/** DeviceMotion peak acceleration threshold in m/s² (SPEC-CRAPS §13.2). */
+const SHAKE_THRESHOLDS: Record<ShakeSensitivity, number> = {
+  low: 24,
+  medium: 18,
+  high: 12,
+};
+
+export function shakeThresholdForSensitivity(sensitivity: ShakeSensitivity): number {
+  return SHAKE_THRESHOLDS[sensitivity];
+}
 
 export interface DeviceSettings {
   layoutId: string;
@@ -18,6 +31,9 @@ export interface DeviceSettings {
   soundEnabled: boolean;
   theme: DeviceTheme;
   boardLanguage: BoardLanguage;
+  phoneAnimations: PhoneAnimations;
+  shakeSensitivity: ShakeSensitivity;
+  idleAttract: boolean;
 }
 
 const STORAGE_KEY = "casino-lord:device-settings";
@@ -36,6 +52,9 @@ export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
   soundEnabled: false,
   theme: "table-felt",
   boardLanguage: "EN",
+  phoneAnimations: "reduced",
+  shakeSensitivity: "medium",
+  idleAttract: true,
 };
 
 export function applyDevicePresentation(settings: DeviceSettings): void {

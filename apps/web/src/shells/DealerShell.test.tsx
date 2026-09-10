@@ -2,16 +2,37 @@
  * @vitest-environment jsdom
  */
 import "fake-indexeddb/auto";
-import { fireEvent, render, screen } from "@testing-library/preact";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { LocationProvider } from "preact-iso";
 import { DEFAULT_TABLE_SETTINGS, type TableEvent } from "@casino-lord/core";
 import { createStubModule, STUB_RULES } from "@casino-lord/core/testing";
+import { crapsModule, DEFAULT_CRAPS_RULES } from "@casino-lord/game-craps";
 import { asUntypedModule } from "../table/module-types.js";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { createTableStore, type TableStore } from "../table/store.js";
 import { DealerShell } from "./DealerShell.js";
 
+vi.mock("../sync/urls.js", () => ({
+  tableUrl: (path: string) => `http://127.0.0.1:3000${path}`,
+}));
+
+function renderDealerShell(props: Parameters<typeof DealerShell>[0]) {
+  return render(
+    <LocationProvider>
+      <DealerShell {...props} />
+    </LocationProvider>,
+  );
+}
+
+function openDealerMenu(): void {
+  const menuBtn = screen.getByTestId("dealer-shell").querySelector(".dealer-shell__menu button");
+  fireEvent.click(menuBtn!);
+}
+
 describe("DealerShell", () => {
+  afterEach(() => cleanup());
+
   it("renders header and action bar with stub module", () => {
     const module = asUntypedModule(createStubModule());
     const store = createTableStore({
@@ -23,15 +44,13 @@ describe("DealerShell", () => {
       id: () => "s1",
     });
 
-    render(
-      <DealerShell
-        store={store}
-        module={module}
-        rules={STUB_RULES}
-        deviceSettings={DEFAULT_DEVICE_SETTINGS}
-        onDeviceSettingsChange={() => {}}
-      />,
-    );
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
 
     expect(screen.getByTestId("dealer-shell")).toBeTruthy();
     expect(screen.getByTestId("undo-btn")).toBeTruthy();
@@ -82,19 +101,116 @@ describe("DealerShell", () => {
       sendVirtual,
     };
 
-    render(
-      <DealerShell
-        store={store}
-        module={module}
-        rules={STUB_RULES}
-        deviceSettings={DEFAULT_DEVICE_SETTINGS}
-        onDeviceSettingsChange={() => {}}
-      />,
-    );
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
 
     expect(screen.getByTestId("deal-btn")).toBeTruthy();
     expect(screen.getByTestId("virtual-commit").textContent).toContain("abcdef01");
     fireEvent.click(screen.getByTestId("deal-btn"));
     expect(sendVirtual).toHaveBeenCalledWith("trigger");
+  });
+
+  it("shows assigned shooter name for craps table", () => {
+    const module = asUntypedModule(crapsModule);
+    const store = createTableStore({
+      game: "craps",
+      module,
+      rules: DEFAULT_CRAPS_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    store.emit({
+      type: "PLAYER_JOINED",
+      player: {
+        id: "p1",
+        name: "Ana",
+        color: "#E53935",
+        status: "active",
+        joinedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+
+    renderDealerShell({
+      store,
+      module,
+      rules: DEFAULT_CRAPS_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    expect(screen.getByTestId("dealer-shooter-name").textContent).toBe("Shooter: Ana");
+  });
+
+  it("import shows player and bet counts from export envelope", () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    const exportText = [
+      "#casino-lord v3 game=baccarat table=TEST01 series=1 started=2026-01-01T00:00:00.000Z source=physical rules=eyJ0aHJlc2hvbGQiOjEwfQ",
+      "15",
+      "#players",
+      "p1 Ana issued=500 net=0 final=500",
+      "#bets",
+      "r1 p1 high 100 win 100",
+    ].join("\n");
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue(exportText);
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    openDealerMenu();
+    fireEvent.click(screen.getByText("Import"));
+
+    expect(alertSpy).toHaveBeenCalledWith("1 players, 1 bets in this export — not imported");
+    expect(store.events.filter((e) => e.type === "RESULT_RECORDED")).toHaveLength(1);
+
+    promptSpy.mockRestore();
+    alertSpy.mockRestore();
+  });
+
+  it("disconnect navigates away without ending session", () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    const onDisconnect = vi.fn();
+
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+      onDisconnect,
+    });
+
+    openDealerMenu();
+    fireEvent.click(screen.getByTestId("menu-disconnect"));
+
+    expect(onDisconnect).toHaveBeenCalled();
+    expect(store.events.some((e) => e.type === "SESSION_ENDED")).toBe(false);
   });
 });
