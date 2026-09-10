@@ -437,6 +437,9 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
         invalidateComposedCache();
         liveInput = event;
       }
+      if (event.type === "RESULT_RECORDED") {
+        virtualPending = null;
+      }
       if (event.seq <= 0) {
         notify();
         return;

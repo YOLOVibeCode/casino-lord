@@ -97,6 +97,47 @@ describe("synced store", () => {
     display.destroy();
   });
 
+  it("clears virtualPending when RESULT_RECORDED arrives", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url);
+    const dealer = await openDealer(server.url, code, dealerToken);
+
+    deliverMessageForTest(dealer, {
+      op: "event",
+      event: {
+        type: "VIRTUAL_PENDING",
+        kind: "wheel",
+        untilAt: "2026-01-01T00:00:10.000Z",
+      },
+    });
+    expect(dealer.getVirtualPending()).toEqual({
+      kind: "wheel",
+      untilAt: "2026-01-01T00:00:10.000Z",
+    });
+
+    const latestSeq = dealer.events.reduce((max, e) => Math.max(max, e.seq), 0);
+    deliverMessageForTest(dealer, {
+      op: "event",
+      event: {
+        type: "RESULT_RECORDED",
+        seq: latestSeq + 1,
+        at: "2026-01-01T00:00:11.000Z",
+        result: {
+          id: "virtual-spin",
+          index: 1,
+          recordedAt: "2026-01-01T00:00:11.000Z",
+          quick: false,
+          source: "virtual",
+          by: "system",
+          data: minimalBaccaratResult(),
+        },
+      },
+    });
+
+    expect(dealer.getVirtualPending()).toBeNull();
+    dealer.destroy();
+  });
+
   it("replays a roulette table log with the roulette module", async () => {
     const server = await boot();
     const { code, dealerToken } = await createTableViaRest(server.url, {
