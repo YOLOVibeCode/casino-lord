@@ -30,6 +30,7 @@ import { currentSeriesCommit } from "../table/meta.js";
 import { formatBoardLabel } from "../i18n/board-labels.js";
 import { BettingStrip } from "./BettingStrip.js";
 import { LeaderboardInterstitial } from "./LeaderboardInterstitial.js";
+import { describeResultLine } from "./PlayerShell.js";
 import "./display-shell.css";
 
 const HINT_DISMISS_MS = 8000;
@@ -149,6 +150,14 @@ export function DisplayShell({
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevSettlementsRef = useRef(composed.platform.settlements);
   const historyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [, setCountdownTick] = useState(0);
+  const [liveAnnouncement, setLiveAnnouncement] = useState("");
+  const lastAnnouncedResultId = useRef<string | null>(null);
+  const countdownAnnouncedRef = useRef<{ roundId: string; at10: boolean; at5: boolean }>({
+    roundId: "",
+    at10: false,
+    at5: false,
+  });
 
   useEffect(() => {
     const triggerEvents = store.events.filter(
@@ -251,6 +260,42 @@ export function DisplayShell({
       if (cursorTimer.current) clearTimeout(cursorTimer.current);
     };
   }, [deviceSettings.cursorHide]);
+
+  useEffect(() => {
+    const last = store.events.at(-1);
+    if (last?.type !== "RESULT_RECORDED") return;
+    const resultId = last.result.id;
+    if (resultId === lastAnnouncedResultId.current) return;
+    lastAnnouncedResultId.current = resultId;
+    const resultNumber = store.events.filter((e) => e.type === "RESULT_RECORDED").length;
+    const description =
+      module.describeResult !== undefined
+        ? module.describeResult(last.result.data, rules)
+        : describeResultLine(module, rules, composed.module, resultId);
+    setLiveAnnouncement(`${module.resultLabel} ${resultNumber}: ${description}`);
+  }, [store.events, composed.module, module, rules]);
+
+  useEffect(() => {
+    if (round?.status !== "open" || !round.closesAt) return;
+    const id = setInterval(() => setCountdownTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [round?.id, round?.status, round?.closesAt]);
+
+  useEffect(() => {
+    if (round?.status !== "open" || betting.countdownSec === null) return;
+    if (countdownAnnouncedRef.current.roundId !== round.id) {
+      countdownAnnouncedRef.current = { roundId: round.id, at10: false, at5: false };
+    }
+    const state = countdownAnnouncedRef.current;
+    if (betting.countdownSec <= 10 && !state.at10) {
+      state.at10 = true;
+      setLiveAnnouncement("Bets close in 10 seconds");
+    }
+    if (betting.countdownSec <= 5 && !state.at5) {
+      state.at5 = true;
+      setLiveAnnouncement("Bets close in 5 seconds");
+    }
+  }, [round?.id, round?.status, betting.countdownSec]);
 
   useEffect(() => {
     if (!syncBaseUrl) return;
@@ -525,6 +570,15 @@ export function DisplayShell({
 
       <div ref={overlayRef} class="display-shell__animation-overlay" aria-hidden="true">
         <AnimationLayer segments={activeSegments} />
+      </div>
+
+      <div
+        class="display-shell__sr-live"
+        data-testid="display-live-region"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {liveAnnouncement}
       </div>
     </div>
   );
