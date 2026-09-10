@@ -117,6 +117,9 @@ describe("SoloPage roulette", () => {
     await waitFor(() => {
       expect(screen.getByTestId("local-players-toggle")).toBeTruthy();
     });
+    expect(screen.getByTestId("local-players-help").textContent).toBe(
+      "Open the play link on other tabs of this browser — same device only",
+    );
   });
 
   it("shows play and display links when local players is enabled", async () => {

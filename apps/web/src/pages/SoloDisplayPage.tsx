@@ -29,7 +29,9 @@ export function SoloDisplayPage(_props: { path?: string }) {
 
   useEffect(() => {
     if (!isSoloBroadcastChannelAvailable()) {
-      setError("Local display requires BroadcastChannel support");
+      setError(
+        "This browser can't open a solo display mirror. Use the Display mirror link from the dealer tab's Local players panel instead.",
+      );
       setLoading(false);
       return;
     }
@@ -78,7 +80,7 @@ export function SoloDisplayPage(_props: { path?: string }) {
   if (error) {
     return (
       <main class="display-page display-page--error" data-testid="solo-display-page">
-        <p>{error}</p>
+        <p data-testid="solo-display-error">{error}</p>
         <button type="button" onClick={() => route("/")}>
           Home
         </button>

@@ -68,6 +68,12 @@
   margin-top: 0.5rem;
 }
 
+.table-created__warning {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  color: #ffb74d;
+}
+
 .table-created__home {
   display: inline-block;
   margin-top: 2rem;
