@@ -19,6 +19,7 @@ import { initialState } from "./state.js";
 import type { CrapsState } from "./types.js";
 import { crapsStats } from "./stats.js";
 import type { CrapsLiveInput, CrapsResult } from "./types.js";
+import { describeCrapsResult } from "./describe-result.js";
 import { crapsVirtualStep } from "./virtual.js";
 import { DealerView } from "./views/DealerView.js";
 import { DisplayView } from "./views/DisplayView.js";
@@ -137,5 +138,9 @@ export const crapsModule: GameModule<
       return { error: result.errors.join("; ") };
     }
     return { results: result.results, warnings: result.warnings };
+  },
+
+  describeResult(result, _rules) {
+    return describeCrapsResult(result);
   },
 };

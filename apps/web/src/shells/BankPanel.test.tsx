@@ -66,4 +66,62 @@ describe("BankPanel", () => {
 
     expect(screen.getByTestId("chips-summary").textContent).toContain("Issued: 500");
   });
+
+  it("shows empty state when there are no players", () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "id-1",
+    });
+    store.emit({ type: "PARTICIPATION_CHANGED", participation: houseSettings().participation });
+    render(
+      <BankPanel
+        store={store}
+        composed={store.getComposed()}
+        settings={houseSettings()}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("bank-empty").textContent).toContain("No players yet");
+    expect(screen.queryByTestId("issue-one")).toBeNull();
+  });
+
+  it("uses selected reason when issuing chips", () => {
+    const store = setupStore();
+    render(
+      <BankPanel
+        store={store}
+        composed={store.getComposed()}
+        settings={houseSettings()}
+        onClose={() => {}}
+      />,
+    );
+    fireEvent.change(screen.getByTestId("issue-reason"), { target: { value: "bonus" } });
+    fireEvent.click(screen.getByTestId("issue-one"));
+    const issued = store.events.find((e) => e.type === "BANK_ISSUED");
+    expect(issued).toMatchObject({ reason: "bonus" });
+    expect(screen.getByTestId("bank-toast")).toBeTruthy();
+  });
+
+  it("take back emits BANK_ADJUSTED with takeback reason", () => {
+    const store = setupStore();
+    store.emit({ type: "BANK_ISSUED", playerId: "p1", amount: 500, reason: "buyin" });
+    render(
+      <BankPanel
+        store={store}
+        composed={store.getComposed()}
+        settings={houseSettings()}
+        onClose={() => {}}
+      />,
+    );
+    fireEvent.input(screen.getByTestId("take-back-amount"), { target: { value: "100" } });
+    fireEvent.click(screen.getByTestId("take-back"));
+    const adjusted = store.events.find((e) => e.type === "BANK_ADJUSTED");
+    expect(adjusted).toMatchObject({ delta: -100, reason: "takeback" });
+    expect(screen.getByTestId("bank-toast").textContent).toContain("Took back");
+  });
 });

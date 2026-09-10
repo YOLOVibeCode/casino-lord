@@ -24,6 +24,7 @@ import { DisplayView } from "./views/DisplayView.js";
 import { PlayerView } from "./views/PlayerView.js";
 import { ResultDetailView } from "./views/ResultDetailView.js";
 import { RulesSettingsView } from "./views/RulesSettingsView.js";
+import { describeBaccaratResult } from "./describe-result.js";
 import {
   baccaratVirtualDecks,
   baccaratVirtualStep,
@@ -135,6 +136,10 @@ export const baccaratModule: GameModule<
       results: result.hands.map((h) => h.result),
       warnings: result.warnings,
     };
+  },
+
+  describeResult(result, _rules) {
+    return describeBaccaratResult(result);
   },
 
   virtual: {

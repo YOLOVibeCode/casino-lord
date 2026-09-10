@@ -75,4 +75,10 @@ describe("crapsModule", () => {
       expect(imported.results).toHaveLength(2);
     }
   });
+
+  it("describeResult formats dice and total", () => {
+    expect(
+      crapsModule.describeResult?.({ a: 6, b: 1, total: 7, hard: null }, DEFAULT_CRAPS_RULES),
+    ).toBe("6-1 — 7");
+  });
 });

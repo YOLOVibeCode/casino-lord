@@ -105,4 +105,10 @@ describe("rouletteModule", () => {
     if ("error" in imported) return;
     expect(imported.results).toEqual([{ pocket: 17 }]);
   });
+
+  it("describeResult formats pocket and color", () => {
+    expect(rouletteModule.describeResult?.({ pocket: 17 }, DEFAULT_ROULETTE_RULES)).toBe(
+      "17 Black",
+    );
+  });
 });

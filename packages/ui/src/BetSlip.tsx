@@ -12,6 +12,7 @@ export interface BetSlipProps {
   entries: BetSlipEntry[];
   total: number;
   locked: boolean;
+  idle?: boolean;
   canPlace: boolean;
   error?: string;
   onRemove: (id: string, pending: boolean) => void;
@@ -27,6 +28,7 @@ export function BetSlip({
   entries,
   total,
   locked,
+  idle = false,
   canPlace,
   error,
   onRemove,
@@ -84,7 +86,11 @@ export function BetSlip({
         )}
       </div>
 
-      {locked ? (
+      {idle ? (
+        <p class="bet-slip__idle" data-testid="bet-slip-idle">
+          Bets open soon
+        </p>
+      ) : locked ? (
         <p class="bet-slip__locked" data-testid="bet-slip-locked">
           Bets closed — good luck
         </p>

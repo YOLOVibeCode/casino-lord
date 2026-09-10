@@ -101,4 +101,28 @@ describe("blackjackModule", () => {
     const result = blackjackModule.importSeries("NOT_VALID", DEFAULT_BLACKJACK_RULES);
     expect("error" in result).toBe(true);
   });
+
+  it("describeResult formats dealer and seat bust", () => {
+    expect(
+      blackjackModule.describeResult?.(
+        {
+          dealer: { cards: [], total: 20, bust: false, blackjack: false },
+          seats: {
+            2: [
+              {
+                cards: [],
+                doubled: false,
+                fromSplit: false,
+                surrendered: false,
+                outcome: "bust",
+              },
+            ],
+          },
+          depth: "outcomes",
+          dealerError: false,
+        },
+        DEFAULT_BLACKJACK_RULES,
+      ),
+    ).toBe("Dealer 20, seat 2 bust");
+  });
 });
