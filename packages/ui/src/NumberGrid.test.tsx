@@ -62,4 +62,23 @@ describe("NumberGrid", () => {
     fireEvent.keyDown(document, { key: "Backspace" });
     expect(onSelect).toHaveBeenCalledWith(null);
   });
+
+  it("ignores keydown when focus is in an input", () => {
+    const { onSelect } = renderGrid();
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+    fireEvent.keyDown(input, { key: "5" });
+    expect(onSelect).not.toHaveBeenCalled();
+    document.body.removeChild(input);
+  });
+
+  it("vibrates on selection when haptics enabled", () => {
+    const vibrate = vi.fn();
+    Object.defineProperty(navigator, "vibrate", { value: vibrate, configurable: true });
+    const { onSelect } = renderGrid({ haptics: true });
+    fireEvent.click(screen.getByTestId("number-cell-17"));
+    expect(onSelect).toHaveBeenCalledWith(17);
+    expect(vibrate).toHaveBeenCalledWith(10);
+  });
 });

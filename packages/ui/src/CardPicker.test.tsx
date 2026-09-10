@@ -146,4 +146,18 @@ describe("CardPicker", () => {
     const commitBtn = screen.getByTestId("card-picker-commit") as HTMLButtonElement;
     expect(commitBtn.disabled).toBe(true);
   });
+
+  it("calls onClose when backdrop is clicked", () => {
+    const { onClose } = renderPicker();
+    fireEvent.click(screen.getByTestId("card-picker-backdrop"));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("vibrates on rank selection when haptics enabled", () => {
+    const vibrate = vi.fn();
+    Object.defineProperty(navigator, "vibrate", { value: vibrate, configurable: true });
+    renderPicker({ haptics: true, expressMode: false });
+    fireEvent.click(screen.getByTestId("rank-7"));
+    expect(vibrate).toHaveBeenCalledWith(10);
+  });
 });

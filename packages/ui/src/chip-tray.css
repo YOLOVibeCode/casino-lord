@@ -40,8 +40,8 @@
 
 .chip-tray__clear {
   margin-left: auto;
-  min-width: 3rem;
-  min-height: 3rem;
+  min-width: max(3rem, 44px);
+  min-height: max(3rem, 44px);
   padding: 0 1rem;
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 0.5rem;
