@@ -1,8 +1,10 @@
 .display-shell {
+  --display-scale: min(100vw / 1920, 100vh / 1080);
   position: relative;
   display: flex;
   flex-direction: column;
   min-height: 100%;
+  font-size: calc(16px * var(--display-scale));
   background: var(--panel-bg);
   border: 1px solid var(--gold-hairline);
   border-radius: 8px;

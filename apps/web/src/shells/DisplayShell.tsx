@@ -397,9 +397,7 @@ export function DisplayShell({
         : "Offline";
 
   const dealerHint =
-    syncStore &&
-    syncStore.getPresence().dealers === 0 &&
-    connectionState === "connected"
+    syncStore && syncStore.getPresence().dealers === 0 && connectionState === "connected"
       ? "Dealer disconnected"
       : null;
 
