@@ -240,10 +240,15 @@ function SoloPanes({
           </button>
         </div>
         {channelAvailable && (
-          <label class="solo__local-players" data-testid="local-players-toggle">
-            <input type="checkbox" checked={localPlayersOn} onChange={handleLocalPlayersToggle} />
-            Local players
-          </label>
+          <div class="solo__local-players-wrap">
+            <label class="solo__local-players" data-testid="local-players-toggle">
+              <input type="checkbox" checked={localPlayersOn} onChange={handleLocalPlayersToggle} />
+              Local players
+            </label>
+            <p class="solo__field-help" data-testid="local-players-help">
+              Open the play link on other tabs of this browser — same device only
+            </p>
+          </div>
         )}
       </div>
       {localPlayersOn && (

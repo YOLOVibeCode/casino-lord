@@ -75,12 +75,24 @@
   background: rgba(255, 255, 255, 0.12);
 }
 
+.solo__local-players-wrap {
+  margin-left: auto;
+  text-align: right;
+}
+
 .solo__local-players {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  margin-left: auto;
   cursor: pointer;
+}
+
+.solo__field-help {
+  margin: 0.25rem 0 0;
+  max-width: 16rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
 .solo__local-links {

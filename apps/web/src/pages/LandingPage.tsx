@@ -1,6 +1,11 @@
 import { useEffect, useState } from "preact/hooks";
 import { useLocation } from "preact-iso";
-import { isValidTableCode, normalizeTableCode, DEFAULT_TABLE_SETTINGS, type Participation } from "@casino-lord/core";
+import {
+  isValidTableCode,
+  normalizeTableCode,
+  DEFAULT_TABLE_SETTINGS,
+  type Participation,
+} from "@casino-lord/core";
 import { createTable, fetchServerFeatures, getTableMeta } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
 import {
@@ -72,9 +77,7 @@ export function LandingPage(_props: { path?: string }) {
       const result = await createTable(getSyncBaseUrl(), {
         game: selectedGame as "baccarat" | "roulette" | "craps" | "blackjack",
         participation,
-        ...(withPlayers && houseBank
-          ? { settings: { bank: { defaultBuyIn } } }
-          : {}),
+        ...(withPlayers && houseBank ? { settings: { bank: { defaultBuyIn } } } : {}),
       });
       route(
         `/created/${result.code}?t=${encodeURIComponent(result.dealerToken)}&game=${encodeURIComponent(selectedGame)}`,
