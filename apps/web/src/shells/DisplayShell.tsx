@@ -32,6 +32,20 @@ import { BettingStrip } from "./BettingStrip.js";
 import { LeaderboardInterstitial } from "./LeaderboardInterstitial.js";
 import "./display-shell.css";
 
+const HINT_DISMISS_MS = 8000;
+const HINT_DISMISS_REDUCED_MS = 2000;
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function hintDismissMs(): number {
+  return prefersReducedMotion() ? HINT_DISMISS_REDUCED_MS : HINT_DISMISS_MS;
+}
+
 function settlementsByBetId(settlements: PlatformState["settlements"]): Map<string, Settlement> {
   const map = new Map<string, Settlement>();
   for (const roundSettlements of Object.values(settlements)) {
@@ -194,12 +208,17 @@ export function DisplayShell({
 
   const [fsHint, setFsHint] = useState(!deviceSettings.fullScreen);
   const [soundUnlocked, setSoundUnlocked] = useState(() => animationSound.isUnlocked());
+  const [soundHintVisible, setSoundHintVisible] = useState(
+    () => deviceSettings.soundEnabled && !animationSound.isUnlocked(),
+  );
   const [infoOpen, setInfoOpen] = useState(false);
   const [logoTaps, setLogoTaps] = useState(0);
   const [cursorHidden, setCursorHidden] = useState(false);
   const [version, setVersion] = useState("0.0.0");
   const cursorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fsHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const soundHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
@@ -237,6 +256,28 @@ export function DisplayShell({
     if (!syncBaseUrl) return;
     void fetchVersion(syncBaseUrl).then(setVersion);
   }, [syncBaseUrl]);
+
+  useEffect(() => {
+    if (!fsHint) {
+      if (fsHintTimer.current) clearTimeout(fsHintTimer.current);
+      return;
+    }
+    fsHintTimer.current = setTimeout(() => setFsHint(false), hintDismissMs());
+    return () => {
+      if (fsHintTimer.current) clearTimeout(fsHintTimer.current);
+    };
+  }, [fsHint]);
+
+  useEffect(() => {
+    if (!deviceSettings.soundEnabled || soundUnlocked || !soundHintVisible) {
+      if (soundHintTimer.current) clearTimeout(soundHintTimer.current);
+      return;
+    }
+    soundHintTimer.current = setTimeout(() => setSoundHintVisible(false), hintDismissMs());
+    return () => {
+      if (soundHintTimer.current) clearTimeout(soundHintTimer.current);
+    };
+  }, [deviceSettings.soundEnabled, soundUnlocked, soundHintVisible]);
 
   const requestFullScreen = async () => {
     const el = rootRef.current;
@@ -300,6 +341,7 @@ export function DisplayShell({
       onClick={() => {
         unlockSound();
         setSoundUnlocked(true);
+        setSoundHintVisible(false);
         if (fsHint) void requestFullScreen();
       }}
     >
@@ -411,10 +453,14 @@ export function DisplayShell({
         </aside>
       )}
 
-      {fsHint && <div class="display-shell__fs-hint">Tap for full screen</div>}
+      {fsHint && (
+        <div class="display-shell__hint-toast" data-testid="fs-hint" role="status">
+          Tap for full screen
+        </div>
+      )}
 
-      {deviceSettings.soundEnabled && !soundUnlocked && (
-        <div class="display-shell__fs-hint" data-testid="sound-unlock-hint">
+      {deviceSettings.soundEnabled && !soundUnlocked && soundHintVisible && (
+        <div class="display-shell__hint-toast" data-testid="sound-unlock-hint" role="status">
           Tap to enable sound
         </div>
       )}

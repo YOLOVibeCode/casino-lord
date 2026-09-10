@@ -200,6 +200,42 @@ describe("DisplayShell", () => {
     );
   });
 
+  it("shows corner hint toasts that auto-dismiss without blocking the board", () => {
+    vi.useFakeTimers();
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <DisplayShell
+        store={store}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={{ ...DEFAULT_DEVICE_SETTINGS, fullScreen: false, soundEnabled: true }}
+      />,
+    );
+
+    const fsHint = screen.getByTestId("fs-hint");
+    const soundHint = screen.getByTestId("sound-unlock-hint");
+    expect(fsHint.className).toContain("display-shell__hint-toast");
+    expect(soundHint.className).toContain("display-shell__hint-toast");
+    expect(screen.getByTestId("display-shell").contains(screen.getByTestId("display-shell"))).toBe(
+      true,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(8000);
+    });
+    expect(screen.queryByTestId("fs-hint")).toBeNull();
+    expect(screen.queryByTestId("sound-unlock-hint")).toBeNull();
+  });
+
   it("does not activate idle attract when device setting is off", () => {
     vi.useFakeTimers();
     const module = asUntypedModule(createStubModule());
