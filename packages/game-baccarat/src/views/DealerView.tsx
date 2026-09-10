@@ -181,7 +181,6 @@ export function DealerView({
   const handleCommit = useCallback(
     (card: { rank: string; suit: string | null }) => {
       if (!pickerSlot) return;
-      tapHaptic(haptics);
       if (card.suit) setStickySuit(card.suit as Suit);
       const next = {
         ...liveSlots,
@@ -197,7 +196,7 @@ export function DealerView({
         }
       }
     },
-    [pickerSlot, liveSlots, emitSlots, closePicker, autoAdvance, rules, openPicker, haptics],
+    [pickerSlot, liveSlots, emitSlots, closePicker, autoAdvance, rules, openPicker],
   );
 
   const handleRemove = useCallback(() => {
@@ -414,6 +413,7 @@ export function DealerView({
         onRemove={handleRemove}
         {...(Object.keys(liveSlots).length > 0 ? { onUndoLast: handleUndoLast } : {})}
         onClose={closePicker}
+        haptics={haptics}
       />
     </div>
   );

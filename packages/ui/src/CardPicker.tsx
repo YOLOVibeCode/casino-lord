@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { tapHaptic } from "./haptics.js";
 import type { PickedCard } from "./types.js";
 import "./card-picker.css";
 
@@ -60,6 +61,7 @@ export interface CardPickerProps {
   onRemove: () => void;
   onUndoLast?: () => void;
   onClose: () => void;
+  haptics?: boolean;
 }
 
 function suitGlyph(suit: string | null): string {
@@ -85,6 +87,7 @@ export function CardPicker({
   onRemove,
   onUndoLast,
   onClose,
+  haptics = false,
 }: CardPickerProps) {
   const [selectedRank, setSelectedRank] = useState<string | null>(initialCard?.rank ?? null);
   const [selectedSuit, setSelectedSuit] = useState<string | null>(initialCard?.suit ?? null);
@@ -130,6 +133,7 @@ export function CardPicker({
 
   const handleRankSelect = useCallback(
     (rank: string) => {
+      tapHaptic(haptics);
       setSelectedRank(rank);
       const suit = expressMode ? (stickySuit ?? selectedSuit) : selectedSuit;
 
@@ -153,11 +157,12 @@ export function CardPicker({
         }
       }
     },
-    [expressMode, stickySuit, selectedSuit, suitRequired, blocked, onCommit],
+    [expressMode, stickySuit, selectedSuit, suitRequired, blocked, haptics, onCommit],
   );
 
   const handleSuitSelect = useCallback(
     (suit: string) => {
+      tapHaptic(haptics);
       setSelectedSuit(suit);
       setStickySuit(suit);
 
@@ -166,7 +171,7 @@ export function CardPicker({
         setSelectedRank(null);
       }
     },
-    [expressMode, selectedRank, blocked, onCommit],
+    [expressMode, selectedRank, blocked, haptics, onCommit],
   );
 
   useEffect(() => {

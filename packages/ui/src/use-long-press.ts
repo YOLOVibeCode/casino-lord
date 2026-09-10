@@ -11,6 +11,7 @@ export function useLongPress({ onTap, onLongPress }: UseLongPressOptions) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
   const pressingRef = useRef(false);
+  const activePointerIdRef = useRef<number | null>(null);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -19,42 +20,59 @@ export function useLongPress({ onTap, onLongPress }: UseLongPressOptions) {
     }
   }, []);
 
-  const startPress = useCallback(() => {
-    longPressFiredRef.current = false;
-    pressingRef.current = true;
-    clearTimer();
-    timerRef.current = setTimeout(() => {
-      longPressFiredRef.current = true;
-      onLongPress();
+  const startPress = useCallback(
+    (e: PointerEvent) => {
+      if (activePointerIdRef.current !== null && activePointerIdRef.current !== e.pointerId) {
+        return;
+      }
+      activePointerIdRef.current = e.pointerId;
+      longPressFiredRef.current = false;
+      pressingRef.current = true;
+      clearTimer();
+      timerRef.current = setTimeout(() => {
+        longPressFiredRef.current = true;
+        onLongPress();
+        pressingRef.current = false;
+      }, LONG_PRESS_MS);
+    },
+    [clearTimer, onLongPress],
+  );
+
+  const endPress = useCallback(
+    (e: PointerEvent) => {
+      if (activePointerIdRef.current !== e.pointerId) return;
+      clearTimer();
+      if (!longPressFiredRef.current) {
+        onTap();
+      }
+      longPressFiredRef.current = false;
       pressingRef.current = false;
-    }, LONG_PRESS_MS);
-  }, [clearTimer, onLongPress]);
+      activePointerIdRef.current = null;
+    },
+    [clearTimer, onTap],
+  );
 
-  const endPress = useCallback(() => {
-    clearTimer();
-    if (!longPressFiredRef.current) {
-      onTap();
-    }
-    longPressFiredRef.current = false;
-    pressingRef.current = false;
-  }, [clearTimer, onTap]);
-
-  const cancelPress = useCallback(() => {
-    clearTimer();
-    longPressFiredRef.current = false;
-    pressingRef.current = false;
-  }, [clearTimer]);
+  const cancelPress = useCallback(
+    (e: PointerEvent) => {
+      if (activePointerIdRef.current !== e.pointerId) return;
+      clearTimer();
+      longPressFiredRef.current = false;
+      pressingRef.current = false;
+      activePointerIdRef.current = null;
+    },
+    [clearTimer],
+  );
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      if (e.key === " " && e.shiftKey) {
+        e.preventDefault();
+        onLongPress();
+        return;
+      }
       if (e.key === " " || e.key === "Enter") {
-        if (e.shiftKey) {
-          e.preventDefault();
-          onLongPress();
-        } else if (e.key === "Enter") {
-          e.preventDefault();
-          onTap();
-        }
+        e.preventDefault();
+        onTap();
       }
     },
     [onTap, onLongPress],

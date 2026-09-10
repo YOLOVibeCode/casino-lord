@@ -18,7 +18,7 @@
 }
 
 .felt-zones--baccarat .felt-zones__main-row .felt-zones__zone {
-  min-height: 3rem;
+  min-height: max(3rem, 48px);
 }
 
 .felt-zones__side-row {
@@ -36,8 +36,8 @@
 
 .felt-zones__zone {
   flex: 1;
-  min-height: 3rem;
-  min-width: 3rem;
+  min-height: max(3rem, 48px);
+  min-width: max(3rem, 48px);
   border: 2px solid rgba(255, 255, 255, 0.25);
   border-radius: 0.5rem;
   background: rgba(0, 0, 0, 0.2);

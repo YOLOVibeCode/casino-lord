@@ -204,7 +204,6 @@ export function DealerView({
 
   const handleCommit = (picked: PickedCard) => {
     if (!pickerTarget) return;
-    tapHaptic(haptics);
     const card = toCard(picked);
 
     if (pickerTarget.kind === "dealer") {
@@ -530,6 +529,7 @@ export function DealerView({
         onRemove={handleRemove}
         {...(hasAnyCards ? { onUndoLast: handleUndoLast } : {})}
         onClose={closePicker}
+        haptics={haptics}
       />
     </div>
   );
