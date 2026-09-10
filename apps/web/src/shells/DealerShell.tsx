@@ -37,6 +37,8 @@ import { useToast } from "../ui/Toast.js";
 import "../ui/sheet.css";
 import "./dealer-shell.css";
 
+const OPTIMISTIC_DEALING_MS = 8000;
+
 const REJECT_REASON_LABELS: Record<string, string> = {
   SESSION_ENDED: "session ended",
   DEALING: "dealing in progress",
@@ -147,6 +149,26 @@ export function DealerShell({
   const menuPanelRef = useRef<HTMLDivElement>(null);
   const prevSessionEndedRef = useRef(sessionEnded);
   const [forceTapped, setForceTapped] = useState(false);
+  const [optimisticDealing, setOptimisticDealing] = useState(false);
+  const optimisticTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resultCountRef = useRef(countSeriesResults(store.events));
+
+  const clearOptimisticDealing = useCallback(() => {
+    if (optimisticTimerRef.current) {
+      clearTimeout(optimisticTimerRef.current);
+      optimisticTimerRef.current = null;
+    }
+    setOptimisticDealing(false);
+  }, []);
+
+  const startOptimisticDealing = useCallback(() => {
+    clearOptimisticDealing();
+    setOptimisticDealing(true);
+    optimisticTimerRef.current = setTimeout(() => {
+      optimisticTimerRef.current = null;
+      setOptimisticDealing(false);
+    }, OPTIMISTIC_DEALING_MS);
+  }, [clearOptimisticDealing]);
 
   const clearConfirmTimer = useCallback(() => {
     if (confirmTimer.current) clearInterval(confirmTimer.current);
@@ -467,6 +489,21 @@ export function DealerShell({
   }, [virtualPending]);
 
   useEffect(() => {
+    resultCountRef.current = countSeriesResults(store.events);
+    const unsub = store.subscribe(() => {
+      const next = countSeriesResults(store.events);
+      if (next > resultCountRef.current) {
+        clearOptimisticDealing();
+      }
+      resultCountRef.current = next;
+    });
+    return () => {
+      unsub();
+      clearOptimisticDealing();
+    };
+  }, [store, clearOptimisticDealing]);
+
+  useEffect(() => {
     if (!syncStore) return;
     const unsub = store.subscribe(() => {
       const reason = syncStore.getRejectReason();
@@ -609,6 +646,7 @@ export function DealerShell({
       {!sessionEnded && virtualTable && (
         <VirtualPanel
           virtualPending={virtualPending}
+          optimisticDealing={optimisticDealing}
           events={store.events}
           currentSeriesResults={composed.platform.currentSeriesResults}
           module={module}
@@ -840,6 +878,7 @@ export function DealerShell({
                   title={awaitingPlayerAction ? "Awaiting player action" : undefined}
                   onClick={() => {
                     tapHaptic(deviceSettings.haptics);
+                    startOptimisticDealing();
                     store.sendVirtual("trigger");
                   }}
                 >
@@ -854,6 +893,7 @@ export function DealerShell({
                     title="Deals now even though it is a player's turn"
                     onClick={() => {
                       setForceTapped(true);
+                      startOptimisticDealing();
                       store.sendVirtual("force");
                     }}
                   >

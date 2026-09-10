@@ -3,13 +3,11 @@ import type { ComponentType } from "preact";
 import type { ComposedState, ResultEnvelope, TableEvent } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { VirtualPendingState } from "../table/sync-store-types.js";
-import {
-  countSystemLiveInputsSinceLastResult,
-  revealProgressLabel,
-} from "./virtual-reveal-progress.js";
+import { getVirtualRevealState, revealProgressLabel } from "./virtual-reveal-progress.js";
 
 export interface VirtualPanelProps {
   virtualPending: VirtualPendingState | null;
+  optimisticDealing: boolean;
   events: readonly TableEvent[];
   currentSeriesResults: readonly ResultEnvelope<unknown>[];
   module: UntypedGameModule;
@@ -21,6 +19,7 @@ export interface VirtualPanelProps {
 
 export function VirtualPanel({
   virtualPending,
+  optimisticDealing,
   events,
   currentSeriesResults,
   module,
@@ -29,9 +28,14 @@ export function VirtualPanel({
   game,
   triggerLabel,
 }: VirtualPanelProps) {
-  if (virtualPending) {
-    const count = countSystemLiveInputsSinceLastResult(events);
-    const progress = revealProgressLabel(count, virtualPending.kind);
+  const revealState = getVirtualRevealState(
+    virtualPending,
+    events,
+    module.virtual?.kind,
+    optimisticDealing,
+  );
+  if (revealState) {
+    const progress = revealProgressLabel(revealState.count, revealState.kind);
     return (
       <div class="dealer-shell__module dealer-shell__virtual-panel">
         <div class="dealer-shell__virtual-reveal" data-testid="virtual-reveal">
