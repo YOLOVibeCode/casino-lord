@@ -9,3 +9,5 @@ coverage/
 /data/
 .vite/
 .turbo/
+playwright-report/
+test-results/
