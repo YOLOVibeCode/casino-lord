@@ -154,6 +154,32 @@ describe("virtual solo table store", () => {
     }
   });
 
+  it("endSession reveals seed and verifies commit", () => {
+    let n = 0;
+    const store = createTableStore({
+      ...virtualStoreOptions,
+      now: () => `2026-01-01T00:00:3${++n}.000Z`,
+      id: () => "series-1",
+    });
+
+    const start = store.events.find((e) => e.type === "SERIES_STARTED");
+    expect(start?.type).toBe("SERIES_STARTED");
+
+    store.endSession();
+
+    const types = store.events.map((e) => e.type);
+    expect(types).toEqual(["TABLE_CREATED", "SERIES_STARTED", "SERIES_ENDED", "SESSION_ENDED"]);
+
+    const ended = store.events.find((e) => e.type === "SERIES_ENDED");
+    expect(ended?.type).toBe("SERIES_ENDED");
+    if (ended?.type === "SERIES_ENDED" && start?.type === "SERIES_STARTED") {
+      expect(ended.seriesId).toBe("series-1");
+      expect(verifyCommit(hexToBytes(ended.seed), store.code, ended.seriesId, start.commit!)).toBe(
+        true,
+      );
+    }
+  });
+
   it("reopen restores virtual dealer state from persistence", async () => {
     let n = 0;
     const store = createTableStore({

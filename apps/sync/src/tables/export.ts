@@ -1,12 +1,11 @@
-import type { GameId, GameModule, Series } from "@casino-lord/core";
-
-function base64UrlEncode(value: unknown): string {
-  return Buffer.from(JSON.stringify(value))
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
+import {
+  buildExportEnvelope,
+  replay,
+  type GameId,
+  type GameModule,
+  type Series,
+  type TableEvent,
+} from "@casino-lord/core";
 
 export function buildExportText<R>(input: {
   game: GameId;
@@ -17,9 +16,20 @@ export function buildExportText<R>(input: {
   rules: unknown;
   module: GameModule<unknown, R, unknown, unknown>;
   series: Series<R>;
+  events: readonly TableEvent[];
 }): string {
-  const rulesJson = base64UrlEncode(input.rules);
-  const header = `#casino-lord v3 game=${input.game} table=${input.code} series=${input.seriesNumber} started=${input.seriesStartedAt} source=${input.source} rules=${rulesJson}`;
-  const body = input.module.exportSeries(input.series, input.rules);
-  return `${header}\n${body}`;
+  const composed = replay([...input.events], input.module, input.rules, { code: input.code });
+  const gameBody = input.module.exportSeries(input.series, input.rules);
+  return buildExportEnvelope({
+    game: input.game,
+    code: input.code,
+    seriesNumber: input.seriesNumber,
+    seriesStartedAt: input.seriesStartedAt,
+    source: input.source,
+    rules: input.rules,
+    series: input.series as Series<unknown>,
+    gameBody,
+    platform: composed.platform,
+    events: input.events,
+  });
 }

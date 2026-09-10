@@ -1,5 +1,6 @@
 import { createElement } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { useLocation } from "preact-iso";
 import type { ComponentType } from "preact";
 import { buildBetsView, type ResultEnvelope } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
@@ -14,6 +15,7 @@ import { isSyncStore } from "../table/sync-store-types.js";
 import type { TableStore } from "../table/store.js";
 import { useStore } from "../hooks/use-store.js";
 import { buildExportText, buildSeriesFromStoreEvents } from "../table/export.js";
+import { parseExportForImport } from "../verify/replay-fairness.js";
 import { currentSeriesCommit } from "../table/meta.js";
 import { BankPanel } from "./BankPanel.js";
 import { BettingBar } from "./BettingBar.js";
@@ -30,6 +32,7 @@ export interface DealerShellProps {
   deviceSettings: DeviceSettings;
   onDeviceSettingsChange: (settings: DeviceSettings) => void;
   onNewTable?: () => void;
+  onDisconnect?: () => void;
 }
 
 type ActiveDialog = "settings" | "history" | "calculator" | "qr" | "players" | "bank" | null;
@@ -43,7 +46,9 @@ export function DealerShell({
   deviceSettings,
   onDeviceSettingsChange,
   onNewTable,
+  onDisconnect,
 }: DealerShellProps) {
+  const { route } = useLocation();
   useStore(store);
   const composed = store.getComposed();
   const table = store.getTableMeta();
@@ -249,6 +254,7 @@ export function DealerShell({
           rules,
           module,
           series,
+          events: store.events,
         });
       }
 
@@ -262,7 +268,9 @@ export function DealerShell({
   const handleImport = () => {
     const text = window.prompt("Paste series import text:");
     if (!text) return;
-    const imported = module.importSeries(text, rules);
+    const envelope = parseExportForImport(text);
+    const body = "error" in envelope ? text : envelope.body;
+    const imported = module.importSeries(body, rules);
     if ("error" in imported) {
       window.alert(imported.error);
       return;
@@ -545,6 +553,20 @@ export function DealerShell({
                   }}
                 >
                   Show QR
+                </button>
+                <button
+                  type="button"
+                  data-testid="menu-disconnect"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    if (onDisconnect) {
+                      onDisconnect();
+                    } else {
+                      route("/");
+                    }
+                  }}
+                >
+                  Disconnect
                 </button>
               </div>
             )}

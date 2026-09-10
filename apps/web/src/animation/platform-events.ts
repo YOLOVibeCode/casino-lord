@@ -29,7 +29,7 @@ export const PLATFORM_ANIMATION_EVENTS: AnimationEventDef[] = [
     id: "big_win",
     label: "Big win",
     defaultPreset: {
-      ...platformDefault("Big win", "burst"),
+      ...platformDefault("Big win", "chips"),
       text: "BIG WIN",
       durationMs: 1500,
       intensity: 3,

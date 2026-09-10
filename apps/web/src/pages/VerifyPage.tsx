@@ -1,12 +1,19 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { useRoute } from "preact-iso";
-import { getSyncBaseUrl } from "../sync/config.js";
+import { resolveSyncUrl } from "../sync/config.js";
 import { getGame } from "../table/games.js";
 import {
-  parseExportHeader,
+  parseExportForImport,
   replayVirtualSeries,
   verifyFromFairnessApi,
 } from "../verify/replay-fairness.js";
+
+interface FairnessSeriesOption {
+  number: number;
+  seriesId: string;
+  commit: string | null;
+  seedRevealed: boolean;
+}
 
 export function VerifyPage(_props: { path?: string }) {
   const route = useRoute();
@@ -15,34 +22,63 @@ export function VerifyPage(_props: { path?: string }) {
   const [mode, setMode] = useState<"paste" | "fetch">(initialCode ? "fetch" : "paste");
   const [exportText, setExportText] = useState("");
   const [tableCode, setTableCode] = useState(initialCode);
-  const [seriesNumber, setSeriesNumber] = useState("1");
-  const [seedHex, setSeedHex] = useState("");
-  const [seriesId, setSeriesId] = useState("");
-  const [commit, setCommit] = useState("");
+  const [seriesOptions, setSeriesOptions] = useState<FairnessSeriesOption[]>([]);
+  const [selectedSeriesNumber, setSelectedSeriesNumber] = useState("1");
   const [result, setResult] = useState<{
     commitValid: boolean;
     replays: Array<{ index: number; match: boolean }>;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (mode !== "fetch") return;
+    const code = tableCode.trim().toUpperCase();
+    if (!code) {
+      setSeriesOptions([]);
+      return;
+    }
+    const baseUrl = resolveSyncUrl(undefined, window.location.origin);
+    if (!baseUrl) return;
+
+    void fetch(`${baseUrl}/tables/${code}/fairness?list=1`)
+      .then(async (response) => {
+        if (!response.ok) {
+          setSeriesOptions([]);
+          return;
+        }
+        const body = (await response.json()) as { series: FairnessSeriesOption[] };
+        setSeriesOptions(body.series);
+        if (
+          body.series.length > 0 &&
+          !body.series.some((s) => String(s.number) === selectedSeriesNumber)
+        ) {
+          setSelectedSeriesNumber(String(body.series[0]!.number));
+        }
+      })
+      .catch(() => {
+        setSeriesOptions([]);
+      });
+  }, [mode, tableCode, selectedSeriesNumber]);
+
   const runVerify = async (): Promise<void> => {
     setError(null);
     setResult(null);
 
     if (mode === "fetch") {
-      const baseUrl = getSyncBaseUrl();
+      const baseUrl = resolveSyncUrl(undefined, window.location.origin);
       if (!baseUrl) {
         setError("Sync server not configured");
         return;
       }
       const code = tableCode.trim().toUpperCase();
-      const series = Number(seriesNumber);
+      const series = Number(selectedSeriesNumber);
       const response = await fetch(`${baseUrl}/tables/${code}/fairness?series=${series}`);
       if (!response.ok) {
         setError(`Fairness fetch failed: ${response.status}`);
         return;
       }
       const body = (await response.json()) as {
+        seriesId: string;
         commit: string | null;
         seed?: string;
         draws: unknown[];
@@ -61,58 +97,56 @@ export function VerifyPage(_props: { path?: string }) {
         return;
       }
       const rules = entry.module.defaultRules;
-      if (!seriesId) {
-        setError("Series ID required (from SERIES_STARTED in the log)");
-        return;
-      }
       const verified = verifyFromFairnessApi({
         code,
-        seriesId,
+        seriesId: body.seriesId,
         commit: body.commit,
         seedHex: body.seed,
         game: game as "baccarat",
         rules,
         expectedDraws: body.draws as Array<{ from: number; to: number }>,
       });
-      setCommit(body.commit);
-      setSeedHex(body.seed);
       setResult(verified);
       return;
     }
 
-    const parsed = parseExportHeader(exportText);
+    const parsed = parseExportForImport(exportText);
     if ("error" in parsed) {
       setError(parsed.error);
       return;
     }
-    if (parsed.source !== "virtual") {
+    if (parsed.header.source !== "virtual") {
       setError("Only virtual series can be fairness-verified");
       return;
     }
-    if (!seedHex || !seriesId || !commit) {
-      setError("Paste mode requires commit, seriesId, and seed (hex) for virtual exports");
+    if (!parsed.header.seed || !parsed.header.seriesId || !parsed.header.commit) {
+      setError("Virtual export must include commit, seriesId, and seed in the header");
       return;
     }
-    const entry = getGame(parsed.game);
+    const entry = getGame(parsed.header.game);
     if (!entry?.module?.virtual) {
       setError("Game module has no virtual handler");
       return;
     }
-    const bodyLines = exportText.trim().split("\n").slice(1).join("\n");
-    const imported = entry.module.importSeries(bodyLines, parsed.rules);
+    const imported = entry.module.importSeries(parsed.body, parsed.header.rules);
     if ("error" in imported) {
       setError(imported.error);
       return;
     }
     const commitValid = await import("@casino-lord/core").then(({ verifyCommit, hexToBytes }) =>
-      verifyCommit(hexToBytes(seedHex), parsed.code, seriesId, commit),
+      verifyCommit(
+        hexToBytes(parsed.header.seed!),
+        parsed.header.code,
+        parsed.header.seriesId!,
+        parsed.header.commit!,
+      ),
     );
     const replayed = replayVirtualSeries({
       module: entry.module,
-      rules: parsed.rules,
-      code: parsed.code,
-      seriesId,
-      seedHex,
+      rules: parsed.header.rules,
+      code: parsed.header.code,
+      seriesId: parsed.header.seriesId!,
+      seedHex: parsed.header.seed!,
       expectedData: imported.results,
     });
     setResult({ commitValid, replays: replayed.replays });
@@ -145,36 +179,13 @@ export function VerifyPage(_props: { path?: string }) {
       </div>
 
       {mode === "paste" ? (
-        <>
-          <textarea
-            data-testid="verify-export"
-            value={exportText}
-            onInput={(e) => setExportText((e.target as HTMLTextAreaElement).value)}
-            rows={8}
-            placeholder="Paste #casino-lord export…"
-          />
-          <label>
-            Series ID
-            <input
-              value={seriesId}
-              onInput={(e) => setSeriesId((e.target as HTMLInputElement).value)}
-            />
-          </label>
-          <label>
-            Commit (hex)
-            <input
-              value={commit}
-              onInput={(e) => setCommit((e.target as HTMLInputElement).value)}
-            />
-          </label>
-          <label>
-            Seed (hex)
-            <input
-              value={seedHex}
-              onInput={(e) => setSeedHex((e.target as HTMLInputElement).value)}
-            />
-          </label>
-        </>
+        <textarea
+          data-testid="verify-export"
+          value={exportText}
+          onInput={(e) => setExportText((e.target as HTMLTextAreaElement).value)}
+          rows={8}
+          placeholder="Paste #casino-lord export…"
+        />
       ) : (
         <>
           <label>
@@ -186,19 +197,23 @@ export function VerifyPage(_props: { path?: string }) {
             />
           </label>
           <label>
-            Series number
-            <input
-              data-testid="verify-series"
-              value={seriesNumber}
-              onInput={(e) => setSeriesNumber((e.target as HTMLInputElement).value)}
-            />
-          </label>
-          <label>
-            Series ID (from SERIES_STARTED)
-            <input
-              value={seriesId}
-              onInput={(e) => setSeriesId((e.target as HTMLInputElement).value)}
-            />
+            Series
+            <select
+              data-testid="verify-series-select"
+              value={selectedSeriesNumber}
+              onChange={(e) => setSelectedSeriesNumber((e.target as HTMLSelectElement).value)}
+            >
+              {seriesOptions.length === 0 ? (
+                <option value={selectedSeriesNumber}>Series {selectedSeriesNumber}</option>
+              ) : (
+                seriesOptions.map((option) => (
+                  <option key={option.number} value={String(option.number)}>
+                    Series {option.number}
+                    {option.seedRevealed ? " (revealed)" : ""}
+                  </option>
+                ))
+              )}
+            </select>
           </label>
         </>
       )}

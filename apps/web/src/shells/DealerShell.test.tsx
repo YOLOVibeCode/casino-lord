@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 import "fake-indexeddb/auto";
-import { fireEvent, render, screen } from "@testing-library/preact";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { LocationProvider } from "preact-iso";
 import { DEFAULT_TABLE_SETTINGS, type TableEvent } from "@casino-lord/core";
 import { createStubModule, STUB_RULES } from "@casino-lord/core/testing";
 import { asUntypedModule } from "../table/module-types.js";
@@ -11,7 +12,21 @@ import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { createTableStore, type TableStore } from "../table/store.js";
 import { DealerShell } from "./DealerShell.js";
 
+vi.mock("../sync/urls.js", () => ({
+  tableUrl: (path: string) => `http://127.0.0.1:3000${path}`,
+}));
+
+function renderDealerShell(props: Parameters<typeof DealerShell>[0]) {
+  return render(
+    <LocationProvider>
+      <DealerShell {...props} />
+    </LocationProvider>,
+  );
+}
+
 describe("DealerShell", () => {
+  afterEach(() => cleanup());
+
   it("renders header and action bar with stub module", () => {
     const module = asUntypedModule(createStubModule());
     const store = createTableStore({
@@ -23,15 +38,13 @@ describe("DealerShell", () => {
       id: () => "s1",
     });
 
-    render(
-      <DealerShell
-        store={store}
-        module={module}
-        rules={STUB_RULES}
-        deviceSettings={DEFAULT_DEVICE_SETTINGS}
-        onDeviceSettingsChange={() => {}}
-      />,
-    );
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
 
     expect(screen.getByTestId("dealer-shell")).toBeTruthy();
     expect(screen.getByTestId("undo-btn")).toBeTruthy();
@@ -82,19 +95,46 @@ describe("DealerShell", () => {
       sendVirtual,
     };
 
-    render(
-      <DealerShell
-        store={store}
-        module={module}
-        rules={STUB_RULES}
-        deviceSettings={DEFAULT_DEVICE_SETTINGS}
-        onDeviceSettingsChange={() => {}}
-      />,
-    );
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
 
     expect(screen.getByTestId("deal-btn")).toBeTruthy();
     expect(screen.getByTestId("virtual-commit").textContent).toContain("abcdef01");
     fireEvent.click(screen.getByTestId("deal-btn"));
     expect(sendVirtual).toHaveBeenCalledWith("trigger");
+  });
+
+  it("disconnect navigates away without ending session", () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    const onDisconnect = vi.fn();
+
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+      onDisconnect,
+    });
+
+    const menuBtn = screen.getByTestId("dealer-shell").querySelector(".dealer-shell__menu button");
+    fireEvent.click(menuBtn!);
+    fireEvent.click(screen.getByTestId("menu-disconnect"));
+
+    expect(onDisconnect).toHaveBeenCalled();
+    expect(store.events.some((e) => e.type === "SESSION_ENDED")).toBe(false);
   });
 });

@@ -18,6 +18,7 @@ export interface DeviceSettings {
   soundEnabled: boolean;
   theme: DeviceTheme;
   boardLanguage: BoardLanguage;
+  idleAttract: boolean;
 }
 
 const STORAGE_KEY = "casino-lord:device-settings";
@@ -36,6 +37,7 @@ export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
   soundEnabled: false,
   theme: "table-felt",
   boardLanguage: "EN",
+  idleAttract: true,
 };
 
 export function applyDevicePresentation(settings: DeviceSettings): void {
