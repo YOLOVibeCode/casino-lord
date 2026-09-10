@@ -372,6 +372,7 @@ export function createSoloPlayerStore(options: CreateSoloPlayerStoreOptions): Sy
     getComposed,
     getRules,
     getTableMeta,
+    getModule: () => module,
     emit: emitLive,
     record: () => undefined,
     canUndoLastResult: () => ({ ok: false, reason: "read-only" }),
