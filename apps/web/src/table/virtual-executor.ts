@@ -165,13 +165,12 @@ function appendPacedEvent(input: {
 
   if (typedEvent.type === "RESULT_RECORDED") {
     const composed = ctx.getComposed();
-    const results = (composed.module as { results?: unknown[] }).results ?? [];
     body = {
       type: "RESULT_RECORDED",
       result: {
         ...typedEvent.result,
         id: id(),
-        index: results.length,
+        index: composed.platform.results.length,
         recordedAt: at,
       },
     } as Omit<TableEvent, "seq" | "at">;

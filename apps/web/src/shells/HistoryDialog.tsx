@@ -2,6 +2,7 @@ import { createElement, Fragment } from "preact";
 import { useMemo, useState } from "preact/hooks";
 import type { ComponentType } from "preact";
 import type { ResultEnvelope } from "@casino-lord/core";
+import type { CrapsState } from "@casino-lord/game-craps";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { TableStore } from "../table/store.js";
 import { buildResultList, type ResultListItem } from "../table/result-envelopes.js";
@@ -48,11 +49,14 @@ function outcomeLetter(data: unknown): string {
 export function HistoryDialog({ store, module, rules, onClose, onEdit }: HistoryDialogProps) {
   const { confirm } = useConfirm();
   const composed = store.getComposed();
-  const moduleResults =
-    (composed.module as { results?: { id: string; data: unknown }[] }).results ?? [];
+  const platformResults = composed.platform.results;
   const items = useMemo(
-    () => buildResultList(moduleResults, store.events),
-    [moduleResults, store.events],
+    () =>
+      buildResultList(
+        platformResults.map((r) => ({ id: r.id, data: r.data })),
+        store.events,
+      ),
+    [platformResults, store.events],
   );
   const newestFirst = useMemo(() => [...items].reverse(), [items]);
 
@@ -149,11 +153,9 @@ export function HistoryDialog({ store, module, rules, onClose, onEdit }: History
                 rules,
                 ...(store.game === "craps"
                   ? {
-                      roll: (
-                        composed.module as {
-                          results?: { id: string }[];
-                        }
-                      ).results?.find((r) => r.id === selected.id),
+                      roll: (composed.module as CrapsState).results.find(
+                        (r) => r.id === selected.id,
+                      ),
                     }
                   : {}),
               },

@@ -172,6 +172,5 @@ export function extractResultsFromEvents(
   rules: unknown,
 ): unknown[] {
   const composed = replay(events, module, rules, { code: "VERIFY", includeEphemeral: false });
-  const results = (composed.module as { results?: Array<{ data: unknown }> }).results ?? [];
-  return results.map((r) => r.data);
+  return composed.platform.results.map((r) => r.data);
 }

@@ -39,8 +39,7 @@ export function SettingsDialog({
   });
   const composed = store.getComposed();
   const tableSettings = composed.platform.settings;
-  const moduleResults = (composed.module as { results?: unknown[] }).results;
-  const seriesHasResults = Array.isArray(moduleResults) && moduleResults.length > 0;
+  const seriesHasResults = composed.platform.results.length > 0;
 
   const handleRulesChange = (patch: Record<string, unknown>): void => {
     const merged = { ...(rules as Record<string, unknown>), ...patch };

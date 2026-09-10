@@ -165,8 +165,7 @@ export function DealerShell({
       store.emit(clearLiveInput);
     } else {
       betting.onDealerEntry();
-      const results = (composed.module as { results?: unknown[] }).results;
-      const nextIndex = (Array.isArray(results) ? results.length : 0) + 1;
+      const nextIndex = composed.platform.results.length + 1;
       store.record(confirmState.result, { quick: false });
       toastResultRecorded(confirmState.result, nextIndex);
       if (confirmState.autoSeries) {
@@ -207,8 +206,7 @@ export function DealerShell({
 
   const handleUndo = useCallback(() => {
     if (editingEnvelope) return;
-    const results = (composed.module as { results?: unknown[] }).results;
-    const count = Array.isArray(results) ? results.length : 0;
+    const count = composed.platform.results.length;
     if (count === 0) return;
 
     const check = store.canUndoLastResult();

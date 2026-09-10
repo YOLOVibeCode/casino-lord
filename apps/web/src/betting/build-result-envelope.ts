@@ -8,9 +8,7 @@ export function buildResultEnvelope(
   const closedRound = getClosedRound(composed.platform);
   return {
     id: opts.id,
-    index: Array.isArray((composed.module as { results?: unknown[] }).results)
-      ? (composed.module as { results: unknown[] }).results.length
-      : 0,
+    index: composed.platform.results.length,
     recordedAt: opts.now,
     quick: opts.quick,
     source: "physical",

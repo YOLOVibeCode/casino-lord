@@ -26,8 +26,9 @@ export function buildTableMeta<State>(
   state: State,
 ): TableMeta {
   const seriesNumber = Math.max(1, countSeries(events));
-  const results = (state as { results?: unknown[] }).results;
-  const resultCount = Array.isArray(results) ? results.length : 0;
+  void module;
+  void state;
+  const resultCount = composed.platform.results.length;
 
   return {
     code: composed.platform.code,
