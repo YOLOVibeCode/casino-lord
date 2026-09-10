@@ -133,6 +133,16 @@
   margin-top: 1rem;
 }
 
+.landing__staff {
+  margin-top: 1rem;
+}
+
+.landing__staff summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
 .landing__sheet-close {
   margin-top: 1rem;
   background: transparent;

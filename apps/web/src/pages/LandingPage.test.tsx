@@ -28,7 +28,7 @@ vi.mock("../sync/api.js", () => ({
   fetchServerFeatures: vi.fn(async () => ({ enableVirtual: true })),
 }));
 
-import { createTable } from "../sync/api.js";
+import { createTable, getTableMeta } from "../sync/api.js";
 
 function renderLanding() {
   window.history.replaceState({}, "", "/");
@@ -125,5 +125,74 @@ describe("LandingPage create sheet", () => {
   it("hides your tables when localStorage is empty", () => {
     renderLanding();
     expect(screen.queryByTestId("your-tables")).toBeNull();
+  });
+});
+
+async function openJoinLookup(
+  meta: {
+    exists: boolean;
+    game?: string;
+    participation?: { playerMode: "on" | "off"; bank: string; outcomeSource: string };
+  },
+  code = "ABCD23",
+) {
+  vi.mocked(getTableMeta).mockResolvedValueOnce(meta as never);
+  renderLanding();
+  fireEvent.click(screen.getByText("Join"));
+  fireEvent.input(screen.getByTestId("join-code-input"), { target: { value: code } });
+  fireEvent.click(screen.getByText("Continue"));
+  await waitFor(() => {
+    expect(screen.getByText(new RegExp(code))).toBeTruthy();
+  });
+}
+
+describe("LandingPage join sheet", () => {
+  beforeEach(() => {
+    routeMock.mockReset();
+    localStorage.clear();
+  });
+
+  afterEach(() => cleanup());
+
+  it("joins as player when player mode is on", async () => {
+    await openJoinLookup({
+      exists: true,
+      game: "blackjack",
+      participation: { playerMode: "on", bank: "house", outcomeSource: "physical" },
+    });
+
+    expect(screen.getByTestId("landing-sheet").textContent).toMatch(/Blackjack/);
+    expect(screen.getByTestId("landing-sheet").textContent).not.toMatch(/\(blackjack\)/);
+    fireEvent.click(screen.getByTestId("join-player"));
+    expect(routeMock).toHaveBeenCalledWith("/play/ABCD23");
+  });
+
+  it("shows no player mode message when player mode is off", async () => {
+    await openJoinLookup({
+      exists: true,
+      game: "baccarat",
+      participation: { playerMode: "off", bank: "none", outcomeSource: "physical" },
+    });
+
+    expect(screen.getByTestId("no-player-mode").textContent).toBe("This table has no player mode");
+    expect(screen.queryByTestId("join-player")).toBeNull();
+  });
+
+  it("puts display and dealer join behind staff disclosure", async () => {
+    await openJoinLookup({
+      exists: true,
+      game: "baccarat",
+      participation: { playerMode: "on", bank: "house", outcomeSource: "physical" },
+    });
+
+    const staff = screen.getByTestId("join-staff") as HTMLDetailsElement;
+    expect(staff.open).toBe(false);
+    expect(staff.contains(screen.getByTestId("join-display"))).toBe(true);
+    expect(staff.contains(screen.getByTestId("join-dealer"))).toBe(true);
+  });
+
+  it("does not show coming soon on game cards", () => {
+    renderLanding();
+    expect(screen.queryByText("Coming soon")).toBeNull();
   });
 });

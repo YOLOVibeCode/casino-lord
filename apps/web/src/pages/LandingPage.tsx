@@ -23,7 +23,11 @@ export function LandingPage(_props: { path?: string }) {
   const [joinError, setJoinError] = useState("");
   const [dealerTokenInput, setDealerTokenInput] = useState("");
   const [creating, setCreating] = useState(false);
-  const [lookup, setLookup] = useState<{ code: string; game: string } | null>(null);
+  const [lookup, setLookup] = useState<{
+    code: string;
+    game: string;
+    participation: Participation;
+  } | null>(null);
   const [withPlayers, setWithPlayers] = useState(false);
   const [houseBank, setHouseBank] = useState(true);
   const [outcomeVirtual, setOutcomeVirtual] = useState(false);
@@ -91,10 +95,23 @@ export function LandingPage(_props: { path?: string }) {
         setJoinError("Table not found.");
         return;
       }
-      setLookup({ code, game: meta.game ?? "baccarat" });
+      setLookup({
+        code,
+        game: meta.game ?? "baccarat",
+        participation: meta.participation ?? {
+          playerMode: "off",
+          bank: "none",
+          outcomeSource: "physical",
+        },
+      });
     } catch {
       setJoinError("Could not look up table.");
     }
+  };
+
+  const joinAsPlayer = () => {
+    if (!lookup || lookup.participation.playerMode !== "on") return;
+    route(`/play/${lookup.code}`);
   };
 
   const joinAsDisplay = () => {
@@ -136,16 +153,10 @@ export function LandingPage(_props: { path?: string }) {
         {GAMES.map((game) => (
           <article key={game.id} class="landing__card">
             <h2>{game.name}</h2>
-            {game.enabled ? (
-              <>
-                <a href={`/solo/${game.id}`} class="landing__solo-link">
-                  Solo
-                </a>
-                <p class="landing__action-hint">Solo — one device, you record results</p>
-              </>
-            ) : (
-              <span class="landing__soon">Coming soon</span>
-            )}
+            <a href={`/solo/${game.id}`} class="landing__solo-link">
+              Solo
+            </a>
+            <p class="landing__action-hint">Solo — one device, you record results</p>
           </article>
         ))}
       </div>
@@ -373,27 +384,42 @@ export function LandingPage(_props: { path?: string }) {
                 ) : (
                   <>
                     <p>
-                      Table <strong>{lookup.code}</strong> ({lookup.game})
+                      Table <strong>{lookup.code}</strong> (
+                      {getGame(lookup.game)?.name ?? lookup.game})
                     </p>
-                    <button type="button" onClick={joinAsDisplay} data-testid="join-display">
-                      Join as Display
-                    </button>
-                    <div class="landing__dealer-join">
-                      <label>
-                        Dealer token (if needed)
-                        <input
-                          type="text"
-                          value={dealerTokenInput}
-                          onInput={(e) => setDealerTokenInput((e.target as HTMLInputElement).value)}
-                          placeholder={
-                            loadDealerToken(lookup.code) ? "Using saved token" : "Paste token"
-                          }
-                        />
-                      </label>
-                      <button type="button" onClick={joinAsDealer} data-testid="join-dealer">
-                        Join as Dealer
+                    {lookup.participation.playerMode === "on" ? (
+                      <button type="button" onClick={joinAsPlayer} data-testid="join-player">
+                        Join as Player
                       </button>
-                    </div>
+                    ) : (
+                      <p class="landing__field-help" data-testid="no-player-mode">
+                        This table has no player mode
+                      </p>
+                    )}
+                    <details class="landing__staff" data-testid="join-staff">
+                      <summary>Staff</summary>
+                      <button type="button" onClick={joinAsDisplay} data-testid="join-display">
+                        Join as Display
+                      </button>
+                      <div class="landing__dealer-join">
+                        <label>
+                          Dealer token (if needed)
+                          <input
+                            type="text"
+                            value={dealerTokenInput}
+                            onInput={(e) =>
+                              setDealerTokenInput((e.target as HTMLInputElement).value)
+                            }
+                            placeholder={
+                              loadDealerToken(lookup.code) ? "Using saved token" : "Paste token"
+                            }
+                          />
+                        </label>
+                        <button type="button" onClick={joinAsDealer} data-testid="join-dealer">
+                          Join as Dealer
+                        </button>
+                      </div>
+                    </details>
                     {joinError && <p class="landing__error">{joinError}</p>}
                   </>
                 )}
