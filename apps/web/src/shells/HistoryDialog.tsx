@@ -5,6 +5,7 @@ import type { ResultEnvelope } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { TableStore } from "../table/store.js";
 import { buildResultList, type ResultListItem } from "../table/result-envelopes.js";
+import { useConfirm } from "../ui/ConfirmSheet.js";
 import "./history-dialog.css";
 
 export interface HistoryDialogProps {
@@ -45,6 +46,7 @@ function outcomeLetter(data: unknown): string {
 }
 
 export function HistoryDialog({ store, module, rules, onClose, onEdit }: HistoryDialogProps) {
+  const { confirm } = useConfirm();
   const composed = store.getComposed();
   const moduleResults =
     (composed.module as { results?: { id: string; data: unknown }[] }).results ?? [];
@@ -58,10 +60,18 @@ export function HistoryDialog({ store, module, rules, onClose, onEdit }: History
 
   const handleDelete = (): void => {
     if (!selected) return;
-    if (!window.confirm(`Delete hand ${selected.index + 1}?`)) return;
-    store.deleteResult(selected.id);
-    setSelected(null);
-    onClose();
+    void (async () => {
+      const ok = await confirm({
+        title: `Delete hand ${selected.index + 1}?`,
+        body: "This removes the result and re-derives later settlements.",
+        destructive: true,
+        confirmLabel: "Hold to delete",
+      });
+      if (!ok) return;
+      store.deleteResult(selected.id);
+      setSelected(null);
+      onClose();
+    })();
   };
 
   const handleEdit = (): void => {
