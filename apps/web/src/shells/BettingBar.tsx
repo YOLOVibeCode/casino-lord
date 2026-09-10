@@ -31,12 +31,7 @@ export function BettingBar({ round, betsView, countdownSec, onToggle }: BettingB
 
   return (
     <div class="betting-bar" data-testid="betting-bar">
-      <button
-        type="button"
-        class={toggleClass}
-        data-testid="betting-toggle-btn"
-        onClick={onToggle}
-      >
+      <button type="button" class={toggleClass} data-testid="betting-toggle-btn" onClick={onToggle}>
         {toggleLabel}
       </button>
       <div class="betting-bar__info">
