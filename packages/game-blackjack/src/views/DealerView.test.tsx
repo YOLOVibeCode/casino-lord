@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import type { Emit, TableMeta } from "@casino-lord/core";
+import type { Emit, Player, TableEvent, TableMeta } from "@casino-lord/core";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { blackjackConfirm } from "../confirm.js";
@@ -24,11 +24,33 @@ function c(rank: Card["rank"], suit: Card["suit"] = "S"): Card {
   return { rank, suit };
 }
 
-function renderDealer(emit: Emit, rules = DEFAULT_BLACKJACK_RULES, state = initialState(rules)) {
+function renderDealer(
+  emit: Emit,
+  rules = DEFAULT_BLACKJACK_RULES,
+  state = initialState(rules),
+  extra: { events?: TableEvent[]; players?: Player[] } = {},
+) {
   return render(
-    <DealerView state={state} rules={rules} table={TABLE} emit={emit} record={vi.fn()} />,
+    <DealerView
+      state={state}
+      rules={rules}
+      table={TABLE}
+      emit={emit}
+      record={vi.fn()}
+      events={extra.events ?? []}
+      players={extra.players ?? []}
+    />,
   );
 }
+
+const SEATED_PLAYER: Player = {
+  id: "p1",
+  name: "Ana",
+  color: "#f00",
+  status: "active",
+  joinedAt: "2026-01-01T00:00:00.000Z",
+  seat: 3,
+};
 
 afterEach(() => cleanup());
 
@@ -138,5 +160,163 @@ describe("DealerView", () => {
     expect(payload.seats[1][0].cards).toHaveLength(1);
     expect(payload.seats[1][1].cards).toHaveLength(1);
     expect(payload.seats[1][1].fromSplit).toBe(true);
+  });
+
+  it("shows physical intent badge on the active seat tab", () => {
+    const emit = vi.fn();
+    const rules = DEFAULT_BLACKJACK_RULES;
+    const state = initialState(rules);
+    const events: TableEvent[] = [
+      {
+        seq: 1,
+        at: "2026-01-01T00:00:01.000Z",
+        type: "PLAYER_ACTION",
+        playerId: "p1",
+        action: "hit",
+        intent: true,
+      },
+    ];
+
+    renderDealer(emit, rules, state, { events, players: [SEATED_PLAYER] });
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("seat-tab-3"));
+    });
+
+    expect(screen.getByTestId("seat-intent-3").textContent).toBe("HIT");
+  });
+
+  it("clears intent badge after LIVE_INPUT adds a card to the seat", () => {
+    const emit = vi.fn();
+    const rules = DEFAULT_BLACKJACK_RULES;
+    let state = initialState(rules);
+    const events: TableEvent[] = [
+      {
+        seq: 1,
+        at: "2026-01-01T00:00:01.000Z",
+        type: "PLAYER_ACTION",
+        playerId: "p1",
+        action: "hit",
+        intent: true,
+      },
+      {
+        seq: 2,
+        at: "2026-01-01T00:00:02.000Z",
+        type: "LIVE_INPUT",
+        payload: {
+          dealer: [],
+          seats: {
+            3: [
+              {
+                cards: [c("9")],
+                doubled: false,
+                fromSplit: false,
+                surrendered: false,
+                outcome: null,
+              },
+            ],
+          },
+        },
+        source: "dealer",
+      },
+    ];
+
+    state = reduce(state, events[1]!, rules);
+
+    renderDealer(emit, rules, state, { events, players: [SEATED_PLAYER] });
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("seat-tab-3"));
+    });
+
+    expect(screen.queryByTestId("seat-intent-3")).toBeNull();
+  });
+
+  it("hides intent badge when dealer moves to another seat tab", () => {
+    const emit = vi.fn();
+    const rules = DEFAULT_BLACKJACK_RULES;
+    const state = initialState(rules);
+    const events: TableEvent[] = [
+      {
+        seq: 1,
+        at: "2026-01-01T00:00:01.000Z",
+        type: "PLAYER_ACTION",
+        playerId: "p1",
+        action: "stand",
+        intent: true,
+      },
+    ];
+
+    renderDealer(emit, rules, state, { events, players: [SEATED_PLAYER] });
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("seat-tab-3"));
+    });
+    expect(screen.getByTestId("seat-intent-3")).toBeTruthy();
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("seat-tab-2"));
+    });
+    expect(screen.queryByTestId("seat-intent-3")).toBeNull();
+  });
+
+  it("does not show intent badges on virtual tables", () => {
+    const emit = vi.fn();
+    const rules = DEFAULT_BLACKJACK_RULES;
+    let state = initialState(rules);
+    const live = {
+      dealer: [c("7")],
+      seats: {
+        3: [
+          {
+            cards: [c("9"), c("7")],
+            doubled: false,
+            fromSplit: false,
+            surrendered: false,
+            outcome: null,
+          },
+        ],
+      },
+      virtual: {
+        shoe: [],
+        shoeIndex: 0,
+        phase: "player" as const,
+        activeSeats: [3 as const],
+        currentSeat: 3 as const,
+        currentHandIndex: 0,
+        holeDealt: true,
+        dealRound: 2,
+        completedHands: [],
+      },
+    };
+    state = reduce(
+      state,
+      {
+        seq: 1,
+        at: "2026-01-01T00:00:01.000Z",
+        type: "LIVE_INPUT",
+        payload: live,
+        source: "dealer",
+      },
+      rules,
+    );
+    const events: TableEvent[] = [
+      {
+        seq: 2,
+        at: "2026-01-01T00:00:02.000Z",
+        type: "PLAYER_ACTION",
+        playerId: "p1",
+        action: "hit",
+        intent: true,
+      },
+    ];
+
+    renderDealer(emit, rules, state, { events, players: [SEATED_PLAYER] });
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("seat-tab-3"));
+    });
+
+    expect(screen.queryByTestId("seat-intent-3")).toBeNull();
   });
 });
