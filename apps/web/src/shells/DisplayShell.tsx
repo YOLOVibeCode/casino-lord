@@ -129,7 +129,10 @@ export function DisplayShell({
 
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [historyToast, setHistoryToast] = useState<string | null>(null);
+  const [idleAttractActive, setIdleAttractActive] = useState(false);
   const lastLeaderboardSeq = useRef(0);
+  const lastEventSeq = useRef(0);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevSettlementsRef = useRef(composed.platform.settlements);
   const historyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -166,6 +169,28 @@ export function DisplayShell({
     },
     [],
   );
+
+  const latestEventSeq = store.events.at(-1)?.seq ?? 0;
+
+  useEffect(() => {
+    if (latestEventSeq !== lastEventSeq.current) {
+      lastEventSeq.current = latestEventSeq;
+      setIdleAttractActive(false);
+    }
+
+    if (!deviceSettings.idleAttract) {
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+      idleTimer.current = null;
+      return;
+    }
+
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => setIdleAttractActive(true), 90_000);
+
+    return () => {
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+    };
+  }, [latestEventSeq, deviceSettings.idleAttract]);
 
   const [fsHint, setFsHint] = useState(!deviceSettings.fullScreen);
   const [soundUnlocked, setSoundUnlocked] = useState(() => animationSound.isUnlocked());
@@ -270,7 +295,7 @@ export function DisplayShell({
   return (
     <div
       ref={rootRef}
-      class={`display-shell${cursorHidden ? " display-shell--cursor-hidden" : ""}`}
+      class={`display-shell${cursorHidden ? " display-shell--cursor-hidden" : ""}${idleAttractActive ? " display-shell--idle-attract" : ""}`}
       data-testid="display-shell"
       onClick={() => {
         unlockSound();

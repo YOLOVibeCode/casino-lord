@@ -3,7 +3,7 @@
  */
 import "fake-indexeddb/auto";
 import { act, cleanup, render, screen } from "@testing-library/preact";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { baccaratModule, DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
 import { createStubModule, houseSettings, STUB_RULES } from "@casino-lord/core/testing";
 import { asUntypedModule } from "../table/module-types.js";
@@ -14,7 +14,10 @@ import { DisplayShell } from "./DisplayShell.js";
 const baccarat = asUntypedModule(baccaratModule);
 
 describe("DisplayShell", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   it("renders header with stub module", () => {
     const module = asUntypedModule(createStubModule());
@@ -161,5 +164,68 @@ describe("DisplayShell", () => {
 
     expect(screen.getByTestId("history-toast").textContent).toMatch(/history re-evaluated/i);
     expect(screen.getByTestId("history-toast").textContent).toMatch(/1 bet\(s\) affected/i);
+  });
+
+  it("activates idle attract after 90s without events and clears on next event", () => {
+    vi.useFakeTimers();
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <DisplayShell
+        store={store}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(90_000);
+    });
+    expect(screen.getByTestId("display-shell").className).toContain("display-shell--idle-attract");
+
+    act(() => {
+      store.emit({ type: "SETTINGS_CHANGED", patch: {} });
+    });
+    expect(screen.getByTestId("display-shell").className).not.toContain(
+      "display-shell--idle-attract",
+    );
+  });
+
+  it("does not activate idle attract when device setting is off", () => {
+    vi.useFakeTimers();
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <DisplayShell
+        store={store}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={{ ...DEFAULT_DEVICE_SETTINGS, idleAttract: false }}
+      />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(90_000);
+    });
+    expect(screen.getByTestId("display-shell").className).not.toContain(
+      "display-shell--idle-attract",
+    );
   });
 });

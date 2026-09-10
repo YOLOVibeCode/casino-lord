@@ -756,6 +756,15 @@ function DeviceSettingsForm({
           />{" "}
           Sounds
         </label>
+        <label>
+          <input
+            type="checkbox"
+            data-testid="device-idle-attract"
+            checked={settings.idleAttract}
+            onChange={(e) => onChange({ idleAttract: (e.target as HTMLInputElement).checked })}
+          />{" "}
+          Idle attract (90 s)
+        </label>
       </div>
       <div class="settings-dialog__field">
         <label for="confirm-delay">Confirm delay ({settings.confirmDelayMs} ms)</label>
