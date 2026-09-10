@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
 import { getBankroll } from "@casino-lord/core";
+import type { CrapsState } from "@casino-lord/game-craps";
 import { reissuePlayerToken } from "../sync/api.js";
 import { getSyncBaseUrl } from "../sync/config.js";
 import { qrDataUrl } from "../sync/qr.js";
@@ -12,11 +13,23 @@ export interface PlayersDialogProps {
   onClose: () => void;
 }
 
+function crapsState(module: unknown): CrapsState | null {
+  if (typeof module !== "object" || module === null) return null;
+  if (!("currentShooterId" in module) || !("liveInput" in module)) return null;
+  return module as CrapsState;
+}
+
 export function PlayersDialog({ store, onClose }: PlayersDialogProps) {
   const composed = store.getComposed();
   const pending = store.getPendingPlayers();
   const players = composed.platform.players.filter((p) => p.status !== "removed");
   const joiningOpen = composed.platform.settings.players.joiningOpen;
+  const isCraps = store.game === "craps";
+  const craps = isCraps ? crapsState(composed.module) : null;
+  const shooterRotation = composed.platform.settings.virtual.shooterRotation;
+  const diceLive = craps !== null && (craps.liveInput.a !== null || craps.liveInput.b !== null);
+  const dealerAssigns = shooterRotation === "dealer_assigns";
+  const assignLabel = dealerAssigns ? "Make shooter" : "Override rotation";
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [reissueQr, setReissueQr] = useState("");
@@ -43,6 +56,10 @@ export function PlayersDialog({ store, onClose }: PlayersDialogProps) {
 
   const handleRemove = (playerId: string): void => {
     void store.emit({ type: "PLAYER_REMOVED", playerId });
+  };
+
+  const handleAssignShooter = (playerId: string): void => {
+    void store.emit({ type: "TURN_ASSIGNED", playerId, role: "shooter" });
   };
 
   const handleReissue = async (playerId: string): Promise<void> => {
@@ -95,6 +112,16 @@ export function PlayersDialog({ store, onClose }: PlayersDialogProps) {
 
         <section class="players-dialog__section">
           <h3>Roster</h3>
+          {isCraps && craps !== null && (
+            <p
+              class={`players-dialog__rotation-hint${dealerAssigns ? " players-dialog__rotation-hint--prominent" : ""}`}
+              data-testid="shooter-rotation-hint"
+            >
+              {dealerAssigns
+                ? "Assign the shooter before each hand."
+                : "Shooter rotates in join order after seven-out. Override below if needed."}
+            </p>
+          )}
           {players.length === 0 && pending.length === 0 && (
             <p class="players-dialog__empty">No players yet</p>
           )}
@@ -103,11 +130,21 @@ export function PlayersDialog({ store, onClose }: PlayersDialogProps) {
             const connected = store
               .getPresence()
               .players.some((entry) => entry.id === p.id && entry.connected);
+            const isShooter = craps !== null && p.id === craps.currentShooterId;
+            const canAssign = isCraps && craps !== null && p.status === "active" && !isShooter;
             return (
               <div key={p.id} class="players-dialog__row" data-testid={`player-row-${p.id}`}>
                 <span class="players-dialog__dot" style={{ background: p.color }} />
                 <span>
                   {p.name}{" "}
+                  {isShooter && (
+                    <span
+                      class="players-dialog__shooter-badge"
+                      data-testid={`shooter-badge-${p.id}`}
+                    >
+                      Shooter
+                    </span>
+                  )}
                   <span class="players-dialog__status">
                     {p.status === "away" ? "away" : connected ? "active" : "offline"}
                   </span>
@@ -152,6 +189,17 @@ export function PlayersDialog({ store, onClose }: PlayersDialogProps) {
                 >
                   Reissue link
                 </button>
+                {canAssign && (
+                  <button
+                    type="button"
+                    class={`players-dialog__make-shooter${dealerAssigns ? " players-dialog__make-shooter--primary" : ""}`}
+                    data-testid={`make-shooter-${p.id}`}
+                    disabled={diceLive}
+                    onClick={() => handleAssignShooter(p.id)}
+                  >
+                    {assignLabel}
+                  </button>
+                )}
               </div>
             );
           })}

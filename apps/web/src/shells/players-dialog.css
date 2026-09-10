@@ -91,3 +91,54 @@
   margin: 0.5rem auto;
   display: block;
 }
+
+.players-dialog__rotation-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  opacity: 0.75;
+  line-height: 1.4;
+}
+
+.players-dialog__rotation-hint--prominent {
+  opacity: 1;
+  font-weight: 600;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  background: rgba(212, 175, 55, 0.15);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+}
+
+.players-dialog__shooter-badge {
+  display: inline-block;
+  margin-left: 0.25rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 4px;
+  background: rgba(212, 175, 55, 0.25);
+  color: #f5d76e;
+  vertical-align: middle;
+}
+
+.players-dialog__make-shooter {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: inherit;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.players-dialog__make-shooter--primary {
+  border-color: rgba(212, 175, 55, 0.5);
+  background: rgba(212, 175, 55, 0.12);
+  font-weight: 600;
+}
+
+.players-dialog__make-shooter:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
