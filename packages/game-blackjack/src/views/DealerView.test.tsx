@@ -260,6 +260,25 @@ describe("DealerView", () => {
     expect(screen.queryByTestId("seat-intent-3")).toBeNull();
   });
 
+  it("renders spec seat outcome chip labels and keyboard hints", () => {
+    const emit = vi.fn();
+    renderDealer(emit);
+
+    expect(screen.getByTestId("outcome-chip-win").textContent).toBe("WIN");
+    expect(screen.getByTestId("outcome-chip-lose").textContent).toBe("LOSE");
+    expect(screen.getByTestId("outcome-chip-push").textContent).toBe("PUSH");
+    expect(screen.getByTestId("outcome-chip-blackjack").textContent).toBe("BJ");
+    expect(screen.getByTestId("outcome-chip-bust").textContent).toBe("BUST");
+    expect(screen.getByTestId("outcome-chip-surrender").textContent).toBe("SURR");
+
+    expect(screen.getByTestId("outcome-chip-win").getAttribute("title")).toBe("W");
+    expect(screen.getByTestId("outcome-chip-lose").getAttribute("title")).toBe("L");
+    expect(screen.getByTestId("outcome-chip-push").getAttribute("title")).toBe("P");
+    expect(screen.getByTestId("outcome-chip-blackjack").getAttribute("title")).toBe("J");
+    expect(screen.getByTestId("outcome-chip-bust").getAttribute("title")).toBe("B");
+    expect(screen.getByTestId("outcome-chip-surrender").getAttribute("title")).toBe("R");
+  });
+
   it("does not show intent badges on virtual tables", () => {
     const emit = vi.fn();
     const rules = DEFAULT_BLACKJACK_RULES;

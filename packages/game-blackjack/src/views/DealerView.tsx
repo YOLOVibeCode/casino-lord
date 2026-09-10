@@ -23,12 +23,24 @@ import "./blackjack-tokens.css";
 import "./dealer-view.css";
 
 const SEAT_OUTCOME_CHIPS = [
-  { id: "win", label: "W", color: "#2BB673", ariaLabel: "Win" },
-  { id: "lose", label: "L", color: "#D7263D", ariaLabel: "Lose" },
-  { id: "push", label: "P", color: "#9AA0A6", ariaLabel: "Push" },
-  { id: "blackjack", label: "BJ", color: "#D4AF37", ariaLabel: "Blackjack" },
-  { id: "bust", label: "B", color: "#D7263D", ariaLabel: "Bust" },
-  { id: "surrender", label: "R", color: "#9AA0A6", ariaLabel: "Surrender" },
+  { id: "win", label: "WIN", color: "#2BB673", ariaLabel: "Win", keyboardHint: "W" },
+  { id: "lose", label: "LOSE", color: "#D7263D", ariaLabel: "Lose", keyboardHint: "L" },
+  { id: "push", label: "PUSH", color: "#9AA0A6", ariaLabel: "Push", keyboardHint: "P" },
+  {
+    id: "blackjack",
+    label: "BJ",
+    color: "#D4AF37",
+    ariaLabel: "Blackjack",
+    keyboardHint: "J",
+  },
+  { id: "bust", label: "BUST", color: "#D7263D", ariaLabel: "Bust", keyboardHint: "B" },
+  {
+    id: "surrender",
+    label: "SURR",
+    color: "#9AA0A6",
+    ariaLabel: "Surrender",
+    keyboardHint: "R",
+  },
 ];
 
 const QUICK_DEALER_CHIPS = [
@@ -60,6 +72,33 @@ function emptyHand(fromSplit = false): HandInput {
 
 function toCard(picked: PickedCard): Card {
   return { rank: picked.rank as Rank, suit: (picked.suit as Suit) ?? null };
+}
+
+function SeatOutcomeChips({
+  chips,
+  onTap,
+}: {
+  chips: typeof SEAT_OUTCOME_CHIPS;
+  onTap: (id: string) => void;
+}) {
+  return (
+    <div class="outcome-chips" data-testid="outcome-chips">
+      {chips.map((chip) => (
+        <button
+          key={chip.id}
+          type="button"
+          class="outcome-chips__chip"
+          style={{ background: chip.color }}
+          aria-label={chip.ariaLabel}
+          title={chip.keyboardHint}
+          data-testid={`outcome-chip-${chip.id}`}
+          onClick={() => onTap(chip.id)}
+        >
+          {chip.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export interface DealerViewProps {
@@ -386,7 +425,7 @@ export function DealerView({
         <div class="dealer-view__section-label">Seat {activeSeat}</div>
 
         {rules.entryDepth === "outcomes" && (
-          <OutcomeChips chips={SEAT_OUTCOME_CHIPS} onTap={handleOutcome} onLongPress={() => {}} />
+          <SeatOutcomeChips chips={SEAT_OUTCOME_CHIPS} onTap={handleOutcome} />
         )}
 
         {rules.entryDepth === "full" &&

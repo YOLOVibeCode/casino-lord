@@ -95,6 +95,19 @@
   border-radius: 6px;
 }
 
+.dealer-view__seat-panel .outcome-chips {
+  gap: 8px;
+}
+
+.dealer-view__seat-panel .outcome-chips__chip {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 6px 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 .dealer-view__hand-row {
   margin-bottom: 0.5rem;
 }
