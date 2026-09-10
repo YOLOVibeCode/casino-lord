@@ -1,0 +1,17 @@
+.pwa-update-prompt {
+  position: fixed;
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+}
+
+.pwa-update-prompt__reload {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-gold, #d4af37);
+  border-radius: 999px;
+  background: var(--color-panel, #0f1412);
+  color: var(--color-gold, #d4af37);
+  font: inherit;
+  cursor: pointer;
+}

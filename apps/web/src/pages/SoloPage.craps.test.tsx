@@ -7,6 +7,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TABLE_SETTINGS } from "@casino-lord/core";
 import { LocationProvider, Router } from "preact-iso";
 
+vi.mock("../sync/urls.js", () => ({
+  tableUrl: (path: string) => `http://127.0.0.1:3000${path}`,
+}));
+
 vi.mock("../table/solo-table.js", () => ({
   resolveSoloTableStore: vi.fn(async () => ({
     code: "SOLO01",
@@ -94,16 +98,19 @@ vi.mock("../table/solo-table.js", () => ({
   createNewSoloTable: vi.fn(),
 }));
 
+import { UiProviders } from "../ui/test-providers.js";
 import { SoloPage } from "./SoloPage.js";
 
 function renderSolo() {
   window.history.replaceState({}, "", "/solo/craps");
   return render(
-    <LocationProvider>
-      <Router>
-        <SoloPage path="/solo/:game" />
-      </Router>
-    </LocationProvider>,
+    <UiProviders>
+      <LocationProvider>
+        <Router>
+          <SoloPage path="/solo/:game" />
+        </Router>
+      </LocationProvider>
+    </UiProviders>,
   );
 }
 

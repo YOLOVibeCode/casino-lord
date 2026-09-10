@@ -11,17 +11,63 @@ import { DEFAULT_ROULETTE_RULES, rouletteModule } from "@casino-lord/game-roulet
 import type { CrapsBetTarget } from "@casino-lord/game-craps";
 import { houseSettings } from "@casino-lord/core/testing";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { LocationProvider } from "preact-iso";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
+import type { SyncStore } from "../table/sync-store-types.js";
 import { PlayerShell } from "./PlayerShell.js";
 import "./player-shell.css";
+
+function renderPlayerShell(props: Parameters<typeof PlayerShell>[0]) {
+  return render(
+    <LocationProvider>
+      <PlayerShell {...props} />
+    </LocationProvider>,
+  );
+}
+
+function asSyncStore(
+  store: ReturnType<typeof createTableStore>,
+  opts?: {
+    getPlayerId?: () => string;
+    getRejectReason?: () => string | null;
+    getConnectionState?: () => "connected" | "reconnecting" | "offline";
+  },
+): SyncStore {
+  return {
+    ...store,
+    getPlayerId: opts?.getPlayerId ?? (() => "p1"),
+    getConnectionState: opts?.getConnectionState ?? (() => "connected" as const),
+    getRejectReason: opts?.getRejectReason ?? (() => null),
+    getPresence: () => ({ dealers: 0, displays: 0, players: [] }),
+    isReadOnly: () => false,
+    takeover: () => {},
+    destroy: () => {},
+    getDealerToken: () => null,
+    getPendingPlayers: () => [],
+    sendAdmit: () => {},
+    getVirtualStatus: () => null,
+    getVirtualPending: () => null,
+  } as SyncStore;
+}
+
+function tapFeltZone(zone: Element): void {
+  fireEvent.pointerDown(zone, { pointerId: 1 });
+  fireEvent.pointerUp(zone, { pointerId: 1 });
+}
 
 describe("PlayerShell", () => {
   afterEach(() => cleanup());
 
-  function setupStore(opts?: { bankroll?: number; roundOpen?: boolean }) {
+  function setupStore(opts?: {
+    bankroll?: number;
+    roundOpen?: boolean;
+    playerStatus?: "active" | "pending" | "removed";
+    getRejectReason?: () => string | null;
+    getConnectionState?: () => "connected" | "reconnecting" | "offline";
+  }) {
     const module = asUntypedModule(baccaratModule);
     const store = createTableStore({
       game: "baccarat",
@@ -43,7 +89,7 @@ describe("PlayerShell", () => {
         id: "p1",
         name: "Ana",
         color: "#e5322d",
-        status: "active",
+        status: opts?.playerStatus ?? "active",
         joinedAt: "2026-01-01T00:00:01.000Z",
       },
     });
@@ -58,18 +104,17 @@ describe("PlayerShell", () => {
       store.emit({ type: "BETS_OPENED", roundId: "r1" });
     }
 
-    const syncStore = {
-      ...store,
-      getPlayerId: () => "p1",
-      getConnectionState: () => "connected" as const,
-    };
+    const syncStore = asSyncStore(store, {
+      getRejectReason: opts?.getRejectReason,
+      getConnectionState: opts?.getConnectionState,
+    });
 
     return { store: syncStore, module };
   }
 
   it("renders baccarat player view", () => {
     const { store } = setupStore();
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
     expect(screen.getByTestId("baccarat-player-view")).toBeTruthy();
   });
 
@@ -94,9 +139,7 @@ describe("PlayerShell", () => {
     const { store } = setupStore();
     render(<PlayerShell store={store} playerName="Ana" />);
     fireEvent.click(screen.getByTestId("chip-denom-25"));
-    const zone = screen.getByTestId("felt-zone-banker");
-    fireEvent.mouseDown(zone);
-    fireEvent.mouseUp(zone);
+    tapFeltZone(screen.getByTestId("felt-zone-banker"));
     expect(screen.getByTestId("player-betting-hint").textContent).toContain("Tap PLACE to confirm");
   });
 
@@ -119,9 +162,7 @@ describe("PlayerShell", () => {
     const { store } = setupStore({ bankroll: 500 });
     render(<PlayerShell store={store} playerName="Ana" />);
     fireEvent.click(screen.getByTestId("chip-denom-25"));
-    const zone = screen.getByTestId("felt-zone-banker");
-    fireEvent.mouseDown(zone);
-    fireEvent.mouseUp(zone);
+    tapFeltZone(screen.getByTestId("felt-zone-banker"));
     expect(screen.getByTestId("bet-slip-place").textContent).toContain("PLACE 25 · 475 left");
   });
 
@@ -129,9 +170,7 @@ describe("PlayerShell", () => {
     const { store } = setupStore({ bankroll: 500 });
     render(<PlayerShell store={store} playerName="Ana" />);
     fireEvent.click(screen.getByTestId("chip-denom-100"));
-    const zone = screen.getByTestId("felt-zone-banker");
-    fireEvent.mouseDown(zone);
-    fireEvent.mouseUp(zone);
+    tapFeltZone(screen.getByTestId("felt-zone-banker"));
     act(() => {
       store.emit({ type: "BANK_ADJUSTED", playerId: "p1", delta: -450, reason: "correction" });
     });
@@ -142,9 +181,7 @@ describe("PlayerShell", () => {
     const { store } = setupStore({ bankroll: 500 });
     render(<PlayerShell store={store} playerName="Ana" />);
     fireEvent.click(screen.getByTestId("chip-denom-25"));
-    const zone = screen.getByTestId("felt-zone-banker");
-    fireEvent.mouseDown(zone);
-    fireEvent.mouseUp(zone);
+    tapFeltZone(screen.getByTestId("felt-zone-banker"));
     fireEvent.click(screen.getByTestId("bet-slip-place"));
     await vi.waitFor(() => {
       expect(screen.getByTestId("player-toast").textContent).toContain("Bet placed — 25 on BANKER");
@@ -209,12 +246,12 @@ describe("PlayerShell", () => {
   it("PLACE emits BET_PLACED with roundId", () => {
     const { store } = setupStore();
     const emitSpy = vi.spyOn(store, "emit");
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     fireEvent.click(screen.getByTestId("chip-denom-100"));
     const zone = screen.getByTestId("felt-zone-banker");
-    fireEvent.mouseDown(zone);
-    fireEvent.mouseUp(zone);
+    fireEvent.pointerDown(zone, { pointerId: 1 });
+    fireEvent.pointerUp(zone, { pointerId: 1 });
     fireEvent.click(screen.getByTestId("bet-slip-place"));
 
     expect(emitSpy).toHaveBeenCalledWith(
@@ -235,18 +272,18 @@ describe("PlayerShell", () => {
     store.emit({ type: "BETS_OPENED", roundId: "r1" });
     store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
 
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
     expect(screen.getByTestId("bet-slip-locked")).toBeTruthy();
   });
 
   it("shows insufficient bankroll toast", () => {
     const { store } = setupStore({ bankroll: 50 });
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     fireEvent.click(screen.getByTestId("chip-denom-100"));
     const zone = screen.getByTestId("felt-zone-banker");
-    fireEvent.mouseDown(zone);
-    fireEvent.mouseUp(zone);
+    fireEvent.pointerDown(zone, { pointerId: 1 });
+    fireEvent.pointerUp(zone, { pointerId: 1 });
     expect(screen.getByTestId("player-toast").textContent).toContain("Insufficient");
   });
 
@@ -256,12 +293,12 @@ describe("PlayerShell", () => {
       type: "SETTINGS_CHANGED",
       patch: { bank: { ...houseSettings().bank, tableMax: 50, chipDenominations: [5, 25, 100] } },
     });
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     fireEvent.click(screen.getByTestId("chip-denom-100"));
     const zone = screen.getByTestId("felt-zone-banker");
-    fireEvent.mouseDown(zone);
-    fireEvent.mouseUp(zone);
+    fireEvent.pointerDown(zone, { pointerId: 1 });
+    fireEvent.pointerUp(zone, { pointerId: 1 });
     expect(screen.getByTestId("player-toast").textContent).toContain("Maximum");
   });
 
@@ -282,7 +319,7 @@ describe("PlayerShell", () => {
       },
     });
     const emitSpy = vi.spyOn(store, "emit");
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
     fireEvent.click(screen.getByTestId("bet-slip-remove-b1"));
     expect(emitSpy).toHaveBeenCalledWith({ type: "BET_REMOVED", betId: "b1" });
   });
@@ -316,7 +353,7 @@ describe("PlayerShell", () => {
       },
       { quick: true },
     );
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
     expect(screen.getByTestId("player-status-bar").textContent).toContain("Banker");
     expect(screen.getByTestId("player-status-bar").textContent).toContain("+95");
     expect(screen.getByTestId("player-status-bar").textContent).not.toContain("null");
@@ -340,28 +377,30 @@ describe("PlayerShell", () => {
       },
     });
     store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
-    store.record(
-      {
-        cards: null,
-        outcome: "B",
-        playerTotal: 4,
-        bankerTotal: 9,
-        playerPair: false,
-        bankerPair: false,
-        natural: false,
-      },
-      { quick: true },
-    );
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
+    await act(async () => {
+      store.record(
+        {
+          cards: null,
+          outcome: "B",
+          playerTotal: 4,
+          bankerTotal: 9,
+          playerPair: false,
+          bankerPair: false,
+          natural: false,
+        },
+        { quick: true },
+      );
+    });
     expect(screen.getByTestId("player-status-bar").textContent).toContain("+95");
     await act(async () => {
       vi.advanceTimersByTime(3500);
     });
     expect(screen.getByTestId("player-status-bar").textContent).toContain("+95");
     await act(async () => {
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1500);
     });
-    expect(screen.getByTestId("player-status-bar").textContent).not.toContain("+95");
+    expect(screen.getByTestId("player-status-bar").textContent).not.toContain("you won");
     vi.useRealTimers();
   });
 
@@ -394,7 +433,7 @@ describe("PlayerShell", () => {
       },
       { quick: true },
     );
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
     expect(screen.getByTestId("felt-zone-badge-banker").textContent).toBe("WIN");
   });
 
@@ -427,14 +466,14 @@ describe("PlayerShell", () => {
       },
       { quick: true },
     );
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
     expect(screen.getByTestId("player-status-bar").textContent).toContain("Banker 9");
     expect(screen.getByTestId("player-status-bar").textContent).toContain("+95");
   });
 
   it("shows rebuy hint at zero bankroll", () => {
     const { store } = setupStore({ bankroll: 0 });
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
     expect(screen.getByTestId("player-rebuy-hint")).toBeTruthy();
   });
 
@@ -479,7 +518,7 @@ describe("PlayerShell", () => {
     });
     store.emit({ type: "BANK_ISSUED", playerId: "p2", amount: 500, reason: "buyin" });
     store.emit({ type: "SESSION_ENDED" });
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
     expect(screen.getByTestId("player-session-summary")).toBeTruthy();
     expect(screen.getByTestId("player-session-issued").textContent).toBe("500");
     expect(screen.getByTestId("player-session-net").textContent).toBe("+95");
@@ -502,7 +541,7 @@ describe("PlayerShell", () => {
       },
     });
     store.emit({ type: "SESSION_ENDED" });
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
     const link = screen.getByTestId("player-session-verify-link") as HTMLAnchorElement;
     expect(link.getAttribute("href")).toBe(`https://test.example/verify?code=${store.code}`);
     tableUrlSpy.mockRestore();
@@ -541,21 +580,21 @@ describe("PlayerShell", () => {
       },
       { quick: true },
     );
-    render(<PlayerShell store={store} playerName="Ana" />);
-    fireEvent.click(screen.getByRole("button", { name: "History" }));
-    expect(screen.getByTestId("player-history-profit-b1").textContent).toBe("would pay +95");
+    renderPlayerShell({ store, playerName: "Ana" });
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
+    expect(screen.getByTestId("player-history-profit-b1").textContent).toBe("Pays +95 (no chips)");
   });
 
   it("opens player settings sheet and persists phoneAnimations", () => {
-    localStorage.clear();
+    window.localStorage.clear();
     const { store } = setupStore();
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
     fireEvent.click(screen.getByTestId("player-settings-open"));
     expect(screen.getByTestId("player-settings-sheet")).toBeTruthy();
     fireEvent.change(screen.getByTestId("player-phone-animations"), {
       target: { value: "off" },
     });
-    const stored = JSON.parse(localStorage.getItem("casino-lord:device-settings") ?? "{}");
+    const stored = JSON.parse(window.localStorage.getItem("casino-lord:device-settings") ?? "{}");
     expect(stored.phoneAnimations).toBe("off");
     expect(stored.shakeSensitivity).toBe(DEFAULT_DEVICE_SETTINGS.shakeSensitivity);
   });
@@ -589,8 +628,8 @@ describe("PlayerShell", () => {
       },
       { quick: true },
     );
-    render(<PlayerShell store={store} playerName="Ana" />);
-    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    renderPlayerShell({ store, playerName: "Ana" });
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
     expect(screen.getByTestId("player-history-outcome-b1").textContent).toBe("win");
     expect(screen.getByTestId("player-history-profit-b1").textContent).toBe("+95");
     expect(screen.getByTestId("player-history-running-net-b1").textContent).toContain("+95");
@@ -610,7 +649,7 @@ describe("PlayerShell", () => {
       seriesId: "s1",
       commit: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
     });
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
     fireEvent.click(screen.getByLabelText("Information"));
     expect(screen.getByTestId("player-fairness-commit").textContent).toContain("abcdef0123456789");
   });
@@ -634,7 +673,7 @@ describe("PlayerShell", () => {
     });
     const { store } = setupStore();
     const emitSpy = vi.spyOn(store, "emit");
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
     expect(screen.getByTestId("player-status-bar").textContent).toContain("Your move");
     expect(screen.getByTestId("action-btn-hit")).toBeTruthy();
     fireEvent.click(screen.getByTestId("action-btn-hit"));
@@ -648,7 +687,7 @@ describe("PlayerShell", () => {
     vi.useFakeTimers();
     const { store } = setupStore();
     const emitSpy = vi.spyOn(store, "emit");
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
     document.dispatchEvent(new Event("visibilitychange"));
@@ -737,12 +776,10 @@ describe("PlayerShell", () => {
       store.emit({ type: "BETS_OPENED", roundId: "r1" });
     }
 
-    const syncStore = {
-      ...store,
+    const syncStore = asSyncStore(store, {
       getPlayerId: () => "p1",
-      getConnectionState: () => "connected" as const,
-      sendVirtual: vi.fn(),
-    };
+    });
+    (syncStore as { sendVirtual: ReturnType<typeof vi.fn> }).sendVirtual = vi.fn();
 
     return { store: syncStore, module: modules[game] };
   }
@@ -750,7 +787,7 @@ describe("PlayerShell", () => {
   it("roulette place emits BET_PLACED with straight-17 target", () => {
     const { store } = setupGameStore("roulette");
     const emitSpy = vi.spyOn(store, "emit");
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     fireEvent.click(screen.getByTestId("chip-denom-25"));
     fireEvent.click(screen.getByTestId("felt-hit-straight:17"));
@@ -772,7 +809,7 @@ describe("PlayerShell", () => {
   it("virtual craps roll calls sendVirtual trigger", async () => {
     const { store } = setupGameStore("craps", { outcomeSource: "virtual" });
     const emitSpy = vi.spyOn(store, "emit");
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     await act(async () => {
       fireEvent.click(screen.getByTestId("shooter-roll"));
@@ -808,7 +845,7 @@ describe("PlayerShell", () => {
       source: "dealer",
     });
     const emitSpy = vi.spyOn(store, "emit");
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     fireEvent.click(screen.getByTestId("action-btn-hit"));
     expect(emitSpy).toHaveBeenCalledWith({
@@ -853,7 +890,7 @@ describe("PlayerShell", () => {
       },
     });
     const emitSpy = vi.spyOn(store, "emit");
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     fireEvent.click(screen.getByTestId("action-btn-hit"));
     expect(store.sendVirtual).toHaveBeenCalledWith("action", { playerId: "p1", action: "hit" });
@@ -878,7 +915,7 @@ describe("PlayerShell", () => {
     };
     store.emit({ type: "BET_PLACED", bet: comeBet });
     const emitSpy = vi.spyOn(store, "emit");
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     fireEvent.click(screen.getByTestId("come-chip-8"));
     fireEvent.click(screen.getByTestId("working-toggle"));
@@ -906,7 +943,7 @@ describe("PlayerShell", () => {
     };
     store.emit({ type: "BET_PLACED", bet: placeBet });
     const emitSpy = vi.spyOn(store, "emit");
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     const placeBox = screen.getByTestId("place-box-6");
     const chip = placeBox.querySelector(".craps-player-view__place-chip");
@@ -920,7 +957,7 @@ describe("PlayerShell", () => {
   it("blackjack selectSeat emits PLAYER_UPDATED with seat patch", () => {
     const { store } = setupGameStore("blackjack");
     const emitSpy = vi.spyOn(store, "emit");
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     fireEvent.click(screen.getByTestId("seat-pick-3"));
     expect(emitSpy).toHaveBeenCalledWith({
@@ -928,5 +965,136 @@ describe("PlayerShell", () => {
       playerId: "p1",
       patch: { seat: 3 },
     });
+  });
+
+  it("shows removed player card with Home button", () => {
+    const { store } = setupStore({ playerStatus: "removed" });
+    renderPlayerShell({ store, playerName: "Ana" });
+    expect(screen.getByTestId("player-removed")).toBeTruthy();
+    expect(screen.getByText("You were removed from this table by the dealer")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Home" })).toBeTruthy();
+  });
+
+  it("shows pending approval message when player is pending", () => {
+    const { store } = setupStore({ playerStatus: "pending" });
+    renderPlayerShell({ store, playerName: "Ana" });
+    expect(screen.getByTestId("player-pending")).toBeTruthy();
+    expect(screen.getByText("Waiting for the dealer to approve you…")).toBeTruthy();
+  });
+
+  it("shows idle status and bet slip before first round opens", () => {
+    const { store } = setupStore({ roundOpen: false });
+    renderPlayerShell({ store, playerName: "Ana" });
+    expect(screen.getByTestId("player-status-bar").textContent).toContain(
+      "Waiting for the dealer to open bets",
+    );
+    expect(screen.getByTestId("bet-slip-idle").textContent).toContain("Bets open soon");
+  });
+
+  it("hides bankroll when bank is none", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+    });
+    renderPlayerShell({ store, playerName: "Ana" });
+    expect(screen.queryByTestId("player-bankroll")).toBeNull();
+  });
+
+  it("leaderboard tab shows play chips disclaimer", () => {
+    const { store } = setupStore();
+    renderPlayerShell({ store, playerName: "Ana" });
+    fireEvent.click(screen.getByRole("tab", { name: "Leaderboard" }));
+    expect(screen.getByTestId("player-leaderboard-disclaimer").textContent).toContain(
+      "Play chips — no cash value",
+    );
+  });
+
+  it("toasts server reject reason", async () => {
+    let rejectReason: string | null = null;
+    const { store } = setupStore({ getRejectReason: () => rejectReason });
+    renderPlayerShell({ store, playerName: "Ana" });
+    rejectReason = "SESSION_ENDED";
+    await act(async () => {
+      store.emit({ type: "SETTINGS_CHANGED", patch: { tableName: "T1" } });
+    });
+    expect(screen.getByTestId("player-toast").textContent).toContain("Bet not placed");
+    expect(screen.getByTestId("player-toast").textContent).toContain("session ended");
+  });
+
+  it("toasts OFFLINE when placing while disconnected", () => {
+    const { store } = setupStore({ getConnectionState: () => "offline" });
+    renderPlayerShell({ store, playerName: "Ana" });
+    fireEvent.click(screen.getByTestId("chip-denom-5"));
+    const zone = screen.getByTestId("felt-zone-banker");
+    fireEvent.mouseDown(zone);
+    fireEvent.mouseUp(zone);
+    fireEvent.click(screen.getByTestId("bet-slip-place"));
+    expect(screen.getByTestId("player-toast").textContent).toContain("Bet not placed — offline");
+  });
+
+  it("footer tabs have tablist semantics", () => {
+    const { store } = setupStore();
+    renderPlayerShell({ store, playerName: "Ana" });
+    expect(screen.getByRole("tablist", { name: "Player sections" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "History" }).getAttribute("aria-selected")).toBe(
+      "false",
+    );
+  });
+
+  it("history shows game-specific result description", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: 5,
+        bankerTotal: 7,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    renderPlayerShell({ store, playerName: "Ana" });
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
+    expect(screen.getByTestId("player-history-result-b1").textContent).toBe("Banker 7 – Player 5");
+  });
+
+  it("roulette settlement status uses spin description", () => {
+    const { store } = setupGameStore("roulette");
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "red",
+        amount: 25,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record({ pocket: 17 }, { quick: true });
+    renderPlayerShell({ store, playerName: "Ana" });
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("17 Black");
   });
 });

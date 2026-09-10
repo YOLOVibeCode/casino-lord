@@ -1,3 +1,4 @@
+import { describeCrapsResult, findCrapsRollInfo } from "@casino-lord/game-craps";
 import {
   buildLeaderboard,
   getBankroll,
@@ -7,11 +8,13 @@ import {
   sortPlayers,
   type BetCatalogue,
   type BetDef,
+  type GameId,
   type PlacedBet,
   type PlatformState,
   type Settlement,
   type TableEvent,
 } from "@casino-lord/core";
+import type { CrapsResult } from "@casino-lord/game-craps";
 import {
   ActionButtons,
   BetSlip,
@@ -22,6 +25,7 @@ import {
 } from "@casino-lord/ui";
 import { createElement, type ComponentType } from "preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useLocation } from "preact-iso";
 import { AnimationLayer } from "../animation/AnimationLayer.js";
 import { useAnimationRuntime } from "../animation/useAnimationRuntime.js";
 import { computeBetRow } from "../calculator/payout-calculator.js";
@@ -133,24 +137,101 @@ interface HistoryRow {
   amount: number;
   roundId: string;
   outcome: Settlement["outcome"] | null;
+  resultDescription: string | null;
   profit: number | null;
   profitLabel: string | null;
   runningNet: number | null;
 }
 
+interface ResultModule {
+  id: GameId;
+  resultLabel: string;
+  describeResult?: (result: unknown, rules: unknown) => string;
+}
+
+function getResultEntries(
+  gameId: GameId,
+  moduleState: unknown,
+): Array<{ id: string; data?: unknown }> {
+  if (!moduleState || typeof moduleState !== "object") return [];
+  const state = moduleState as Record<string, unknown>;
+  switch (gameId) {
+    case "baccarat":
+    case "craps":
+      return (state.results as Array<{ id: string; data: unknown }> | undefined) ?? [];
+    case "roulette":
+      return (state.spins as Array<{ id: string; data: unknown }> | undefined) ?? [];
+    case "blackjack":
+      return (state.rounds as Array<{ id: string; data: unknown }> | undefined) ?? [];
+    default:
+      return [];
+  }
+}
+
+function findResultData(gameId: GameId, moduleState: unknown, resultId: string): unknown | null {
+  return getResultEntries(gameId, moduleState).find((r) => r.id === resultId)?.data ?? null;
+}
+
+function resultNumber(gameId: GameId, moduleState: unknown, resultId: string): number {
+  const entries = getResultEntries(gameId, moduleState);
+  const idx = entries.findIndex((r) => r.id === resultId);
+  return idx >= 0 ? idx + 1 : entries.length;
+}
+
+export function describeResultLine(
+  module: ResultModule,
+  rules: unknown,
+  moduleState: unknown,
+  resultId: string,
+): string {
+  const resultData = findResultData(module.id, moduleState, resultId);
+  if (resultData !== null) {
+    if (module.id === "craps") {
+      const rollInfo = findCrapsRollInfo(moduleState, resultId);
+      return describeCrapsResult(resultData as CrapsResult, rollInfo);
+    }
+    if (module.describeResult) {
+      return module.describeResult(resultData, rules);
+    }
+  }
+  return `${module.resultLabel} #${resultNumber(module.id, moduleState, resultId)}`;
+}
+
 function formatProfitLabel(profit: number, declared: boolean): string {
   const sign = profit >= 0 ? "+" : "";
   if (declared) {
-    return `would pay ${sign}${profit}`;
+    return `Pays ${sign}${profit} (no chips)`;
   }
   return `${sign}${profit}`;
 }
+
+const REJECT_REASON_LABELS: Record<string, string> = {
+  SESSION_ENDED: "session ended",
+  DEALING: "dealing in progress",
+  "not authorized": "not authorized",
+  OFFLINE: "offline",
+  rejected: "rejected",
+};
+
+function formatRejectReason(reason: string): string {
+  return REJECT_REASON_LABELS[reason] ?? reason.replace(/_/g, " ").toLowerCase();
+}
+
+const FOOTER_TABS: Array<{ id: FooterTab; label: string; ariaLabel: string; title: string }> = [
+  { id: "history", label: "🕐 History", ariaLabel: "History", title: "History" },
+  { id: "leaderboard", label: "🏆 Leaderboard", ariaLabel: "Leaderboard", title: "Leaderboard" },
+  { id: "rules", label: "📋 Rules", ariaLabel: "Rules", title: "Rules" },
+  { id: "info", label: "ℹ Info", ariaLabel: "Information", title: "Information" },
+];
 
 export function buildHistoryRows(
   platform: PlatformState,
   playerId: string,
   catalogue: BetCatalogue<unknown, unknown, unknown, unknown>,
   declaredMode: boolean,
+  module: ResultModule,
+  rules: unknown,
+  moduleState: unknown,
 ): HistoryRow[] {
   const bets = platform.bets
     .filter((b) => b.playerId === playerId)
@@ -164,12 +245,17 @@ export function buildHistoryRows(
 
     if (settlement && round?.status === "settled") {
       runningNet += settlement.profit;
+      const resultDescription =
+        round.resultId !== undefined
+          ? describeResultLine(module, rules, moduleState, round.resultId)
+          : null;
       return {
         id: bet.id,
         label: betLabel(catalogue, bet.type),
         amount: bet.amount,
         roundId: bet.roundId,
         outcome: settlement.outcome,
+        resultDescription,
         profit: settlement.profit,
         profitLabel: formatProfitLabel(settlement.profit, declaredMode),
         runningNet,
@@ -182,6 +268,7 @@ export function buildHistoryRows(
       amount: bet.amount,
       roundId: bet.roundId,
       outcome: null,
+      resultDescription: null,
       profit: null,
       profitLabel: null,
       runningNet: null,
@@ -202,21 +289,14 @@ function sumSettlementProfit(platform: PlatformState, playerId: string): number 
   return total;
 }
 
-function buildSettlementSummary(
-  outcome: string,
-  playerTotal: number | null,
-  bankerTotal: number | null,
-  profit: number,
-): string {
-  const outcomeLabel = outcome === "B" ? "Banker" : outcome === "P" ? "Player" : "Tie";
-  const total = outcome === "B" ? bankerTotal : outcome === "P" ? playerTotal : playerTotal;
+function buildSettlementSummary(headline: string, profit: number): string {
   const sign = profit >= 0 ? "+" : "";
   const verb = profit >= 0 ? "won" : "lost";
-  const headline = total !== null ? `${outcomeLabel} ${total}` : outcomeLabel;
   return `${headline} — you ${verb} ${sign}${profit}`;
 }
 
 export function PlayerShell({ store, playerName }: PlayerShellProps) {
+  const { route } = useLocation();
   useStore(store);
   const [deviceSettings, setDeviceSettings] = useDeviceSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -240,11 +320,13 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const [countdownSec, setCountdownSec] = useState<number | null>(null);
   const [turnCountdownSec, setTurnCountdownSec] = useState<number | null>(null);
   const lastSettledRoundRef = useRef<string | null>(null);
+  const lastToastedRejectRef = useRef<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastEventIndexRef = useRef<number | null>(null);
   const betsSnapshotRef = useRef<Map<string, PlacedBet>>(new Map());
   const settlementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Partial<Record<FooterTab, HTMLButtonElement | null>>>({});
 
   const animationsEnabled = deviceSettings.animations && deviceSettings.phoneAnimations !== "off";
   const phoneMode = deviceSettings.phoneAnimations === "reduced";
@@ -282,16 +364,20 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const pendingTotal = pendingBets.reduce((s, b) => s + b.amount, 0);
   const placedTotal = placedBets.reduce((s, b) => s + b.amount, 0);
 
+  const playerActive = player?.status === "active" || player?.status === "away";
+  const playerRemoved = player?.status === "removed";
+  const playerPending = !player || player.status === "pending";
+
   const me = useMemo(
     () =>
-      player && playerId
+      player && playerId && playerActive
         ? {
             player,
             bankroll,
             openBets: placedBets,
           }
         : null,
-    [player, playerId, bankroll, placedBets],
+    [player, playerId, playerActive, bankroll, placedBets],
   );
 
   const settledRound = composed.platform.rounds.filter((r) => r.status === "settled").at(-1);
@@ -354,24 +440,19 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       else if (s.profit < 0) byZone[bet.type] = "lose";
     }
 
-    const mod = snapshot.module as {
-      results?: {
-        data: {
-          outcome: string;
-          bankerTotal: number | null;
-          playerTotal: number | null;
-        };
-      }[];
-    };
-    const last = mod.results?.at(-1)?.data;
+    const settledRoundData = snapshot.platform.rounds.find((r) => r.id === roundId);
+    const resultId = settledRoundData?.resultId;
+    const mod = getGame(store.game)?.module;
+    const effectRules = store.getRules();
+    const headline =
+      mod && resultId
+        ? describeResultLine(mod, effectRules, snapshot.module, resultId)
+        : mod
+          ? `${mod.resultLabel} #${snapshot.platform.rounds.filter((r) => r.status === "settled").length}`
+          : "Result";
 
-    if (last && profit !== 0) {
-      const summary = buildSettlementSummary(
-        last.outcome,
-        last.playerTotal,
-        last.bankerTotal,
-        profit,
-      );
+    if (resultId && profit !== 0) {
+      const summary = buildSettlementSummary(headline, profit);
       setSettlementSummary(summary);
       setSettlementFlash(profit > 0 ? "win" : "lose");
       setSettlementByZone(byZone);
@@ -464,6 +545,29 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     [],
   );
 
+  useEffect(() => {
+    if (!isSyncStore(store)) return;
+    const unsub = store.subscribe(() => {
+      const reason = store.getRejectReason();
+      if (!reason) {
+        lastToastedRejectRef.current = null;
+        return;
+      }
+      if (reason === lastToastedRejectRef.current) return;
+      lastToastedRejectRef.current = reason;
+      showToast(`Bet not placed — ${formatRejectReason(reason)}`);
+    });
+    return unsub;
+  }, [store, showToast]);
+
+  const ensureOnlineForBet = useCallback((): boolean => {
+    if (isSyncStore(store) && store.getConnectionState() !== "connected") {
+      showToast(`Bet not placed — ${formatRejectReason("OFFLINE")}`);
+      return false;
+    }
+    return true;
+  }, [store, showToast]);
+
   const hapticTap = useCallback(() => {
     tapHaptic(deviceSettings.haptics);
   }, [deviceSettings.haptics]);
@@ -541,6 +645,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
   const handlePlace = useCallback(() => {
     if (!module || !playerId || !openRound) return;
+    if (!ensureOnlineForBet()) return;
     const toPlace = pendingBets.map((p) => ({
       betDef: findBetDef(module.bets, p.type)!,
       amount: p.amount,
@@ -599,6 +704,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     houseBank,
     store,
     showToast,
+    ensureOnlineForBet,
   ]);
 
   const handleRemoveSlip = useCallback(
@@ -607,10 +713,11 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         setPendingBets((prev) => prev.filter((b) => b.clientId !== id));
         showToast("Bet removed", "success");
       } else {
+        if (!ensureOnlineForBet()) return;
         void store.emit({ type: "BET_REMOVED", betId: id });
       }
     },
-    [store, showToast],
+    [store, showToast, ensureOnlineForBet],
   );
 
   const handlePlaceBet = useCallback(
@@ -639,6 +746,8 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         showToast(result.reason ?? "Bet rejected");
         return;
       }
+
+      if (!ensureOnlineForBet()) return;
 
       void store.emit({
         type: "BET_PLACED",
@@ -670,6 +779,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       store,
       showToast,
       hapticTap,
+      ensureOnlineForBet,
     ],
   );
 
@@ -845,8 +955,10 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       return `BETS OPEN${cd}`;
     }
     if (round?.status === "closed") return "BETS CLOSED";
-    return "BETS — idle";
+    return "Waiting for the dealer to open bets";
   })();
+
+  const isIdle = !openRound && round?.status !== "closed";
 
   const buyInByPlayer = buildBuyInMap(store.events);
   const leaderboard = buildLeaderboard(composed.platform, buyInByPlayer);
@@ -869,9 +981,17 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const historyRows = useMemo(
     () =>
       playerId && module
-        ? buildHistoryRows(composed.platform, playerId, module.bets, !houseBank)
+        ? buildHistoryRows(
+            composed.platform,
+            playerId,
+            module.bets,
+            !houseBank,
+            module,
+            rules,
+            composed.module,
+          )
         : [],
-    [composed.platform, playerId, module, houseBank],
+    [composed.platform, playerId, module, houseBank, rules],
   );
 
   const connection = isSyncStore(store) ? store.getConnectionState() : "offline";
@@ -880,13 +1000,61 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       ? "player-shell__dot player-shell__dot--on"
       : "player-shell__dot player-shell__dot--off";
 
-  if (!module || !me || !bettingContext) {
+  if (!module) {
     return (
       <div class="player-shell" data-testid="player-shell">
         <p>Loading…</p>
       </div>
     );
   }
+
+  if (playerRemoved) {
+    return (
+      <div class="player-shell player-shell--blocked" data-testid="player-shell">
+        <div class="player-shell__blocked-card" data-testid="player-removed">
+          <p>You were removed from this table by the dealer</p>
+          <button type="button" class="player-shell__home" onClick={() => route("/")}>
+            Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (playerPending) {
+    return (
+      <div class="player-shell player-shell--blocked" data-testid="player-shell">
+        <div class="player-shell__blocked-card" data-testid="player-pending">
+          <p>Waiting for the dealer to approve you…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!me || !bettingContext) {
+    return (
+      <div class="player-shell" data-testid="player-shell">
+        <p>Loading…</p>
+      </div>
+    );
+  }
+
+  const visibleFooterTabs = FOOTER_TABS.filter(
+    (tab) => tab.id !== "leaderboard" || settings.players.showBankrolls,
+  );
+
+  const handleFooterKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const tabs = visibleFooterTabs.map((t) => t.id);
+    let currentIdx = activeTab === "play" ? -1 : tabs.indexOf(activeTab);
+    if (currentIdx < 0) currentIdx = 0;
+    const delta = e.key === "ArrowRight" ? 1 : -1;
+    const nextIdx = (currentIdx + delta + tabs.length) % tabs.length;
+    const nextTab = tabs[nextIdx]!;
+    setActiveTab(nextTab);
+    tabRefs.current[nextTab]?.focus();
+  };
 
   const PlayerView = module.PlayerView as unknown as ComponentType<Record<string, unknown>>;
   const RulesView = module.RulesSettingsView as unknown as ComponentType<{
@@ -910,13 +1078,15 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         />
         <span class={dotClass} data-testid="connection-dot" />
         <span class="player-shell__name">{playerName}</span>
-        <span
-          class="player-shell__bank"
-          data-testid="player-bankroll"
-          aria-label={`Balance ${bankroll} chips`}
-        >
-          Balance ⛁ {displayBankroll.toLocaleString()}
-        </span>
+        {houseBank && (
+          <span
+            class="player-shell__bank"
+            data-testid="player-bankroll"
+            aria-label={`Balance ${bankroll} chips`}
+          >
+            Balance ⛁ {displayBankroll.toLocaleString()}
+          </span>
+        )}
         <span class="player-shell__code">{store.code}</span>
         <button
           type="button"
@@ -935,7 +1105,12 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         </p>
       )}
 
-      <div class="player-shell__status" data-testid="player-status-bar">
+      <div
+        class="player-shell__status"
+        data-testid="player-status-bar"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         {sessionEnded ? "Session ended" : statusLine}
       </div>
 
@@ -1045,7 +1220,8 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
                 entries={slipEntries}
                 total={pendingTotal + placedTotal}
                 pendingStake={pendingTotal}
-                locked={!openRound}
+                idle={isIdle}
+                locked={!openRound && !isIdle}
                 canPlace={canPlaceBets}
                 placeLabel={placeLabel}
                 {...(placeDisabledReason !== undefined
@@ -1072,6 +1248,14 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
                   <span class="player-shell__history-label">
                     {row.label} — {row.amount}
                   </span>
+                  {row.resultDescription !== null && (
+                    <span
+                      class="player-shell__history-result"
+                      data-testid={`player-history-result-${row.id}`}
+                    >
+                      {row.resultDescription}
+                    </span>
+                  )}
                   {row.outcome !== null && (
                     <span
                       class={`player-shell__history-outcome player-shell__history-outcome--${row.outcome}`}
@@ -1120,6 +1304,9 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
                 </li>
               ))}
             </ul>
+            <p class="player-shell__disclaimer" data-testid="player-leaderboard-disclaimer">
+              Play chips — no cash value
+            </p>
           </div>
         )}
 
@@ -1141,45 +1328,32 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         )}
       </PlayerBettingContext.Provider>
 
-      <footer class="player-shell__footer">
-        <button
-          type="button"
-          class={`player-shell__tab${activeTab === "history" ? " player-shell__tab--active" : ""}`}
-          aria-label="History"
-          title="History"
-          onClick={() => setActiveTab("history")}
-        >
-          🕐 History
-        </button>
-        {settings.players.showBankrolls && (
+      <footer
+        class="player-shell__footer"
+        role="tablist"
+        aria-label="Player sections"
+        onKeyDown={handleFooterKeyDown}
+      >
+        {visibleFooterTabs.map((tab) => (
           <button
+            key={tab.id}
             type="button"
-            class={`player-shell__tab${activeTab === "leaderboard" ? " player-shell__tab--active" : ""}`}
-            aria-label="Leaderboard"
-            title="Leaderboard"
-            onClick={() => setActiveTab("leaderboard")}
+            role="tab"
+            id={`player-tab-${tab.id}`}
+            aria-selected={activeTab === tab.id}
+            tabIndex={activeTab === tab.id ? 0 : -1}
+            aria-controls={`player-panel-${tab.id}`}
+            ref={(el) => {
+              tabRefs.current[tab.id] = el;
+            }}
+            class={`player-shell__tab${activeTab === tab.id ? " player-shell__tab--active" : ""}`}
+            aria-label={tab.ariaLabel}
+            title={tab.title}
+            onClick={() => setActiveTab(tab.id)}
           >
-            🏆 Leaderboard
+            {tab.label}
           </button>
-        )}
-        <button
-          type="button"
-          class={`player-shell__tab${activeTab === "rules" ? " player-shell__tab--active" : ""}`}
-          aria-label="Rules"
-          title="Rules"
-          onClick={() => setActiveTab("rules")}
-        >
-          📋 Rules
-        </button>
-        <button
-          type="button"
-          class={`player-shell__tab${activeTab === "info" ? " player-shell__tab--active" : ""}`}
-          aria-label="Information"
-          title="Information"
-          onClick={() => setActiveTab("info")}
-        >
-          ℹ Info
-        </button>
+        ))}
         {activeTab !== "play" && (
           <button
             type="button"

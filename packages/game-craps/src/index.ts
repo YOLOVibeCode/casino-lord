@@ -7,3 +7,4 @@ export { crapsModule } from "./module.js";
 export type { CrapsState } from "./types.js";
 export type { CrapsBetId, CrapsBetTarget } from "./bet-target.js";
 export { DEFAULT_CRAPS_RULES } from "./rules.js";
+export { describeCrapsResult, findCrapsRollInfo } from "./describe-result.js";

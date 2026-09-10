@@ -32,4 +32,59 @@ describe("ActionButtons", () => {
     );
     expect((screen.getByTestId("action-btn-stand") as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("announces countdown with visually hidden text", () => {
+    render(
+      <ActionButtons
+        actions={[{ id: "hit", label: "HIT", enabled: true, action: { kind: "hit" } }]}
+        countdownSec={10}
+        onAction={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("10 s left")).toBeTruthy();
+  });
+
+  it("does not vibrate at countdown milestones when haptics disabled", () => {
+    const vibrate = vi.fn();
+    Object.defineProperty(navigator, "vibrate", { value: vibrate, configurable: true });
+    const { rerender } = render(
+      <ActionButtons
+        actions={[{ id: "hit", label: "HIT", enabled: true, action: { kind: "hit" } }]}
+        countdownSec={11}
+        haptics={false}
+        onAction={vi.fn()}
+      />,
+    );
+    rerender(
+      <ActionButtons
+        actions={[{ id: "hit", label: "HIT", enabled: true, action: { kind: "hit" } }]}
+        countdownSec={10}
+        haptics={false}
+        onAction={vi.fn()}
+      />,
+    );
+    expect(vibrate).not.toHaveBeenCalled();
+  });
+
+  it("vibrates at countdown milestones when haptics enabled", () => {
+    const vibrate = vi.fn();
+    Object.defineProperty(navigator, "vibrate", { value: vibrate, configurable: true });
+    const { rerender } = render(
+      <ActionButtons
+        actions={[{ id: "hit", label: "HIT", enabled: true, action: { kind: "hit" } }]}
+        countdownSec={11}
+        haptics={true}
+        onAction={vi.fn()}
+      />,
+    );
+    rerender(
+      <ActionButtons
+        actions={[{ id: "hit", label: "HIT", enabled: true, action: { kind: "hit" } }]}
+        countdownSec={10}
+        haptics={true}
+        onAction={vi.fn()}
+      />,
+    );
+    expect(vibrate).toHaveBeenCalledWith(10);
+  });
 });

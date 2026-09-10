@@ -14,6 +14,7 @@ export interface BetSlipProps {
   total: number;
   pendingStake?: number;
   locked: boolean;
+  idle?: boolean;
   canPlace: boolean;
   placeLabel?: string;
   disabledReason?: string;
@@ -32,6 +33,7 @@ export function BetSlip({
   total,
   pendingStake = 0,
   locked,
+  idle = false,
   canPlace,
   placeLabel,
   disabledReason,
@@ -91,7 +93,11 @@ export function BetSlip({
         )}
       </div>
 
-      {locked ? (
+      {idle ? (
+        <p class="bet-slip__idle" data-testid="bet-slip-idle">
+          Bets open soon
+        </p>
+      ) : locked ? (
         <p class="bet-slip__locked" data-testid="bet-slip-locked">
           Bets closed — good luck
         </p>

@@ -70,8 +70,8 @@
 
 .player-shell__settings {
   flex-shrink: 0;
-  min-width: 2.5rem;
-  min-height: 2.5rem;
+  min-width: max(3rem, 44px);
+  min-height: max(3rem, 44px);
   border: none;
   background: transparent;
   color: inherit;
@@ -178,8 +178,8 @@
 
 .player-shell__tab {
   flex: 1;
-  min-height: 3rem;
-  min-width: 3rem;
+  min-height: max(3rem, 44px);
+  min-width: max(3rem, 44px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 0.35rem;
   background: transparent;
@@ -312,6 +312,49 @@
   inset: 0;
   pointer-events: none;
   z-index: 20;
+}
+
+.player-shell--blocked {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 1rem;
+}
+
+.player-shell__blocked-card {
+  max-width: 22rem;
+  padding: 1.25rem;
+  border-radius: 0.5rem;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  text-align: center;
+  font-size: max(1rem, 16px);
+}
+
+.player-shell__home {
+  margin-top: 1rem;
+  min-width: max(3rem, 44px);
+  min-height: max(3rem, 44px);
+  padding: 0.5rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0.35rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.player-shell__disclaimer {
+  margin-top: 1rem;
+  font-size: max(0.875rem, 14px);
+  opacity: 0.85;
+}
+
+.player-shell__history-result {
+  display: block;
+  font-size: max(0.8125rem, 13px);
+  opacity: 0.85;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -13,9 +13,16 @@
   border: 1px solid var(--gold-hairline, #b8945a66);
   border-radius: 8px;
   padding: 1.5rem;
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
   max-width: 90vw;
   max-height: 90vh;
   overflow: auto;
+}
+
+.qr-dialog button {
+  min-height: max(3rem, 44px);
+  min-width: max(3rem, 44px);
+  font-size: max(1rem, 16px);
 }
 
 .qr-dialog__entry {

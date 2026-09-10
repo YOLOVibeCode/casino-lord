@@ -105,8 +105,25 @@ function buildStore(internals: StoreInternals): TableStore {
     for (const l of listeners) l();
   };
 
-  const getComposed = (): ComposedState<unknown> =>
-    replay(internals.events, module, rules, { code, includeEphemeral: true });
+  let cachedComposed: ComposedState<unknown> | null = null;
+  let composedCacheKey = "";
+
+  const invalidateComposedCache = (): void => {
+    cachedComposed = null;
+    composedCacheKey = "";
+  };
+
+  const composedCacheKeyFor = (): string => `${internals.events.length}:${internals.seq}`;
+
+  const getComposed = (): ComposedState<unknown> => {
+    const key = composedCacheKeyFor();
+    if (cachedComposed && composedCacheKey === key) {
+      return cachedComposed;
+    }
+    cachedComposed = replay(internals.events, module, rules, { code, includeEphemeral: true });
+    composedCacheKey = key;
+    return cachedComposed;
+  };
 
   const getRules = (): unknown => {
     const composed = getComposed();
@@ -138,6 +155,7 @@ function buildStore(internals: StoreInternals): TableStore {
   };
 
   const appendAt = (body: TableEventInput, at: string): TableEvent => {
+    invalidateComposedCache();
     internals.seq += 1;
     const event = { seq: internals.seq, at, ...body } as TableEvent;
     internals.events.push(event);
@@ -455,3 +473,18 @@ export function reopenTableStore(input: {
 export function composedStateFingerprint(store: TableStore): string {
   return stableStringify(store.getComposed());
 }
+
+export {
+  attachSoloBroadcastChannel,
+  createSoloDisplayStore,
+  createSoloPlayerStore,
+  isSoloBroadcastChannelAvailable,
+  joinSoloPlayer,
+  rejoinSoloPlayer,
+  soloLocalUrl,
+  waitForSoloSnapshot,
+} from "./solo-channel.js";
+export type {
+  AttachSoloBroadcastChannelOptions,
+  SoloBroadcastChannelHandle,
+} from "./solo-channel.js";

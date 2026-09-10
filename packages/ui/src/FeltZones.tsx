@@ -65,12 +65,12 @@ function FeltZoneButton({
       aria-disabled={disabled ? "true" : undefined}
       disabled={disabled}
       data-testid={`felt-zone-${zone.id}`}
-      onMouseDown={disabled ? undefined : press.startPress}
-      onMouseUp={disabled ? undefined : press.endPress}
-      onMouseLeave={disabled ? undefined : press.cancelPress}
-      onTouchStart={disabled ? undefined : press.startPress}
-      onTouchEnd={disabled ? undefined : press.endPress}
-      onTouchCancel={disabled ? undefined : press.cancelPress}
+      onPointerDown={disabled ? undefined : (e) => press.startPress(e as unknown as PointerEvent)}
+      onPointerUp={disabled ? undefined : (e) => press.endPress(e as unknown as PointerEvent)}
+      onPointerCancel={
+        disabled ? undefined : (e) => press.cancelPress(e as unknown as PointerEvent)
+      }
+      onPointerLeave={disabled ? undefined : (e) => press.cancelPress(e as unknown as PointerEvent)}
       onKeyDown={disabled ? undefined : (e) => press.handleKeyDown(e as unknown as KeyboardEvent)}
     >
       {ownStake > 0 && disabled && (

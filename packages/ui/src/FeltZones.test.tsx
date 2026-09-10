@@ -40,22 +40,30 @@ describe("FeltZones", () => {
     vi.useRealTimers();
   });
 
-  it("fires onTap on short click", () => {
+  it("fires onTap on short pointer press", () => {
     const onTap = vi.fn();
     renderZones(onTap);
     const zone = screen.getByTestId("felt-zone-banker");
-    fireEvent.mouseDown(zone);
-    fireEvent.mouseUp(zone);
-    expect(onTap).toHaveBeenCalled();
+    fireEvent.pointerDown(zone, { pointerId: 1 });
+    fireEvent.pointerUp(zone, { pointerId: 1 });
+    expect(onTap).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires onTap once when Space is pressed", () => {
+    const onTap = vi.fn();
+    renderZones(onTap);
+    const zone = screen.getByTestId("felt-zone-banker");
+    fireEvent.keyDown(zone, { key: " " });
+    expect(onTap).toHaveBeenCalledTimes(1);
   });
 
   it("fires onLongPress after 500ms", () => {
     const onLongPress = vi.fn();
     renderZones(vi.fn(), onLongPress);
     const zone = screen.getByTestId("felt-zone-banker");
-    fireEvent.mouseDown(zone);
+    fireEvent.pointerDown(zone, { pointerId: 1 });
     vi.advanceTimersByTime(500);
-    fireEvent.mouseUp(zone);
+    fireEvent.pointerUp(zone, { pointerId: 1 });
     expect(onLongPress).toHaveBeenCalled();
   });
 

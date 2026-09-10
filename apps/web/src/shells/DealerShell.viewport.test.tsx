@@ -9,6 +9,7 @@ import { DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
 import { asUntypedModule } from "../table/module-types.js";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { createTableStore } from "../table/store.js";
+import { renderWithUiProviders } from "../ui/test-providers.js";
 import { DealerShell } from "./DealerShell.js";
 import "./dealer-shell.css";
 
@@ -54,7 +55,7 @@ function assertViewportLayout(width: number, height: number): void {
     id: () => "viewport-test",
   });
 
-  render(
+  renderWithUiProviders(
     <DealerShell
       store={store}
       module={baccarat}
@@ -134,7 +135,7 @@ describe("DealerShell viewport", () => {
       id: () => `id-${n}`,
     });
 
-    render(
+    renderWithUiProviders(
       <DealerShell
         store={store}
         module={baccarat}
@@ -173,7 +174,7 @@ describe("DealerShell viewport", () => {
       id: () => "toast-test",
     });
 
-    render(
+    renderWithUiProviders(
       <DealerShell
         store={store}
         module={baccarat}

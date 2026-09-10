@@ -29,12 +29,10 @@ function OutcomeChipButton({
       style={{ background: chip.color }}
       aria-label={chip.ariaLabel}
       data-testid={`outcome-chip-${chip.id}`}
-      onMouseDown={press.startPress}
-      onMouseUp={press.endPress}
-      onMouseLeave={press.cancelPress}
-      onTouchStart={press.startPress}
-      onTouchEnd={press.endPress}
-      onTouchCancel={press.cancelPress}
+      onPointerDown={(e) => press.startPress(e as unknown as PointerEvent)}
+      onPointerUp={(e) => press.endPress(e as unknown as PointerEvent)}
+      onPointerCancel={(e) => press.cancelPress(e as unknown as PointerEvent)}
+      onPointerLeave={(e) => press.cancelPress(e as unknown as PointerEvent)}
       onKeyDown={(e) => press.handleKeyDown(e as unknown as KeyboardEvent)}
     >
       {chip.label}

@@ -127,8 +127,8 @@ describe("PlayerView", () => {
 
   it("delegates red tap to parent onZoneTap", () => {
     const { onZoneTap } = renderPlayerView();
-    fireEvent.mouseDown(screen.getByTestId("felt-zone-red"));
-    fireEvent.mouseUp(screen.getByTestId("felt-zone-red"));
+    fireEvent.pointerDown(screen.getByTestId("felt-zone-red"), { pointerId: 1 });
+    fireEvent.pointerUp(screen.getByTestId("felt-zone-red"), { pointerId: 1 });
     expect(onZoneTap).toHaveBeenCalledWith("red");
   });
 
