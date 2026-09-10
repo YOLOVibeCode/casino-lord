@@ -176,7 +176,7 @@ describe("PlayerView", () => {
       getOwnStake: () => 0,
       getTableStake: () => 0,
       settlementFlash: null as const,
-      settlementByZone: {} as Record<string, "win" | "lose">,
+      settlementByZone: {},
       onZoneTap: vi.fn(),
       onZoneLongPress: vi.fn(),
     };

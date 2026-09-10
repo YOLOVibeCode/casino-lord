@@ -18,6 +18,8 @@ import {
 } from "@casino-lord/ui";
 import { createElement, type ComponentType } from "preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { AnimationLayer } from "../animation/AnimationLayer.js";
+import { useAnimationRuntime } from "../animation/useAnimationRuntime.js";
 import { validateBet, validatePlaceAll } from "../betting/validate-bet.js";
 import { useCountUp } from "../hooks/use-count-up.js";
 import { useDeviceSettings } from "../hooks/use-device-settings.js";
@@ -111,6 +113,17 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const lastSettledRoundRef = useRef<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settlementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  const { activeSegments } = useAnimationRuntime({
+    store,
+    module,
+    rules,
+    deviceSettings,
+    overlayRef,
+    enabled: deviceSettings.animations,
+    phoneMode: true,
+  });
 
   const round = getCurrentRound(composed.platform);
   const openRound = round?.status === "open" ? round : null;
@@ -543,6 +556,10 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
   return (
     <div class="player-shell" data-testid="player-shell">
+      <div ref={overlayRef} class="player-shell__animation-overlay" aria-hidden="true">
+        <AnimationLayer segments={activeSegments} />
+      </div>
+
       <header class="player-shell__header">
         <span
           class="player-shell__colour"

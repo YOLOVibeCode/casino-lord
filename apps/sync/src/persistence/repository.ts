@@ -37,4 +37,7 @@ export interface TableRepository {
   setPlayerPending(code: string, playerId: string, pending: boolean): void;
   deletePlayer(code: string, playerId: string): void;
   deletePlayersByCode(code: string): void;
+  saveVirtualSeed(code: string, seriesId: string, blob: Buffer): void;
+  getVirtualSeed(code: string, seriesId: string): Buffer | null;
+  deleteVirtualSeeds(code: string): void;
 }

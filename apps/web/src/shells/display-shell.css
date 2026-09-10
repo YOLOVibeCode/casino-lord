@@ -59,9 +59,26 @@
 }
 
 .display-shell__module {
+  position: relative;
   flex: 1;
   min-height: 10rem;
   padding: 1rem;
+}
+
+.display-shell__virtual-board-tag {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  border: 1px solid var(--gold-hairline);
+  border-radius: 4px;
+  opacity: 0.75;
+  pointer-events: none;
 }
 
 .display-shell__fs-hint {

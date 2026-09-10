@@ -210,6 +210,9 @@ function appendPacedEvent(input: {
   if (result.kind === "new") {
     if (result.persisted) {
       registry.persistEvent(code, result.event);
+      if (result.event.type === "SERIES_STARTED") {
+        registry.persistVirtualDealer(code);
+      }
     }
     io.to(room(code)).emit("message", { op: "event", event: result.event });
     return result.event.seq;
