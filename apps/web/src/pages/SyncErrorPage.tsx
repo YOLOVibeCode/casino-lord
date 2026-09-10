@@ -36,7 +36,9 @@ export function SyncErrorPage({ code: defaultCode = "UNKNOWN" }: SyncErrorPagePr
       case "takeover":
         if (tableCode) {
           const token = loadDealerToken(tableCode);
-          route(token ? `/dealer/${tableCode}?t=${encodeURIComponent(token)}` : `/dealer/${tableCode}`);
+          route(
+            token ? `/dealer/${tableCode}?t=${encodeURIComponent(token)}` : `/dealer/${tableCode}`,
+          );
         }
         return;
       case "retry":
