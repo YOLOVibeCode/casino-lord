@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { useRoute } from "preact-iso";
 import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { DealerShell } from "../shells/DealerShell.js";
 import { DisplayShell } from "../shells/DisplayShell.js";
 import { useStore } from "../hooks/use-store.js";
+import { qrDataUrl } from "../sync/qr.js";
 import { getGame } from "../table/games.js";
 import { createNewSoloTable, resolveSoloTableStore } from "../table/solo-table.js";
+import {
+  attachSoloBroadcastChannel,
+  isSoloBroadcastChannelAvailable,
+  soloLocalUrl,
+  type SoloBroadcastChannelHandle,
+} from "../table/solo-channel.js";
 import type { TableStore } from "../table/store.js";
 import "./solo.css";
 
@@ -82,6 +89,7 @@ export function SoloPage(_props: { path?: string }) {
   return (
     <SoloPanes
       store={store}
+      gameId={gameId}
       entry={entry}
       deviceSettings={deviceSettings}
       setDeviceSettings={setDeviceSettings}
@@ -92,12 +100,14 @@ export function SoloPage(_props: { path?: string }) {
 
 function SoloPanes({
   store,
+  gameId,
   entry,
   deviceSettings,
   setDeviceSettings,
   onNewTable,
 }: {
   store: TableStore;
+  gameId: string;
   entry: NonNullable<ReturnType<typeof getGame>>;
   deviceSettings: ReturnType<typeof useDeviceSettings>[0];
   setDeviceSettings: ReturnType<typeof useDeviceSettings>[1];
@@ -105,6 +115,68 @@ function SoloPanes({
 }) {
   useStore(store);
   const rules = store.getRules();
+  const composed = store.getComposed();
+  const channelAvailable = isSoloBroadcastChannelAvailable();
+  const localPlayersOn = composed.platform.participation.playerMode === "on";
+  const channelRef = useRef<SoloBroadcastChannelHandle | null>(null);
+  const [playQr, setPlayQr] = useState("");
+  const [displayQr, setDisplayQr] = useState("");
+
+  const playUrl = soloLocalUrl(`/solo/${gameId}/play?code=${store.code}`);
+  const displayUrl = soloLocalUrl(`/solo/${gameId}/display?code=${store.code}`);
+
+  useEffect(() => {
+    if (!channelAvailable || !localPlayersOn || !entry.module) {
+      channelRef.current?.detach();
+      channelRef.current = null;
+      return;
+    }
+
+    channelRef.current?.detach();
+    channelRef.current = attachSoloBroadcastChannel(store, { module: entry.module });
+
+    return () => {
+      channelRef.current?.detach();
+      channelRef.current = null;
+    };
+  }, [store, channelAvailable, localPlayersOn, entry.module]);
+
+  useEffect(() => {
+    if (!localPlayersOn) {
+      setPlayQr("");
+      setDisplayQr("");
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const [p, d] = await Promise.all([qrDataUrl(playUrl), qrDataUrl(displayUrl)]);
+      if (!cancelled) {
+        setPlayQr(p);
+        setDisplayQr(d);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [localPlayersOn, playUrl, displayUrl]);
+
+  const handleLocalPlayersToggle = (): void => {
+    const outcomeSource = composed.platform.participation.outcomeSource;
+    if (localPlayersOn) {
+      store.emit({
+        type: "PARTICIPATION_CHANGED",
+        participation: { playerMode: "off", bank: "none", outcomeSource },
+      });
+      return;
+    }
+
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: { playerMode: "on", bank: "house", outcomeSource },
+    });
+  };
 
   return (
     <main class="solo">
@@ -113,7 +185,33 @@ function SoloPanes({
         <span>
           {entry.name} · {store.code}
         </span>
+        {channelAvailable && (
+          <label class="solo__local-players" data-testid="local-players-toggle">
+            <input type="checkbox" checked={localPlayersOn} onChange={handleLocalPlayersToggle} />
+            Local players
+          </label>
+        )}
       </div>
+      {localPlayersOn && (
+        <section class="solo__local-links" data-testid="solo-local-links">
+          <div class="solo__local-link">
+            <h2>Join (Player)</h2>
+            {playQr && <img src={playQr} alt="Player join QR" data-testid="solo-play-qr" />}
+            <a href={playUrl} data-testid="solo-play-link">
+              {playUrl}
+            </a>
+          </div>
+          <div class="solo__local-link">
+            <h2>Display mirror</h2>
+            {displayQr && (
+              <img src={displayQr} alt="Display mirror QR" data-testid="solo-display-qr" />
+            )}
+            <a href={displayUrl} data-testid="solo-display-link">
+              {displayUrl}
+            </a>
+          </div>
+        </section>
+      )}
       <div class="solo__panes">
         <section class="solo__dealer" aria-label="Dealer">
           <DealerShell
