@@ -33,14 +33,8 @@ vi.mock("../hooks/use-device-settings.js", () => ({
   useDeviceSettings: () => [DEFAULT_DEVICE_SETTINGS, vi.fn()],
 }));
 
-let presence = { dealers: 0, displays: 1 };
 let joinTimeout = false;
 const listeners = new Set<() => void>();
-
-function setPresence(next: { dealers: number; displays: number }): void {
-  presence = next;
-  for (const l of listeners) l();
-}
 
 function mockSyncStore(): SyncStore {
   const module = asUntypedModule(createStubModule());
@@ -61,7 +55,7 @@ function mockSyncStore(): SyncStore {
       return () => listeners.delete(listener);
     },
     getConnectionState: () => "connected" as const,
-    getPresence: () => presence,
+    getPresence: () => ({ dealers: 0, displays: 1, players: [] }),
     isReadOnly: () => false,
     getRejectReason: () => null,
     takeover: () => undefined,
@@ -93,24 +87,12 @@ describe("DisplayPage", () => {
     cleanup();
   });
 
-  it("renders display shell and waiting-for-dealer hint", async () => {
+  it("renders display shell without a page-level waiting banner", async () => {
     renderPage("/display/ABCD23");
     await vi.waitFor(() => {
       expect(screen.getByTestId("display-shell")).toBeTruthy();
-      expect(screen.getByTestId("waiting-for-dealer")).toBeTruthy();
     });
-  });
-
-  it("hides the waiting hint once presence reports a dealer", async () => {
-    setPresence({ dealers: 0, displays: 1 });
-    renderPage("/display/ABCD23");
-    await vi.waitFor(() => {
-      expect(screen.getByTestId("waiting-for-dealer")).toBeTruthy();
-    });
-    setPresence({ dealers: 1, displays: 1 });
-    await vi.waitFor(() => {
-      expect(screen.queryByTestId("waiting-for-dealer")).toBeNull();
-    });
+    expect(screen.queryByTestId("waiting-for-dealer")).toBeNull();
   });
 
   it("renders shell from local log on join timeout", async () => {

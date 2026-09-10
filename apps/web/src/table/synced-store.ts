@@ -507,7 +507,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
 
   const getRules = (): unknown => {
     const composed = getComposed();
-    return resolveEffectiveRules(rules, composed.platform.settings.rules);
+    return resolveEffectiveRules(activeRules, composed.platform.settings.rules);
   };
 
   const getTableMeta = () => {

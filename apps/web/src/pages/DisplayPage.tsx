@@ -75,11 +75,7 @@ export function DisplayPage(_props: { path?: string }) {
       } catch (err) {
         if (destroyed) return;
         const message = err instanceof Error ? err.message : "Could not load table";
-        if (
-          message === "sync join timeout" &&
-          syncStore &&
-          syncStore.events.length > 0
-        ) {
+        if (message === "sync join timeout" && syncStore && syncStore.events.length > 0) {
           setStore(syncStore);
           setReconnecting(true);
           setLoading(false);
@@ -140,7 +136,6 @@ export function DisplayPage(_props: { path?: string }) {
   const entry = getGame(store.game);
   if (!entry?.module) return null;
 
-  const waitingForDealer = store.getPresence().dealers === 0;
   const displayQrUrl = tableUrl(`/display/${code}`);
 
   return (
@@ -151,11 +146,6 @@ export function DisplayPage(_props: { path?: string }) {
           <button type="button" onClick={handleRetry}>
             Retry
           </button>
-        </div>
-      )}
-      {waitingForDealer && (
-        <div class="display-page__waiting" data-testid="waiting-for-dealer">
-          Waiting for dealer
         </div>
       )}
       <DisplayShell

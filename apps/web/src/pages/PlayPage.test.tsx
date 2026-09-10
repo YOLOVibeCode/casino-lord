@@ -14,7 +14,11 @@ vi.mock("../sync/config.js", () => ({
 const getTableMetaMock = vi.fn(async () => ({
   exists: true,
   game: "roulette" as const,
-  participation: { playerMode: "on" as const, bank: "none" as const, outcomeSource: "physical" as const },
+  participation: {
+    playerMode: "on" as const,
+    bank: "none" as const,
+    outcomeSource: "physical" as const,
+  },
   joiningOpen: true,
   playerColors: ["#E53935"],
 }));

@@ -105,11 +105,7 @@ export function DealerPage(_props: { path?: string }) {
           setLoading(false);
           return;
         }
-        if (
-          message === "sync join timeout" &&
-          syncStore &&
-          syncStore.events.length > 0
-        ) {
+        if (message === "sync join timeout" && syncStore && syncStore.events.length > 0) {
           setStore(syncStore);
           setReconnecting(true);
           setLoading(false);

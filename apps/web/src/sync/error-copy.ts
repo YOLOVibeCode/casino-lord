@@ -32,11 +32,9 @@ const EXACT: Record<string, SyncErrorCopy> = {
     "Session ended",
     "This table session has ended. You can still review the final state if you were connected.",
   ),
-  DEALER_ACTIVE: copy(
-    "Another dealer is active",
-    "Another device is already dealing this table.",
-    [{ label: "Home", href: "/" }],
-  ),
+  DEALER_ACTIVE: copy("Another dealer is active", "Another device is already dealing this table.", [
+    { label: "Home", href: "/" },
+  ]),
   TABLE_FULL: copy("Table full", "This table has reached its player limit."),
   JOINING_CLOSED: copy("Joining closed", "The dealer has closed joining for this table."),
   INVALID_NAME: copy(
@@ -47,55 +45,29 @@ const EXACT: Record<string, SyncErrorCopy> = {
     "Colour taken",
     "That colour is already in use at this table. Pick another colour.",
   ),
-  PLAYERS_DISABLED: copy(
-    "Players not enabled",
-    "Player mode is not enabled on this table.",
-  ),
-  UNSUPPORTED_GAME: copy(
-    "Unsupported game",
-    "This table's game is not supported on this device.",
-  ),
+  PLAYERS_DISABLED: copy("Players not enabled", "Player mode is not enabled on this table."),
+  UNSUPPORTED_GAME: copy("Unsupported game", "This table's game is not supported on this device."),
   NOT_CONFIGURED: copy(
     "Sync not configured",
     "The sync server is not configured. Set VITE_SYNC_URL or use a hosted deployment.",
   ),
-  MIXED_SERIES: copy(
-    "Virtual table only",
-    "Manual results cannot be recorded on a virtual table.",
-  ),
+  MIXED_SERIES: copy("Virtual table only", "Manual results cannot be recorded on a virtual table."),
   DEALING: copy(
     "Dealing in progress",
     "Wait for the current deal to finish before taking that action.",
   ),
-  NOT_VIRTUAL: copy(
-    "Not a virtual table",
-    "That action is only available on virtual tables.",
-  ),
-  VIRTUAL_DISABLED: copy(
-    "Virtual disabled",
-    "Virtual dealing is disabled for this table.",
-  ),
-  OFFLINE: copy(
-    "Offline",
-    "You are offline. Reconnect to continue.",
-  ),
-  DECLINED: copy(
-    "Join declined",
-    "The dealer declined your join request.",
-  ),
-  demoted: copy(
-    "Dealer disconnected",
-    "Another device took over dealing this table.",
-    [{ label: "Home", href: "/" }],
-  ),
+  NOT_VIRTUAL: copy("Not a virtual table", "That action is only available on virtual tables."),
+  VIRTUAL_DISABLED: copy("Virtual disabled", "Virtual dealing is disabled for this table."),
+  OFFLINE: copy("Offline", "You are offline. Reconnect to continue."),
+  DECLINED: copy("Join declined", "The dealer declined your join request."),
+  demoted: copy("Dealer disconnected", "Another device took over dealing this table.", [
+    { label: "Home", href: "/" },
+  ]),
   "not authorized": copy(
     "Not allowed",
     "You are not allowed to perform that action on this table.",
   ),
-  "rate limit exceeded": copy(
-    "Too many requests",
-    "Please wait a moment and try again.",
-  ),
+  "rate limit exceeded": copy("Too many requests", "Please wait a moment and try again."),
   "sync join timeout": copy(
     "Connection timed out",
     "Could not connect to the table in time. Check your network and try again.",
