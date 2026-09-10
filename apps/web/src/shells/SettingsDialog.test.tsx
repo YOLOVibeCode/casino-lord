@@ -16,6 +16,17 @@ const baccarat = asUntypedModule(baccaratModule);
 describe("SettingsDialog", () => {
   afterEach(() => cleanup());
 
+  it("settings dialog css defines 44px touch targets and scroll-snap tabs", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const cssPath = resolve(dirname(fileURLToPath(import.meta.url)), "settings-dialog.css");
+    const css = readFileSync(cssPath, "utf8");
+    expect(css).toContain("min-height: max(3rem, 44px)");
+    expect(css).toContain("scroll-snap-type: x mandatory");
+    expect(css).toContain("env(safe-area-inset-bottom)");
+  });
+
   it("appends SETTINGS_CHANGED when prediction cells toggled", () => {
     const store = createTableStore({
       game: "baccarat",
@@ -396,5 +407,85 @@ describe("SettingsDialog", () => {
     const before = store.events.length;
     fireEvent.click(screen.getByTestId("participation-with-players"));
     expect(store.events.length).toBe(before);
+  });
+
+  it("shows plain-language helper for max exposure on bank tab", () => {
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceChange={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("tab-bank"));
+    expect(screen.getByTestId("help-max-exposure").textContent).toContain("Caps how many chips");
+  });
+
+  it("stores auto-open delay in ms when edited as seconds", () => {
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceChange={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("tab-bank"));
+    fireEvent.change(screen.getByTestId("betting-auto-open-sec"), { target: { value: "2" } });
+    const changed = store.events.find((e) => e.type === "SETTINGS_CHANGED");
+    expect(changed?.type).toBe("SETTINGS_CHANGED");
+    if (changed?.type === "SETTINGS_CHANGED") {
+      expect(changed.patch.betting?.autoOpenDelayMs).toBe(2000);
+    }
+  });
+
+  it("labels full screen toggle Auto full screen on device tab", () => {
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <SettingsDialog
+        store={store}
+        module={baccarat}
+        rules={store.getRules()}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceChange={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Device"));
+    expect(screen.getByTestId("auto-full-screen-label").textContent).toContain("Auto full screen");
   });
 });
