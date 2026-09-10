@@ -493,10 +493,7 @@ export function DealerShell({
                   Export
                 </button>
                 {virtualTable && (
-                  <a
-                    href={tableUrl(`/verify?code=${store.code}`)}
-                    data-testid="menu-export-verify"
-                  >
+                  <a href={tableUrl(`/verify?code=${store.code}`)} data-testid="menu-export-verify">
                     Verify export
                   </a>
                 )}

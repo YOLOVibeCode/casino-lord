@@ -72,6 +72,10 @@ export class VirtualDealer {
     return bytesToHex(this.state.seed);
   }
 
+  getSeedBytes(): Uint8Array {
+    return this.state.seed;
+  }
+
   getDrawLog(): ReadonlyArray<{ from: number; to: number }> {
     return this.state.drawLog;
   }

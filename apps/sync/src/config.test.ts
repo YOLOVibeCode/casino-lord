@@ -48,6 +48,16 @@ describe("loadConfig", () => {
     expect(config.port).toBe(0);
   });
 
+  it("accepts optional SEED_KEY", () => {
+    const config = loadConfig({
+      PORT: "3000",
+      PERSIST: "memory",
+      SEED_KEY: "secret",
+    });
+
+    expect(config.seedKey).toBe("secret");
+  });
+
   it("accepts STATIC_ROOT", () => {
     const config = loadConfig({
       PORT: "3000",

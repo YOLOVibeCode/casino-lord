@@ -6,7 +6,12 @@ import { DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
 describe("buildSeriesFromStoreEvents", () => {
   it("preserves virtual source on result envelopes", () => {
     const events = [
-      { type: "TABLE_CREATED" as const, game: "baccarat" as const, participation: {}, settings: {} },
+      {
+        type: "TABLE_CREATED" as const,
+        game: "baccarat" as const,
+        participation: {},
+        settings: {},
+      },
       {
         type: "SERIES_STARTED" as const,
         seriesId: "s1",

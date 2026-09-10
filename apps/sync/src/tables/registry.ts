@@ -1,4 +1,5 @@
 import {
+  bytesToHex,
   DEFAULT_TABLE_SETTINGS,
   isPersistedEvent,
   mergeTableSettings,
@@ -11,6 +12,7 @@ import {
 import { randomBytes } from "node:crypto";
 import type { Config } from "../config.js";
 import { getModule, isGameEnabled, resolveRules } from "../modules.js";
+import { decodeSeedFromStorage, encodeSeedForStorage } from "../persistence/seed-crypto.js";
 import type { TableRepository, TableRow } from "../persistence/repository.js";
 import { type AdmitPlayerResult, type JoinPlayerResult, PlayerService } from "./player-service.js";
 import { generateDealerToken, hashToken } from "./token.js";
@@ -58,10 +60,9 @@ export class TableRegistry {
         continue;
       }
       const events = this.repository.loadEvents(row.code);
-      this.tables.set(
-        row.code,
-        new TableInstance(row, module, resolveRules(row.game), events, row.lastSeenAt),
-      );
+      const table = new TableInstance(row, module, resolveRules(row.game), events, row.lastSeenAt);
+      this.tables.set(row.code, table);
+      this.restoreVirtualDealer(row, events);
     }
 
     const setIntervalFn = deps.setIntervalFn ?? setInterval;
@@ -153,6 +154,7 @@ export class TableRegistry {
       const seriesId = crypto.randomUUID();
       const dealer = new VirtualDealer(code, seriesId);
       this.virtualDealers.set(code, dealer);
+      this.persistVirtualDealer(code);
       const seriesEvent = dealer.startSeriesEvent(module.seriesLabel);
       const seriesAppended = table.appendEvent(seriesEvent, `server-series-${code}`, at);
       if (seriesAppended.kind !== "new") {
@@ -167,6 +169,36 @@ export class TableRegistry {
 
   getVirtualDealer(code: string): VirtualDealer | null {
     return this.virtualDealers.get(code) ?? null;
+  }
+
+  persistVirtualDealer(code: string): void {
+    const dealer = this.virtualDealers.get(code);
+    if (!dealer) {
+      return;
+    }
+    const blob = encodeSeedForStorage(this.config.seedKey, dealer.getSeedBytes());
+    this.repository.saveVirtualSeed(code, dealer.seriesId, blob);
+  }
+
+  private restoreVirtualDealer(row: TableRow, events: TableEvent[]): void {
+    if (row.participation.outcomeSource !== "virtual") {
+      return;
+    }
+
+    const starts = events.filter((e) => e.type === "SERIES_STARTED");
+    const latest = starts[starts.length - 1];
+    if (!latest || latest.type !== "SERIES_STARTED") {
+      return;
+    }
+
+    const blob = this.repository.getVirtualSeed(row.code, latest.seriesId);
+    if (!blob) {
+      return;
+    }
+
+    const seedBytes = decodeSeedFromStorage(this.config.seedKey, blob);
+    const dealer = VirtualDealer.fromSeed(row.code, latest.seriesId, bytesToHex(seedBytes));
+    this.virtualDealers.set(row.code, dealer);
   }
 
   getActionTimer(code: string): VirtualActionTimer {

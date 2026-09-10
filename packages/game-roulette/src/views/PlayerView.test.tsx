@@ -51,6 +51,7 @@ function renderPlayerView(
         getOwnStake: () => 0,
         getTableStake: () => 0,
         settlementFlash: null,
+        settlementByZone: {},
         onZoneTap,
         onZoneLongPress,
       }}
@@ -175,6 +176,7 @@ describe("PlayerView", () => {
       getOwnStake: () => 0,
       getTableStake: () => 0,
       settlementFlash: null as const,
+      settlementByZone: {},
       onZoneTap: vi.fn(),
       onZoneLongPress: vi.fn(),
     };
