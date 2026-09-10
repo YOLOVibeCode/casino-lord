@@ -20,10 +20,40 @@ export interface AnimationTimeline {
 export interface BuildTimelineOptions {
   prefersReducedMotion: boolean;
   maxTotalMs?: number;
+  phoneMode?: boolean;
   resolvePreset: (eventId: string) => AnimationPreset;
 }
 
 const REDUCED_FLASH_MAX_MS = 600;
+const PHONE_MAX_MS = 1200;
+
+const PHONE_HEAVY_STYLES = new Set([
+  "dragon",
+  "trail",
+  "particles",
+  "burst",
+  "sweep",
+  "shake",
+  "spin",
+  "chips",
+]);
+
+export function applyPhoneMainPreset(preset: AnimationPreset): AnimationPreset {
+  const style =
+    preset.style === "banner"
+      ? "banner"
+      : PHONE_HEAVY_STYLES.has(preset.style)
+        ? "flash"
+        : preset.style === "flash"
+          ? "flash"
+          : "flash";
+  return {
+    ...preset,
+    style,
+    intensity: 1,
+    durationMs: Math.min(preset.durationMs, PHONE_MAX_MS),
+  };
+}
 
 export function applyReducedMotion(preset: AnimationPreset): AnimationPreset {
   return {
@@ -74,7 +104,7 @@ export function buildAnimationTimeline(
   opts: BuildTimelineOptions,
 ): AnimationTimeline | null {
   const defMap = new Map(eventDefs.map((d) => [d.id, d]));
-  const maxTotalMs = opts.maxTotalMs ?? 4000;
+  const maxTotalMs = opts.phoneMode ? PHONE_MAX_MS : (opts.maxTotalMs ?? 4000);
 
   const resolved = triggers
     .map((trigger) => {
@@ -96,7 +126,8 @@ export function buildAnimationTimeline(
   if (mainIndex === -1) return null;
 
   const mainItem = resolved[mainIndex]!;
-  const mainPreset = preparePreset(mainItem.preset, opts, false);
+  const mainPresetRaw = opts.phoneMode ? applyPhoneMainPreset(mainItem.preset) : mainItem.preset;
+  const mainPreset = preparePreset(mainPresetRaw, opts, false);
   const segments: ScheduledSegment[] = [];
 
   const mainDuration = mainPreset.durationMs;
@@ -108,6 +139,16 @@ export function buildAnimationTimeline(
     endMs: mainDuration,
     phase: "main",
   });
+
+  if (opts.phoneMode) {
+    const scaled = scaleTimeline(segments, maxTotalMs);
+    const totalMs = scaled.reduce((max, s) => Math.max(max, s.endMs), 0);
+    return {
+      segments: scaled,
+      totalMs,
+      blockBoardUpdate: mainPreset.blockBoardUpdate,
+    };
+  }
 
   for (let i = 0; i < resolved.length; i++) {
     if (i === mainIndex || !resolved[i]!.layered) continue;

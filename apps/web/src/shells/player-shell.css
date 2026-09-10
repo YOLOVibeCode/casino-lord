@@ -1,4 +1,5 @@
 .player-shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100dvh;
@@ -186,6 +187,13 @@
 .player-shell .chip-tray__denom,
 .player-shell .felt-zones__zone {
   -webkit-tap-highlight-color: transparent;
+}
+
+.player-shell__animation-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
 }
 
 @media (prefers-reduced-motion: reduce) {

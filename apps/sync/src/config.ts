@@ -26,6 +26,7 @@ const configSchema = z.object({
   enablePlayerMode: booleanFromEnv.default(true),
   enableVirtual: booleanFromEnv.default(true),
   maxPlayersHard: z.coerce.number().int().positive().default(50),
+  seedKey: z.string().min(1).optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -43,6 +44,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     enablePlayerMode: env.ENABLE_PLAYER_MODE,
     enableVirtual: env.ENABLE_VIRTUAL,
     maxPlayersHard: env.MAX_PLAYERS_HARD,
+    seedKey: env.SEED_KEY,
   });
 
   if (config.persist === "redis") {

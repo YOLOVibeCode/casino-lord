@@ -36,6 +36,12 @@ export function createSqliteRepository(dbPath: string): TableRepository {
       PRIMARY KEY (code, playerId)
     );
     CREATE INDEX IF NOT EXISTS idx_players_token ON players (code, tokenHash);
+    CREATE TABLE IF NOT EXISTS virtual_seeds (
+      code TEXT NOT NULL,
+      seriesId TEXT NOT NULL,
+      blob BLOB NOT NULL,
+      PRIMARY KEY (code, seriesId)
+    );
   `);
 
   const insertTable = db.prepare(`
@@ -96,6 +102,18 @@ export function createSqliteRepository(dbPath: string): TableRepository {
 
   const deletePlayersByCodeStmt = db.prepare(`DELETE FROM players WHERE code = ?`);
 
+  const upsertVirtualSeed = db.prepare(`
+    INSERT INTO virtual_seeds (code, seriesId, blob)
+    VALUES (@code, @seriesId, @blob)
+    ON CONFLICT (code, seriesId) DO UPDATE SET blob = excluded.blob
+  `);
+
+  const getVirtualSeedStmt = db.prepare(`
+    SELECT blob FROM virtual_seeds WHERE code = ? AND seriesId = ?
+  `);
+
+  const deleteVirtualSeedsStmt = db.prepare(`DELETE FROM virtual_seeds WHERE code = ?`);
+
   function playerFromRecord(record: Record<string, unknown>): PlayerRow {
     return {
       code: String(record.code),
@@ -142,6 +160,7 @@ export function createSqliteRepository(dbPath: string): TableRepository {
     },
 
     deleteTable(code: string): void {
+      deleteVirtualSeedsStmt.run(code);
       deletePlayersByCodeStmt.run(code);
       deleteEventsStmt.run(code);
       deleteTableStmt.run(code);
@@ -216,6 +235,19 @@ export function createSqliteRepository(dbPath: string): TableRepository {
 
     deletePlayersByCode(code: string): void {
       deletePlayersByCodeStmt.run(code);
+    },
+
+    saveVirtualSeed(code: string, seriesId: string, blob: Buffer): void {
+      upsertVirtualSeed.run({ code, seriesId, blob });
+    },
+
+    getVirtualSeed(code: string, seriesId: string): Buffer | null {
+      const row = getVirtualSeedStmt.get(code, seriesId) as { blob: Buffer } | undefined;
+      return row ? Buffer.from(row.blob) : null;
+    },
+
+    deleteVirtualSeeds(code: string): void {
+      deleteVirtualSeedsStmt.run(code);
     },
   };
 }
