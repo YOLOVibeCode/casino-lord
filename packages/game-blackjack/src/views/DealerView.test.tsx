@@ -260,6 +260,45 @@ describe("DealerView", () => {
     expect(screen.queryByTestId("seat-intent-3")).toBeNull();
   });
 
+  it("does not record quick dealer entry when seat detail is present", () => {
+    const emit = vi.fn();
+    const record = vi.fn();
+    const rules = DEFAULT_BLACKJACK_RULES;
+    const live = {
+      dealer: [],
+      seats: {
+        1: [
+          {
+            cards: [],
+            doubled: false,
+            fromSplit: false,
+            surrendered: false,
+            outcome: "win" as const,
+          },
+        ],
+      },
+    };
+    const state = reduce(
+      initialState(rules),
+      {
+        seq: 1,
+        at: "2026-01-01T00:00:01.000Z",
+        type: "LIVE_INPUT",
+        payload: live,
+        source: "dealer",
+      },
+      rules,
+    );
+
+    render(<DealerView state={state} rules={rules} table={TABLE} emit={emit} record={record} />);
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("outcome-chip-BUST"));
+    });
+
+    expect(record).not.toHaveBeenCalled();
+  });
+
   it("highlights dealer hole slot as next after up card is entered", () => {
     const emit = vi.fn();
     const rules = DEFAULT_BLACKJACK_RULES;

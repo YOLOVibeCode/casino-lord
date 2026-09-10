@@ -192,6 +192,12 @@
   margin-top: 0.25rem;
 }
 
+.dealer-view__quick-entry--disabled .outcome-chips__chip {
+  pointer-events: none;
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 @keyframes dealer-slot-pulse {
   0%,
   100% {

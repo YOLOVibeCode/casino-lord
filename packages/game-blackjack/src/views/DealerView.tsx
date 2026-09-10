@@ -346,6 +346,10 @@ export function DealerView({
     liveInput.dealer.length > 0 ||
     Object.values(liveInput.seats).some((hands) => hands?.some((h) => h.cards.length > 0));
 
+  const hasSeatDetail = Object.values(liveInput.seats).some((hands) =>
+    hands?.some((h) => h.outcome !== null || h.cards.length > 0),
+  );
+
   const handleCommit = (picked: PickedCard) => {
     if (!pickerTarget) return;
     const card = toCard(picked);
@@ -430,6 +434,7 @@ export function DealerView({
   };
 
   const handleQuickDealer = (id: string) => {
+    if (hasSeatDetail) return;
     const result = parseQuickDealerToken(id);
     if (result) record(result, { quick: true });
   };
@@ -672,7 +677,15 @@ export function DealerView({
         </div>
       )}
 
-      <div class="dealer-view__quick-entry">
+      <div
+        class={`dealer-view__quick-entry${hasSeatDetail ? " dealer-view__quick-entry--disabled" : ""}`}
+        {...(hasSeatDetail
+          ? {
+              title: "Seat entries present — enter the dealer's cards and confirm",
+              "aria-disabled": "true",
+            }
+          : {})}
+      >
         <OutcomeChips chips={QUICK_DEALER_CHIPS} onTap={handleQuickDealer} onLongPress={() => {}} />
       </div>
 
