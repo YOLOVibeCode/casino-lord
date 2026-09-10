@@ -86,6 +86,8 @@ describe("platform round state machine", () => {
     const state = replay(events, module, STUB_RULES, { code: "K7X2PQ" });
     expect(Object.keys(state.platform.settlements)).toHaveLength(0);
     expect(getBankroll(state.platform, "p1")).toBe(500);
+    expect(state.platform.currentSeriesResults).toHaveLength(1);
+    expect(state.platform.currentSeriesResults[0]?.id).toBe("res1");
   });
 
   it("no-ops late BET_PLACED after close", () => {
