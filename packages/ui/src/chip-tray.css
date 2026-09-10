@@ -7,6 +7,17 @@
   touch-action: manipulation;
 }
 
+.chip-tray--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.chip-tray__selected {
+  flex: 1 1 100%;
+  font-size: max(0.8125rem, 13px);
+  opacity: 0.9;
+}
+
 .chip-tray__denom {
   min-width: 3.5rem;
   min-height: 3.5rem;

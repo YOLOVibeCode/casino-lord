@@ -1,3 +1,4 @@
+import type { UntypedGameModule } from "./module-types.js";
 import type { TableStore } from "./store.js";
 
 export type ConnectionState = "connected" | "reconnecting" | "offline";
@@ -31,6 +32,7 @@ export interface VirtualPendingState {
 }
 
 export interface SyncStore extends TableStore {
+  getModule(): UntypedGameModule;
   getConnectionState(): ConnectionState;
   getPresence(): SyncPresence;
   getVirtualStatus(): VirtualStatus | null;

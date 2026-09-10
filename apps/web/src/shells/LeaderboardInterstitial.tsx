@@ -5,18 +5,20 @@ export interface LeaderboardInterstitialProps {
   byBankroll: LeaderboardEntry[];
   byNet: LeaderboardEntry[];
   onDismiss: () => void;
+  persistent?: boolean;
 }
 
 export function LeaderboardInterstitial({
   byBankroll,
   byNet,
   onDismiss,
+  persistent = false,
 }: LeaderboardInterstitialProps) {
   return (
     <div
       class="leaderboard-interstitial"
       data-testid="leaderboard-interstitial"
-      onClick={onDismiss}
+      onClick={persistent ? undefined : onDismiss}
     >
       <div class="leaderboard-interstitial__panel" onClick={(e) => e.stopPropagation()}>
         <h2>Leaderboard</h2>
@@ -43,9 +45,12 @@ export function LeaderboardInterstitial({
             </ol>
           </section>
         </div>
-        <button type="button" onClick={onDismiss}>
-          Continue
-        </button>
+        <p class="leaderboard-interstitial__disclaimer">Play chips — no cash value</p>
+        {persistent && (
+          <button type="button" onClick={onDismiss}>
+            Continue
+          </button>
+        )}
       </div>
     </div>
   );

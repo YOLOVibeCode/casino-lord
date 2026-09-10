@@ -28,6 +28,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks"
 import { useLocation } from "preact-iso";
 import { AnimationLayer } from "../animation/AnimationLayer.js";
 import { useAnimationRuntime } from "../animation/useAnimationRuntime.js";
+import { computeBetRow } from "../calculator/payout-calculator.js";
 import { validateBet, validatePlaceAll } from "../betting/validate-bet.js";
 import { useCountUp } from "../hooks/use-count-up.js";
 import { useDeviceSettings } from "../hooks/use-device-settings.js";
@@ -88,6 +89,36 @@ function betLabel(
   type: string,
 ): string {
   return findBetDef(catalogue, type)?.label ?? type;
+}
+
+function getBettingHint(
+  openRound: boolean,
+  roundClosed: boolean,
+  pendingCount: number,
+  selectedDenom: number,
+): string {
+  if (openRound) {
+    if (pendingCount > 0) {
+      return "Tap PLACE to confirm · tap a slip row to remove";
+    }
+    return `Tap a zone to stake ${selectedDenom} — tap again to add`;
+  }
+  if (roundClosed) {
+    return "Bets closed — good luck";
+  }
+  return "Waiting for the dealer to open bets";
+}
+
+function slipEntryDetail(
+  betDef: BetDef<unknown, unknown, unknown> | undefined,
+  amount: number,
+  rules: unknown,
+  roundingMode: "down",
+): string | undefined {
+  if (!betDef) return undefined;
+  const row = computeBetRow(betDef, amount, rules, roundingMode);
+  if (!row) return undefined;
+  return `Stake ${amount} · pays +${row.profit}`;
 }
 
 function buildBuyInMap(events: readonly TableEvent[]): Record<string, number> {
@@ -190,11 +221,11 @@ function formatRejectReason(reason: string): string {
   return REJECT_REASON_LABELS[reason] ?? reason.replace(/_/g, " ").toLowerCase();
 }
 
-const FOOTER_TABS: Array<{ id: FooterTab; label: string; ariaLabel?: string }> = [
-  { id: "history", label: "History" },
-  { id: "leaderboard", label: "Leaderboard" },
-  { id: "rules", label: "Rules" },
-  { id: "info", label: "ℹ", ariaLabel: "Information" },
+const FOOTER_TABS: Array<{ id: FooterTab; label: string; ariaLabel: string; title: string }> = [
+  { id: "history", label: "🕐 History", ariaLabel: "History", title: "History" },
+  { id: "leaderboard", label: "🏆 Leaderboard", ariaLabel: "Leaderboard", title: "Leaderboard" },
+  { id: "rules", label: "📋 Rules", ariaLabel: "Rules", title: "Rules" },
+  { id: "info", label: "ℹ Info", ariaLabel: "Information", title: "Information" },
 ];
 
 export function buildHistoryRows(
@@ -285,6 +316,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const [selectedDenom, setSelectedDenom] = useState(() => settings.bank.chipDenominations[0] ?? 5);
   const [pendingBets, setPendingBets] = useState<PendingBet[]>([]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [toastKind, setToastKind] = useState<"error" | "success">("error");
   const [activeTab, setActiveTab] = useState<FooterTab>("play");
   const [settlementFlash, setSettlementFlash] = useState<"win" | "lose" | null>(null);
   const [settlementByZone, setSettlementByZone] = useState<Record<string, "win" | "lose">>({});
@@ -294,6 +326,8 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const lastSettledRoundRef = useRef<string | null>(null);
   const lastToastedRejectRef = useRef<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastEventIndexRef = useRef<number | null>(null);
+  const betsSnapshotRef = useRef<Map<string, PlacedBet>>(new Map());
   const settlementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Partial<Record<FooterTab, HTMLButtonElement | null>>>({});
@@ -314,6 +348,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
   const round = getCurrentRound(composed.platform);
   const openRound = round?.status === "open" ? round : null;
+  const stakeRound = openRound ?? (round?.status === "closed" ? round : null);
   const bankroll = playerId ? getBankroll(composed.platform, playerId) : 0;
   const displayBankroll = useCountUp(bankroll);
   const houseBank = composed.platform.participation.bank === "house";
@@ -323,6 +358,11 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const placedBets =
     playerId && openRound
       ? getRoundBets(composed.platform, openRound.id).filter((b) => b.playerId === playerId)
+      : [];
+
+  const displayPlacedBets =
+    playerId && stakeRound
+      ? getRoundBets(composed.platform, stakeRound.id).filter((b) => b.playerId === playerId)
       : [];
 
   const pendingTotal = pendingBets.reduce((s, b) => s + b.amount, 0);
@@ -346,11 +386,45 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
   const settledRound = composed.platform.rounds.filter((r) => r.status === "settled").at(-1);
 
-  const showToast = useCallback((msg: string) => {
+  const showToast = useCallback((msg: string, kind: "error" | "success" = "error") => {
+    setToastKind(kind);
     setToastMsg(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastMsg(null), 4000);
   }, []);
+
+  useEffect(() => {
+    if (!playerId || !module) return;
+
+    const events = store.events;
+    if (lastEventIndexRef.current === null) {
+      lastEventIndexRef.current = events.length;
+      betsSnapshotRef.current = new Map(composed.platform.bets.map((b) => [b.id, b]));
+      return;
+    }
+
+    const start = lastEventIndexRef.current;
+    if (start >= events.length) {
+      betsSnapshotRef.current = new Map(composed.platform.bets.map((b) => [b.id, b]));
+      return;
+    }
+
+    for (let i = start; i < events.length; i++) {
+      const event = events[i]!;
+      if (event.type === "BET_PLACED" && event.bet.playerId === playerId) {
+        const label = betLabel(module.bets, event.bet.type);
+        showToast(`Bet placed — ${event.bet.amount} on ${label}`, "success");
+      } else if (event.type === "BET_REMOVED") {
+        const bet = betsSnapshotRef.current.get(event.betId);
+        if (bet?.playerId === playerId) {
+          showToast("Bet removed", "success");
+        }
+      }
+    }
+
+    lastEventIndexRef.current = events.length;
+    betsSnapshotRef.current = new Map(composed.platform.bets.map((b) => [b.id, b]));
+  }, [store.events.length, playerId, module, composed.platform.bets, showToast, store.events]);
 
   useEffect(() => {
     const roundId = settledRound?.id;
@@ -641,12 +715,13 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     (id: string, pending: boolean) => {
       if (pending) {
         setPendingBets((prev) => prev.filter((b) => b.clientId !== id));
+        showToast("Bet removed", "success");
       } else {
         if (!ensureOnlineForBet()) return;
         void store.emit({ type: "BET_REMOVED", betId: id });
       }
     },
-    [store, ensureOnlineForBet],
+    [store, showToast, ensureOnlineForBet],
   );
 
   const handlePlaceBet = useCallback(
@@ -765,13 +840,15 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
   const getOwnStake = useCallback(
     (zoneId: string) => {
-      const pending = pendingBets
+      const pending = openRound
+        ? pendingBets.filter((b) => b.type === zoneId).reduce((s, b) => s + b.amount, 0)
+        : 0;
+      const placed = displayPlacedBets
         .filter((b) => b.type === zoneId)
         .reduce((s, b) => s + b.amount, 0);
-      const placed = placedBets.filter((b) => b.type === zoneId).reduce((s, b) => s + b.amount, 0);
       return pending + placed;
     },
-    [pendingBets, placedBets],
+    [pendingBets, displayPlacedBets, openRound],
   );
 
   const getTableStake = useCallback(
@@ -790,6 +867,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           selectedDenomination: selectedDenom,
           showOthersBets: settings.players.showOthersBets,
           playerColor: player.color,
+          bettingDisabled: !openRound,
           getOwnStake,
           getTableStake,
           settlementFlash,
@@ -799,20 +877,79 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         }
       : null;
 
+  const roundingMode = settings.bank.roundingMode;
+  const catalogue = module?.bets ?? { groups: [], summary: () => [] };
+
   const slipEntries: BetSlipEntry[] = [
-    ...pendingBets.map((b) => ({
-      id: b.clientId,
-      label: b.label,
-      amount: b.amount,
-      pending: true,
-    })),
-    ...placedBets.map((b) => ({
-      id: b.id,
-      label: betLabel(module?.bets ?? { groups: [], summary: () => [] }, b.type),
-      amount: b.amount,
-      pending: false,
-    })),
+    ...pendingBets.map((b) => {
+      const betDef = findBetDef(catalogue, b.type);
+      const detail = slipEntryDetail(betDef, b.amount, rules, roundingMode);
+      return {
+        id: b.clientId,
+        label: b.label,
+        amount: b.amount,
+        pending: true,
+        ...(detail !== undefined ? { detail } : {}),
+      };
+    }),
+    ...displayPlacedBets.map((b) => {
+      const label = betLabel(catalogue, b.type);
+      const betDef = findBetDef(catalogue, b.type);
+      const detail = slipEntryDetail(betDef, b.amount, rules, roundingMode);
+      return {
+        id: b.id,
+        label,
+        amount: b.amount,
+        pending: false,
+        ...(detail !== undefined ? { detail } : {}),
+      };
+    }),
   ];
+
+  const placeValidation = useMemo(() => {
+    if (!module || !playerId || !openRound || !me || pendingBets.length === 0) {
+      return { ok: true as const };
+    }
+    const toPlace = pendingBets.map((p) => ({
+      betDef: findBetDef(module.bets, p.type)!,
+      amount: p.amount,
+    }));
+    return validatePlaceAll(toPlace, {
+      settings,
+      rules,
+      round: openRound,
+      bankroll,
+      pendingTotal: placedTotal,
+      moduleState: composed.module,
+      me: { id: playerId, bankroll },
+      houseBank,
+    });
+  }, [
+    module,
+    playerId,
+    openRound,
+    me,
+    pendingBets,
+    settings,
+    rules,
+    bankroll,
+    placedTotal,
+    composed.module,
+    houseBank,
+  ]);
+
+  const bettingHint = getBettingHint(
+    !!openRound,
+    round?.status === "closed",
+    pendingBets.length,
+    selectedDenom,
+  );
+
+  const placeLabel =
+    pendingTotal > 0 ? `PLACE ${pendingTotal} · ${bankroll - pendingTotal} left` : "PLACE";
+
+  const canPlaceBets = !!openRound && pendingBets.length > 0 && placeValidation.ok;
+  const placeDisabledReason = !placeValidation.ok ? placeValidation.reason : undefined;
 
   const statusLine = ((): string => {
     if (settlementSummary) return settlementSummary;
@@ -950,8 +1087,12 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         <span class={dotClass} data-testid="connection-dot" />
         <span class="player-shell__name">{playerName}</span>
         {houseBank && (
-          <span class="player-shell__bank" data-testid="player-bankroll">
-            ⛁ {displayBankroll.toLocaleString()}
+          <span
+            class="player-shell__bank"
+            data-testid="player-bankroll"
+            aria-label={`Balance ${bankroll} chips`}
+          >
+            Balance ⛁ {displayBankroll.toLocaleString()}
           </span>
         )}
         <span class="player-shell__code">{store.code}</span>
@@ -1043,7 +1184,11 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
             <div class="player-shell__bottom" data-testid="player-bottom-bar">
               {toastMsg && (
-                <div class="player-shell__toast" data-testid="player-toast" role="alert">
+                <div
+                  class={`player-shell__toast${toastKind === "success" ? " player-shell__toast--success" : ""}`}
+                  data-testid="player-toast"
+                  role="alert"
+                >
                   <span>{toastMsg}</span>
                   <button
                     type="button"
@@ -1069,18 +1214,27 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
                 />
               )}
 
+              <p class="player-shell__hint" data-testid="player-betting-hint">
+                {bettingHint}
+              </p>
               <ChipTray
                 denominations={settings.bank.chipDenominations}
                 selected={selectedDenom}
                 onSelect={handleSelectDenom}
                 onClear={() => setPendingBets([])}
+                disabled={!openRound}
               />
               <BetSlip
                 entries={slipEntries}
                 total={pendingTotal + placedTotal}
+                pendingStake={pendingTotal}
                 idle={isIdle}
                 locked={!openRound && !isIdle}
-                canPlace={!!openRound && pendingBets.length > 0}
+                canPlace={canPlaceBets}
+                placeLabel={placeLabel}
+                {...(placeDisabledReason !== undefined
+                  ? { disabledReason: placeDisabledReason }
+                  : {})}
                 onRemove={handleRemoveSlip}
                 onPlace={handlePlace}
               />
@@ -1202,6 +1356,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
             }}
             class={`player-shell__tab${activeTab === tab.id ? " player-shell__tab--active" : ""}`}
             aria-label={tab.ariaLabel}
+            title={tab.title}
             onClick={() => setActiveTab(tab.id)}
           >
             {tab.label}

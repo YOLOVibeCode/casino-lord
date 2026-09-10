@@ -12,6 +12,7 @@ import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
 import { describeSyncError, type SyncErrorAction } from "../sync/error-copy.js";
 import { clearPlayerToken, loadPlayerToken, savePlayerToken } from "../sync/player-token.js";
 import { getGame } from "../table/games.js";
+import type { UntypedGameModule } from "../table/module-types.js";
 import { createSyncedTableStore, waitForSyncReady } from "../table/synced-store.js";
 import type { SyncStore } from "../table/sync-store-types.js";
 import "./play-page.css";
@@ -107,11 +108,11 @@ export function PlayPage(_props: { path?: string }) {
   }, [code, bootstrapKey]);
 
   const connectPlayer = async (token: string, displayName: string, pending: boolean) => {
-    const entry = getGame("baccarat");
-    if (!entry?.module) {
-      setErrorPhase(setPhase, setErrorCode, "UNSUPPORTED_GAME");
-      return;
-    }
+    const resolveModule = (g: import("@casino-lord/core").GameId): UntypedGameModule => {
+      const entry = getGame(g);
+      if (!entry?.module) throw new Error("UNSUPPORTED_GAME");
+      return entry.module;
+    };
 
     let syncStore: SyncStore | null = null;
     syncStore = createSyncedTableStore({
@@ -119,8 +120,7 @@ export function PlayPage(_props: { path?: string }) {
       role: "player",
       token,
       syncUrl: getSyncBaseUrl(),
-      module: entry.module,
-      rules: entry.module.defaultRules,
+      resolveModule,
       onJoinError: (errCode) => {
         if (errCode === "BAD_TOKEN") {
           clearStoredAndJoin();

@@ -7,6 +7,7 @@ import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
 import { SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
 import { tableUrl } from "../sync/urls.js";
 import { getGame } from "../table/games.js";
+import type { UntypedGameModule } from "../table/module-types.js";
 import { createSyncedTableStore, waitForSyncReady } from "../table/synced-store.js";
 import type { SyncStore } from "../table/sync-store-types.js";
 import "./display-page.css";
@@ -29,12 +30,11 @@ export function DisplayPage(_props: { path?: string }) {
       return;
     }
 
-    const entry = getGame("baccarat");
-    if (!entry?.module) {
-      setError("UNSUPPORTED_GAME");
-      setLoading(false);
-      return;
-    }
+    const resolveModule = (g: import("@casino-lord/core").GameId): UntypedGameModule => {
+      const entry = getGame(g);
+      if (!entry?.module) throw new Error("UNSUPPORTED_GAME");
+      return entry.module;
+    };
 
     let destroyed = false;
     let syncStore: SyncStore | null = null;
@@ -47,8 +47,7 @@ export function DisplayPage(_props: { path?: string }) {
       code,
       role: "display",
       syncUrl: getSyncBaseUrl(),
-      module: entry.module,
-      rules: entry.module.defaultRules,
+      resolveModule,
       onJoinError: (errCode) => {
         if (!destroyed) {
           setError(errCode);
@@ -128,10 +127,6 @@ export function DisplayPage(_props: { path?: string }) {
     );
   }
 
-  const entry = getGame(store.game);
-  if (!entry?.module) return null;
-
-  const waitingForDealer = store.getPresence().dealers === 0;
   const displayQrUrl = tableUrl(`/display/${code}`);
 
   return (
@@ -144,14 +139,9 @@ export function DisplayPage(_props: { path?: string }) {
           </button>
         </div>
       )}
-      {waitingForDealer && (
-        <div class="display-page__waiting" data-testid="waiting-for-dealer">
-          Waiting for dealer
-        </div>
-      )}
       <DisplayShell
         store={store}
-        module={entry.module}
+        module={store.getModule()}
         rules={store.getRules()}
         deviceSettings={deviceSettings}
         displayQrUrl={displayQrUrl}
