@@ -34,6 +34,7 @@ export function TableCreatedPage(_props: { path?: string }) {
   const { params, query } = useRoute();
   const code = params.code ?? "";
   const token = query.t ?? "";
+  const game = query.game ?? "";
   const [displayQr, setDisplayQr] = useState("");
   const [dealerQr, setDealerQr] = useState("");
   const [playQr, setPlayQr] = useState("");
@@ -44,8 +45,10 @@ export function TableCreatedPage(_props: { path?: string }) {
   const playUrl = tableUrl(`/play/${code}`);
 
   useEffect(() => {
-    if (token) saveDealerToken(code, token);
-  }, [code, token]);
+    if (token) {
+      saveDealerToken(code, token, game ? { game } : undefined);
+    }
+  }, [code, token, game]);
 
   useEffect(() => {
     let cancelled = false;

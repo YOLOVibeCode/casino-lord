@@ -3,8 +3,13 @@ import { useLocation } from "preact-iso";
 import { isValidTableCode, normalizeTableCode, type Participation } from "@casino-lord/core";
 import { createTable, fetchServerFeatures, getTableMeta } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
-import { loadDealerToken } from "../sync/dealer-token.js";
-import { GAMES } from "../table/games.js";
+import {
+  clearDealerToken,
+  listRecentDealerTables,
+  loadDealerToken,
+  type DealerTokenRecord,
+} from "../sync/dealer-token.js";
+import { GAMES, getGame } from "../table/games.js";
 import "./landing.css";
 
 type SheetMode = "create" | "join" | null;
@@ -23,6 +28,15 @@ export function LandingPage(_props: { path?: string }) {
   const [houseBank, setHouseBank] = useState(true);
   const [outcomeVirtual, setOutcomeVirtual] = useState(false);
   const [enableVirtual, setEnableVirtual] = useState(false);
+  const [recentTables, setRecentTables] = useState<DealerTokenRecord[]>([]);
+
+  const refreshRecentTables = () => {
+    setRecentTables(listRecentDealerTables());
+  };
+
+  useEffect(() => {
+    refreshRecentTables();
+  }, []);
 
   useEffect(() => {
     if (!syncConfigured) return;
@@ -54,7 +68,9 @@ export function LandingPage(_props: { path?: string }) {
         game: selectedGame as "baccarat" | "roulette" | "craps" | "blackjack",
         participation,
       });
-      route(`/created/${result.code}?t=${encodeURIComponent(result.dealerToken)}`);
+      route(
+        `/created/${result.code}?t=${encodeURIComponent(result.dealerToken)}&game=${encodeURIComponent(selectedGame)}`,
+      );
     } catch {
       setJoinError("Could not create table. Try again.");
     } finally {
@@ -95,6 +111,20 @@ export function LandingPage(_props: { path?: string }) {
       return;
     }
     route(`/dealer/${lookup.code}?t=${encodeURIComponent(token)}`);
+  };
+
+  const reopenTable = (table: DealerTokenRecord) => {
+    route(`/dealer/${table.code}?t=${encodeURIComponent(table.token)}`);
+  };
+
+  const forgetTable = (tableCode: string) => {
+    clearDealerToken(tableCode);
+    refreshRecentTables();
+  };
+
+  const formatLastOpened = (timestamp: number): string => {
+    if (!timestamp) return "Unknown";
+    return new Date(timestamp).toLocaleString();
   };
 
   return (
@@ -151,6 +181,45 @@ export function LandingPage(_props: { path?: string }) {
           </p>
         )}
       </div>
+
+      {recentTables.length > 0 && (
+        <section class="landing__your-tables" data-testid="your-tables">
+          <h2 class="landing__your-tables-title">Your tables</h2>
+          <ul class="landing__your-tables-list">
+            {recentTables.map((table) => (
+              <li
+                key={table.code}
+                class="landing__your-tables-row"
+                data-testid={`your-table-${table.code}`}
+              >
+                <div class="landing__your-tables-info">
+                  <strong>{table.code}</strong>
+                  <span>{getGame(table.game ?? "")?.name ?? table.game ?? "Unknown game"}</span>
+                  <span class="landing__your-tables-opened">
+                    {formatLastOpened(table.lastOpenedAt)}
+                  </span>
+                </div>
+                <div class="landing__your-tables-actions">
+                  <button
+                    type="button"
+                    data-testid={`reopen-${table.code}`}
+                    onClick={() => reopenTable(table)}
+                  >
+                    Reopen
+                  </button>
+                  <button
+                    type="button"
+                    data-testid={`forget-${table.code}`}
+                    onClick={() => forgetTable(table.code)}
+                  >
+                    Forget
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <details class="landing__how-it-works" data-testid="how-it-works">
         <summary>How it works</summary>
@@ -220,19 +289,30 @@ export function LandingPage(_props: { path?: string }) {
                     With players
                   </label>
                   {withPlayers && (
-                    <label class="landing__option landing__option--nested">
-                      <input
-                        type="checkbox"
-                        data-testid="house-bank-checkbox"
-                        checked={houseBank}
-                        onChange={(e) => setHouseBank((e.target as HTMLInputElement).checked)}
-                      />
-                      House bank (issue play chips)
-                    </label>
+                    <>
+                      <label class="landing__option landing__option--nested">
+                        <input
+                          type="checkbox"
+                          data-testid="house-bank-checkbox"
+                          checked={houseBank}
+                          onChange={(e) => setHouseBank((e.target as HTMLInputElement).checked)}
+                        />
+                        House bank (issue play chips)
+                      </label>
+                      <p class="landing__field-help" data-testid="house-bank-help">
+                        {houseBank
+                          ? "House bank: you issue play chips; the app tracks bankrolls and settles automatically."
+                          : "No house bank: players track chips themselves; bets are declared for display and the app shows what each bet would pay."}
+                      </p>
+                    </>
                   )}
                 </fieldset>
                 <fieldset>
                   <legend>Outcome</legend>
+                  <p class="landing__field-help" data-testid="outcome-help">
+                    Physical: you enter real-world results. Virtual: the Virtual Dealer generates
+                    results; players may be the shooter or play their own hands.
+                  </p>
                   <label class="landing__option">
                     <input
                       type="radio"
@@ -260,6 +340,9 @@ export function LandingPage(_props: { path?: string }) {
                     </p>
                   )}
                 </fieldset>
+                <p class="landing__field-help landing__field-help--sheet-note">
+                  Play chips only — no real money, ever.
+                </p>
                 {joinError && <p class="landing__error">{joinError}</p>}
                 <button type="button" disabled={creating} onClick={() => void handleCreate()}>
                   {creating ? "Creating…" : "Create"}
