@@ -17,6 +17,9 @@ import "./play-page.css";
 
 type Phase = "loading" | "join" | "pending" | "playing" | "error";
 
+const BAD_TOKEN_JOIN_MESSAGE =
+  "This join link is no longer valid. Enter your name to join as a new player.";
+
 const COLOR_LABELS = [
   "Red",
   "Blue",
@@ -34,7 +37,7 @@ const COLOR_LABELS = [
 
 export function PlayPage(_props: { path?: string }) {
   const { route } = useLocation();
-  const { params } = useRoute();
+  const { params, query } = useRoute();
   const rawCode = params.code ?? "";
   const code = normalizeTableCode(rawCode);
   const [phase, setPhase] = useState<Phase>("loading");
@@ -75,11 +78,18 @@ export function PlayPage(_props: { path?: string }) {
           return;
         }
 
+        const queryToken = query.t;
+        if (queryToken) {
+          savePlayerToken(code, queryToken);
+          stripTokenFromUrl();
+          await connectPlayer(queryToken, "", false);
+          if (!cancelled) return;
+        }
+
         const storedToken = loadPlayerToken(code);
         if (storedToken) {
           await connectPlayer(storedToken, "", false);
-          if (!cancelled) setPhase("playing");
-          return;
+          if (!cancelled) return;
         }
 
         if (!cancelled) setPhase("join");
@@ -94,7 +104,14 @@ export function PlayPage(_props: { path?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [code, query.t]);
+
+  const stripTokenFromUrl = (): void => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete("t");
+    const qs = params.toString();
+    history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+  };
 
   const connectPlayer = async (token: string, displayName: string, pending: boolean) => {
     const entry = getGame("baccarat");
@@ -122,7 +139,15 @@ export function PlayPage(_props: { path?: string }) {
       },
     });
 
-    await waitForSyncReady(syncStore);
+    try {
+      await waitForSyncReady(syncStore);
+    } catch {
+      syncStore.destroy();
+      if (syncStore.getRejectReason() === "BAD_TOKEN") {
+        return;
+      }
+      throw new Error(syncStore.getRejectReason() ?? "Could not connect");
+    }
     savePlayerToken(code, token);
     setStore(syncStore);
     const pid = syncStore.getPlayerId();
@@ -141,6 +166,7 @@ export function PlayPage(_props: { path?: string }) {
   const clearStoredAndJoin = () => {
     clearPlayerToken(code);
     setStore(null);
+    setError(BAD_TOKEN_JOIN_MESSAGE);
     setPhase("join");
   };
 
