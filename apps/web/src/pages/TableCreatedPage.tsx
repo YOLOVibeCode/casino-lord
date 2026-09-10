@@ -5,6 +5,31 @@ import { qrDataUrl } from "../sync/qr.js";
 import { tableUrl } from "../sync/urls.js";
 import "./table-created.css";
 
+function CopyButton(props: { text: string; label: string; testId: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(props.text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard unavailable
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      class="table-created__copy"
+      data-testid={props.testId}
+      onClick={() => void handleCopy()}
+    >
+      {copied ? "Copied" : props.label}
+    </button>
+  );
+}
+
 export function TableCreatedPage(_props: { path?: string }) {
   const { params, query } = useRoute();
   const code = params.code ?? "";
@@ -12,6 +37,7 @@ export function TableCreatedPage(_props: { path?: string }) {
   const [displayQr, setDisplayQr] = useState("");
   const [dealerQr, setDealerQr] = useState("");
   const [playQr, setPlayQr] = useState("");
+  const [enlargedQr, setEnlargedQr] = useState<string | null>(null);
 
   const displayUrl = tableUrl(`/display/${code}`);
   const dealerUrl = tableUrl(`/dealer/${code}?t=${encodeURIComponent(token)}`);
@@ -40,36 +66,70 @@ export function TableCreatedPage(_props: { path?: string }) {
     };
   }, [displayUrl, dealerUrl, playUrl]);
 
+  const qrButton = (src: string, alt: string, testId: string) => (
+    <button
+      type="button"
+      class="table-created__qr-button"
+      onClick={() => setEnlargedQr(src)}
+      aria-label={`Enlarge ${alt}`}
+    >
+      <img src={src} alt={alt} data-testid={testId} />
+    </button>
+  );
+
   return (
     <main class="table-created" data-testid="table-created-page">
       <h1>Table created</h1>
-      <p class="table-created__code" data-testid="table-code">
-        {code}
-      </p>
+      <div class="table-created__code-row">
+        <p class="table-created__code" data-testid="table-code">
+          {code}
+        </p>
+        <CopyButton text={code} label="Copy code" testId="copy-table-code" />
+      </div>
+
+      <ol class="table-created__next" data-testid="table-created-next-steps">
+        <li>Open Display on the TV</li>
+        <li>Open Dealer on your phone</li>
+        <li>Players scan Join</li>
+      </ol>
 
       <div class="table-created__qrs">
         <section>
           <h2>Display</h2>
-          {displayQr && <img src={displayQr} alt="Display QR" data-testid="display-qr" />}
+          {displayQr && qrButton(displayQr, "Display QR", "display-qr")}
+          <CopyButton text={displayUrl} label="Copy Display URL" testId="copy-display-url" />
           <a href={displayUrl} data-testid="open-display">
             Open Display here
           </a>
         </section>
         <section>
           <h2>Dealer</h2>
-          {dealerQr && <img src={dealerQr} alt="Dealer QR" data-testid="dealer-qr" />}
+          {dealerQr && qrButton(dealerQr, "Dealer QR", "dealer-qr")}
+          <CopyButton text={dealerUrl} label="Copy Dealer URL" testId="copy-dealer-url" />
           <a href={dealerUrl} data-testid="open-dealer">
             Open Dealer here
           </a>
         </section>
         <section>
           <h2>Join (Player)</h2>
-          {playQr && <img src={playQr} alt="Join QR" data-testid="play-qr" />}
+          {playQr && qrButton(playQr, "Join QR", "play-qr")}
+          <CopyButton text={playUrl} label="Copy Join URL" testId="copy-play-url" />
           <a href={playUrl} data-testid="open-play">
             Open Join here
           </a>
         </section>
       </div>
+
+      {enlargedQr && (
+        <div
+          class="table-created__lightbox"
+          data-testid="qr-lightbox"
+          onClick={() => setEnlargedQr(null)}
+          role="presentation"
+        >
+          <img src={enlargedQr} alt="Enlarged QR code" class="table-created__lightbox-img" />
+        </div>
+      )}
 
       <a href="/" class="table-created__home">
         Back to home
