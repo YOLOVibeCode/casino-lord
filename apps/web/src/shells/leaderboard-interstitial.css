@@ -57,3 +57,10 @@
   color: inherit;
   cursor: pointer;
 }
+
+.leaderboard-interstitial__caption {
+  margin: 0;
+  text-align: center;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}

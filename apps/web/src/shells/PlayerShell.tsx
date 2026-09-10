@@ -40,7 +40,7 @@ import { PlayerSettingsSheet } from "./PlayerSettingsSheet.js";
 import { getGame } from "../table/games.js";
 import { currentSeriesCommit } from "../table/meta.js";
 import type { TableStore } from "../table/store.js";
-import { isSyncStore } from "../table/sync-store-types.js";
+import { isSyncStore, type ConnectionState } from "../table/sync-store-types.js";
 import { routePlayerAct } from "./player-act.js";
 import "./player-shell.css";
 import "./player-settings-sheet.css";
@@ -72,6 +72,24 @@ interface PlaceBetPayload {
 type FooterTab = "play" | "history" | "leaderboard" | "rules" | "info";
 
 const SETTLEMENT_DISPLAY_MS = 4000;
+const CONNECTION_PILL_DELAY_MS = 2_000;
+const CONNECTION_OFFLINE_DOT_MS = 10_000;
+
+function connectionDotMeta(
+  connectionState: ConnectionState,
+  nonConnectedMs: number,
+): { className: string; label: string } {
+  if (connectionState === "connected") {
+    return { className: "player-shell__dot player-shell__dot--on", label: "Connected" };
+  }
+  if (nonConnectedMs >= CONNECTION_OFFLINE_DOT_MS) {
+    return { className: "player-shell__dot player-shell__dot--off", label: "Offline" };
+  }
+  return {
+    className: "player-shell__dot player-shell__dot--reconnecting",
+    label: "Reconnecting…",
+  };
+}
 
 function findBetDef(
   catalogue: BetCatalogue<unknown, unknown, unknown, unknown>,
@@ -331,6 +349,16 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const settlementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Partial<Record<FooterTab, HTMLButtonElement | null>>>({});
+  const hasBeenConnectedRef = useRef(false);
+  const wasDisconnectedLongEnoughRef = useRef(false);
+  const prevConnectionRef = useRef<ConnectionState | null>(null);
+  const disconnectTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const syncStore = isSyncStore(store) ? store : null;
+  const [connectionState, setConnectionState] = useState<ConnectionState>(
+    () => syncStore?.getConnectionState() ?? "offline",
+  );
+  const [nonConnectedMs, setNonConnectedMs] = useState(0);
 
   const animationsEnabled = deviceSettings.animations && deviceSettings.phoneAnimations !== "off";
   const phoneMode = deviceSettings.phoneAnimations === "reduced";
@@ -392,6 +420,64 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastMsg(null), 4000);
   }, []);
+
+  useEffect(() => {
+    if (!syncStore) {
+      setConnectionState("offline");
+      return;
+    }
+    const refreshConnection = (): void => {
+      setConnectionState(syncStore.getConnectionState());
+    };
+    refreshConnection();
+    return syncStore.subscribe(refreshConnection);
+  }, [syncStore]);
+
+  useEffect(() => {
+    for (const timer of disconnectTimersRef.current) {
+      clearTimeout(timer);
+    }
+    disconnectTimersRef.current = [];
+
+    if (connectionState === "connected") {
+      setNonConnectedMs(0);
+      return;
+    }
+
+    setNonConnectedMs(0);
+    disconnectTimersRef.current.push(
+      setTimeout(() => {
+        setNonConnectedMs(CONNECTION_PILL_DELAY_MS);
+        wasDisconnectedLongEnoughRef.current = true;
+      }, CONNECTION_PILL_DELAY_MS),
+      setTimeout(() => {
+        setNonConnectedMs(CONNECTION_OFFLINE_DOT_MS);
+      }, CONNECTION_OFFLINE_DOT_MS),
+    );
+
+    return () => {
+      for (const timer of disconnectTimersRef.current) {
+        clearTimeout(timer);
+      }
+      disconnectTimersRef.current = [];
+    };
+  }, [connectionState]);
+
+  useEffect(() => {
+    const prev = prevConnectionRef.current;
+    if (connectionState === "connected") {
+      if (
+        (prev === "reconnecting" || prev === "offline") &&
+        hasBeenConnectedRef.current &&
+        (nonConnectedMs >= CONNECTION_PILL_DELAY_MS || wasDisconnectedLongEnoughRef.current)
+      ) {
+        showToast("Back online", "success");
+      }
+      hasBeenConnectedRef.current = true;
+      wasDisconnectedLongEnoughRef.current = false;
+    }
+    prevConnectionRef.current = connectionState;
+  }, [connectionState, nonConnectedMs, showToast]);
 
   useEffect(() => {
     if (!playerId || !module) return;
@@ -592,6 +678,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const addPending = useCallback(
     (betType: string) => {
       hapticTap();
+      if (!ensureOnlineForBet()) return;
       if (!module || !playerId || !openRound || !me) return;
       const betDef = findBetDef(module.bets, betType);
       if (!betDef) return;
@@ -639,6 +726,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       houseBank,
       showToast,
       hapticTap,
+      ensureOnlineForBet,
     ],
   );
 
@@ -846,9 +934,10 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const handleSelectDenom = useCallback(
     (denom: number) => {
       hapticTap();
+      if (!ensureOnlineForBet()) return;
       setSelectedDenom(denom);
     },
-    [hapticTap],
+    [hapticTap, ensureOnlineForBet],
   );
 
   const getOwnStake = useCallback(
@@ -1011,11 +1100,18 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     [composed.platform, playerId, module, houseBank, rules],
   );
 
-  const connection = isSyncStore(store) ? store.getConnectionState() : "offline";
-  const dotClass =
-    connection === "connected"
-      ? "player-shell__dot player-shell__dot--on"
-      : "player-shell__dot player-shell__dot--off";
+  const { className: dotClass, label: connectionLabel } = connectionDotMeta(
+    connectionState,
+    nonConnectedMs,
+  );
+  const showConnectionUi =
+    syncStore !== null &&
+    connectionState !== "connected" &&
+    nonConnectedMs >= CONNECTION_PILL_DELAY_MS;
+  const connectionPillText =
+    connectionState === "offline" || nonConnectedMs >= CONNECTION_OFFLINE_DOT_MS
+      ? "Offline — bets can't be placed"
+      : "Reconnecting…";
 
   if (!module) {
     return (
@@ -1097,7 +1193,12 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           style={{ background: player!.color }}
           data-testid="player-colour-dot"
         />
-        <span class={dotClass} data-testid="connection-dot" />
+        <span
+          class={dotClass}
+          data-testid="connection-dot"
+          aria-label={connectionLabel}
+          title={connectionLabel}
+        />
         <span class="player-shell__name">{playerName}</span>
         {houseBank && (
           <span
@@ -1119,6 +1220,12 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           ⚙
         </button>
       </header>
+
+      {showConnectionUi && (
+        <div class="player-shell__connection-pill" data-testid="connection-pill" role="status">
+          {connectionPillText}
+        </div>
+      )}
 
       {houseBank && bankroll === 0 && (
         <p class="player-shell__rebuy" data-testid="player-rebuy-hint">
@@ -1172,7 +1279,10 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         )}
 
         {activeTab === "play" && !sessionEnded && (
-          <>
+          <div
+            class={`player-shell__play-area${showConnectionUi ? " player-shell__tray--disabled" : ""}`}
+            data-testid="player-play-area"
+          >
             <main class="player-shell__main">
               {createElement(PlayerView, {
                 state: composed.module,
@@ -1252,7 +1362,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
                 onPlace={handlePlace}
               />
             </div>
-          </>
+          </div>
         )}
 
         {activeTab === "history" && (

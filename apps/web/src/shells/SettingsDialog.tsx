@@ -2,7 +2,12 @@ import { createElement } from "preact";
 import { useRef, useState } from "preact/hooks";
 import { useDialogA11y } from "./use-dialog-a11y.js";
 import type { ComponentType } from "preact";
-import type { LayoutPreset, Participation, TableSettings } from "@casino-lord/core";
+import {
+  getCurrentSeriesResults,
+  type LayoutPreset,
+  type Participation,
+  type TableSettings,
+} from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { TableStore } from "../table/store.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
@@ -39,8 +44,7 @@ export function SettingsDialog({
   });
   const composed = store.getComposed();
   const tableSettings = composed.platform.settings;
-  const moduleResults = (composed.module as { results?: unknown[] }).results;
-  const seriesHasResults = Array.isArray(moduleResults) && moduleResults.length > 0;
+  const seriesHasResults = getCurrentSeriesResults(composed.platform).length > 0;
 
   const handleRulesChange = (patch: Record<string, unknown>): void => {
     const merged = { ...(rules as Record<string, unknown>), ...patch };

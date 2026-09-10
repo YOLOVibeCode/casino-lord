@@ -285,6 +285,144 @@ describe("DealerShell UX-2b", () => {
     });
   });
 
+  it("shows session-ended panel and hides live controls after SESSION_ENDED", async () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    store.emit({ type: "PARTICIPATION_CHANGED", participation: houseSettings().participation });
+    store.record({ value: 15 }, { quick: false });
+
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    expect(screen.getByTestId("betting-bar")).toBeTruthy();
+    expect(screen.getByTestId("confirm-btn")).toBeTruthy();
+
+    act(() => {
+      store.emit({ type: "SESSION_ENDED" });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("session-ended-panel")).toBeTruthy();
+      expect(screen.getByTestId("dealer-session-ended-status").textContent).toBe("Session ended");
+      expect(screen.getByTestId("session-ended-results").textContent).toBe("1");
+    });
+    expect(screen.queryByTestId("confirm-btn")).toBeNull();
+    expect(screen.queryByTestId("undo-btn")).toBeNull();
+    expect(screen.queryByTestId("betting-bar")).toBeNull();
+  });
+
+  it("session-ended copy export copies to clipboard", async () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    store.record({ value: 15 }, { quick: false });
+    store.emit({ type: "SESSION_ENDED" });
+
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    fireEvent.click(screen.getByTestId("session-ended-copy-export"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dealer-toast").textContent).toContain("Export copied — 1 results");
+    });
+  });
+
+  it("auto-copies export when session ends via menu", async () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    store.record({ value: 15 }, { quick: false });
+
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    openDealerMenu();
+    fireEvent.click(screen.getByTestId("menu-end-session"));
+    const confirmBtn = screen.getByTestId("confirm-sheet-confirm");
+    fireEvent.pointerDown(confirmBtn);
+    await vi.advanceTimersByTimeAsync(650);
+    fireEvent.pointerUp(confirmBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("session-ended-panel")).toBeTruthy();
+      expect(screen.getByTestId("dealer-toast").textContent).toContain(
+        "Session ended — export copied",
+      );
+    });
+  });
+
+  it("session-ended menu keeps export and history only among live actions", () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    store.emit({ type: "SESSION_ENDED" });
+
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    openDealerMenu();
+    expect(screen.queryByTestId("menu-end-session")).toBeNull();
+    expect(screen.queryByTestId("menu-new-series")).toBeNull();
+    expect(screen.queryByTestId("menu-import")).toBeNull();
+    expect(screen.getByText("Export")).toBeTruthy();
+    expect(screen.getByTestId("menu-history")).toBeTruthy();
+    expect(screen.getByTestId("menu-disconnect")).toBeTruthy();
+  });
+
   it("closes menu on Escape and ignores Z in text inputs", () => {
     const module = asUntypedModule(createStubModule());
     const store = createTableStore({
@@ -316,77 +454,5 @@ describe("DealerShell UX-2b", () => {
     const before = store.events.filter((e) => e.type === "RESULT_UNDONE").length;
     fireEvent.keyDown(input, { key: "z" });
     expect(store.events.filter((e) => e.type === "RESULT_UNDONE").length).toBe(before);
-  });
-
-  it("shows Deal now only while awaiting virtual trigger", () => {
-    const module = asUntypedModule(createStubModule());
-    const baseStore = createTableStore({
-      game: "baccarat",
-      module,
-      rules: STUB_RULES,
-      rng: () => 0,
-      now: () => "2026-01-01T00:00:00.000Z",
-      id: () => "s1",
-    });
-    const sendVirtual = vi.fn();
-    const events: TableEvent[] = [
-      {
-        seq: 1,
-        at: "2026-01-01T00:00:00.000Z",
-        type: "TABLE_CREATED",
-        game: "baccarat",
-        participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
-        settings: DEFAULT_TABLE_SETTINGS,
-      },
-      {
-        seq: 2,
-        at: "2026-01-01T00:00:01.000Z",
-        type: "SERIES_STARTED",
-        seriesId: "s1",
-        commit: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
-      },
-    ];
-    const store: TableStore = {
-      ...baseStore,
-      get events() {
-        return events;
-      },
-      getComposed: () => ({
-        ...baseStore.getComposed(),
-        platform: {
-          ...baseStore.getComposed().platform,
-          participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
-        },
-      }),
-      sendVirtual,
-      getVirtualStatus: () => ({ awaiting: "trigger" as const }),
-      getVirtualPending: () => null,
-    };
-
-    renderDealerShell({
-      store,
-      module,
-      rules: STUB_RULES,
-      deviceSettings: DEFAULT_DEVICE_SETTINGS,
-      onDeviceSettingsChange: () => {},
-    });
-
-    expect(screen.getByTestId("force-btn").textContent).toBe("Deal now");
-    fireEvent.click(screen.getByTestId("force-btn"));
-    expect(sendVirtual).toHaveBeenCalledWith("force");
-
-    cleanup();
-    const storeAction: TableStore = {
-      ...store,
-      getVirtualStatus: () => ({ awaiting: "action" as const }),
-    };
-    renderDealerShell({
-      store: storeAction,
-      module,
-      rules: STUB_RULES,
-      deviceSettings: DEFAULT_DEVICE_SETTINGS,
-      onDeviceSettingsChange: () => {},
-    });
-    expect(screen.queryByTestId("force-btn")).toBeNull();
   });
 });

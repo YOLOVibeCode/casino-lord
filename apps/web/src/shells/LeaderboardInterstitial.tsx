@@ -47,9 +47,12 @@ export function LeaderboardInterstitial({
         </div>
         <p class="leaderboard-interstitial__disclaimer">Play chips — no cash value</p>
         {persistent && (
-          <button type="button" onClick={onDismiss}>
-            Continue
-          </button>
+          <p
+            class="leaderboard-interstitial__caption"
+            data-testid="leaderboard-session-ended-caption"
+          >
+            Session ended — thanks for playing
+          </p>
         )}
       </div>
     </div>

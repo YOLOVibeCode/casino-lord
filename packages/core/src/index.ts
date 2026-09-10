@@ -18,6 +18,7 @@ export * from "./platform-state.js";
 export * from "./player-colors.js";
 export * from "./platform-types.js";
 export * from "./replay.js";
+export * from "./series-selectors.js";
 export * from "./settings.js";
 export * from "./merge-settings.js";
 export * from "./table-code.js";

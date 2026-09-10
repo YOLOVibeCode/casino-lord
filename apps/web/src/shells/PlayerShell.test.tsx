@@ -1239,4 +1239,131 @@ describe("PlayerShell", () => {
     fireEvent.keyDown(tablist, { key: "ArrowLeft" });
     expect(screen.getByRole("tab", { name: "History" }).getAttribute("aria-selected")).toBe("true");
   });
+
+  describe("connection feedback", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function renderWithConnection(initial: "connected" | "reconnecting" | "offline" = "connected") {
+      let connectionState = initial;
+      const { store } = setupStore({ getConnectionState: () => connectionState });
+      renderPlayerShell({ store, playerName: "Ana" });
+      return {
+        store,
+        setConnection: (next: typeof connectionState) => {
+          connectionState = next;
+          act(() => {
+            store.emit({ type: "SETTINGS_CHANGED", patch: {} });
+          });
+        },
+      };
+    }
+
+    it("shows green connected dot with label", () => {
+      renderWithConnection("connected");
+      const dot = screen.getByTestId("connection-dot");
+      expect(dot.className).toContain("player-shell__dot--on");
+      expect(dot.getAttribute("aria-label")).toBe("Connected");
+      expect(dot.getAttribute("title")).toBe("Connected");
+    });
+
+    it("shows amber reconnecting dot with label", () => {
+      renderWithConnection("reconnecting");
+      const dot = screen.getByTestId("connection-dot");
+      expect(dot.className).toContain("player-shell__dot--reconnecting");
+      expect(dot.getAttribute("aria-label")).toBe("Reconnecting…");
+    });
+
+    it("shows red offline dot after 10s non-connected", () => {
+      vi.useFakeTimers();
+      renderWithConnection("reconnecting");
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      const dot = screen.getByTestId("connection-dot");
+      expect(dot.className).toContain("player-shell__dot--off");
+      expect(dot.getAttribute("aria-label")).toBe("Offline");
+    });
+
+    it("hides connection pill for the first 2s of reconnecting", () => {
+      vi.useFakeTimers();
+      renderWithConnection("reconnecting");
+      expect(screen.queryByTestId("connection-pill")).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      expect(screen.getByTestId("connection-pill").textContent).toContain("Reconnecting");
+    });
+
+    it("shows offline pill text after 10s non-connected", () => {
+      vi.useFakeTimers();
+      renderWithConnection("reconnecting");
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(screen.getByTestId("connection-pill").textContent).toContain("Offline");
+      expect(screen.getByTestId("connection-pill").textContent).toContain("bets can't be placed");
+    });
+
+    it("dims play area after 2s non-connected", () => {
+      vi.useFakeTimers();
+      renderWithConnection("reconnecting");
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      expect(screen.getByTestId("player-play-area").className).toContain(
+        "player-shell__tray--disabled",
+      );
+    });
+
+    it("toasts offline on chip tap while disconnected", () => {
+      const { store } = setupStore({ getConnectionState: () => "offline" });
+      renderPlayerShell({ store, playerName: "Ana" });
+      fireEvent.click(screen.getByTestId("chip-denom-5"));
+      expect(screen.getByTestId("player-toast").textContent).toContain("Bet not placed — offline");
+    });
+
+    it("toasts offline on felt tap while disconnected", () => {
+      const { store } = setupStore({ getConnectionState: () => "offline" });
+      renderPlayerShell({ store, playerName: "Ana" });
+      tapFeltZone(screen.getByTestId("felt-zone-banker"));
+      expect(screen.getByTestId("player-toast").textContent).toContain("Bet not placed — offline");
+    });
+
+    it("toasts Back online after reconnecting following a 2s+ outage", () => {
+      vi.useFakeTimers();
+      const { setConnection } = renderWithConnection("connected");
+      setConnection("reconnecting");
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      setConnection("connected");
+      expect(screen.getByTestId("player-toast").textContent).toContain("Back online");
+      expect(screen.getByTestId("player-toast").className).toContain(
+        "player-shell__toast--success",
+      );
+    });
+
+    it("does not toast Back online on initial connect", () => {
+      vi.useFakeTimers();
+      const { setConnection } = renderWithConnection("reconnecting");
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      setConnection("connected");
+      expect(screen.queryByTestId("player-toast")).toBeNull();
+    });
+
+    it("does not toast Back online after a brief blip under 2s", () => {
+      vi.useFakeTimers();
+      const { setConnection } = renderWithConnection("connected");
+      setConnection("reconnecting");
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      setConnection("connected");
+      expect(screen.queryByTestId("player-toast")).toBeNull();
+    });
+  });
 });
