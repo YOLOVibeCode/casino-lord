@@ -41,10 +41,12 @@ export function QrDialog({ entries, onClose, playerModeOn, joinUrl }: QrDialogPr
     titleId: "qr-dialog-title",
   });
 
-  const displayEntries = useMemo(
-    () => buildQrDialogEntries({ entries, playerModeOn, joinUrl }),
-    [entries, playerModeOn, joinUrl],
-  );
+  const displayEntries = useMemo(() => {
+    const opts: { entries: QrEntry[]; playerModeOn?: boolean; joinUrl?: string } = { entries };
+    if (playerModeOn !== undefined) opts.playerModeOn = playerModeOn;
+    if (joinUrl !== undefined) opts.joinUrl = joinUrl;
+    return buildQrDialogEntries(opts);
+  }, [entries, playerModeOn, joinUrl]);
 
   const stableKey = useMemo(() => entriesKey(displayEntries), [displayEntries]);
   const displayEntriesRef = useRef(displayEntries);

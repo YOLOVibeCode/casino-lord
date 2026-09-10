@@ -20,9 +20,7 @@ describe("QrDialog", () => {
 
   it("does not re-fetch QR images when entry URLs are unchanged", async () => {
     vi.mocked(qrDataUrl).mockClear();
-    const { rerender } = render(
-      <QrDialog entries={[...baseEntries]} onClose={() => undefined} />,
-    );
+    const { rerender } = render(<QrDialog entries={[...baseEntries]} onClose={() => undefined} />);
     await vi.waitFor(() => {
       expect(qrDataUrl).toHaveBeenCalledTimes(2);
     });

@@ -68,14 +68,11 @@ export function PlayersDialog({ store, onClose, seatsConfig }: PlayersDialogProp
     if (toastTimer.current) clearTimeout(toastTimer.current);
   }, []);
 
-  const showToast = useCallback(
-    (message: string, action?: ToastAction) => {
-      setToast({ message, ...(action !== undefined ? { action } : {}) });
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-      toastTimer.current = setTimeout(() => setToast(null), 4000);
-    },
-    [],
-  );
+  const showToast = useCallback((message: string, action?: ToastAction) => {
+    setToast({ message, ...(action !== undefined ? { action } : {}) });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  }, []);
 
   const issueBuyIn = (playerId: string, amount: number): void => {
     void store.emit({ type: "BANK_ISSUED", playerId, amount, reason: "buyin" });
@@ -347,7 +344,11 @@ export function PlayersDialog({ store, onClose, seatsConfig }: PlayersDialogProp
           <div class="players-dialog__toast" data-testid="players-toast" role="alert">
             <span>{toast.message}</span>
             {toast.action && (
-              <button type="button" data-testid="players-toast-action" onClick={toast.action.onClick}>
+              <button
+                type="button"
+                data-testid="players-toast-action"
+                onClick={toast.action.onClick}
+              >
                 {toast.action.label}
               </button>
             )}

@@ -16,11 +16,9 @@ export interface DialogA11yProps {
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function useDialogA11y({
-  panelRef,
-  onClose,
-  titleId,
-}: UseDialogA11yOptions): { dialogProps: DialogA11yProps } {
+export function useDialogA11y({ panelRef, onClose, titleId }: UseDialogA11yOptions): {
+  dialogProps: DialogA11yProps;
+} {
   const previousFocus = useRef<Element | null>(null);
 
   useEffect(() => {
