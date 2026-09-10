@@ -426,8 +426,15 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
       }
 
       const composed = table.getComposed();
+      const rawEvent = parsed.data.event as {
+        type?: string;
+        commit?: string;
+        label?: string;
+        auto?: boolean;
+      };
+
       if (composed.platform.participation.outcomeSource === "virtual") {
-        const eventType = (parsed.data.event as { type?: string }).type;
+        const eventType = rawEvent.type;
         if (
           st.role === "dealer" &&
           (eventType === "RESULT_RECORDED" || eventType === "LIVE_INPUT")
@@ -437,6 +444,105 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
             clientId: parsed.data.clientId,
             reason: "MIXED_SERIES",
           });
+          return;
+        }
+
+        if (st.role === "dealer" && eventType === "SERIES_STARTED") {
+          if ("commit" in rawEvent && rawEvent.commit !== undefined) {
+            socket.emit("message", {
+              op: "reject",
+              clientId: parsed.data.clientId,
+              reason: "client commit not allowed",
+            });
+            return;
+          }
+
+          const rotated = registry.dealerRotateVirtualSeries(st.code, {
+            ...(rawEvent.label !== undefined ? { label: rawEvent.label } : {}),
+            ...(rawEvent.auto === true ? { auto: true } : {}),
+          });
+          if (!rotated) {
+            socket.emit("message", {
+              op: "reject",
+              clientId: parsed.data.clientId,
+              reason: "no virtual dealer",
+            });
+            return;
+          }
+
+          const at = new Date().toISOString();
+          let lastSeq: number | undefined;
+          for (let i = 0; i < rotated.length; i++) {
+            const result = table.appendEvent(rotated[i]!, `${parsed.data.clientId}:${i}`, at);
+            if (result.kind === "duplicate") {
+              lastSeq = result.seq;
+              continue;
+            }
+            registry.persistEvent(st.code, result.event);
+            if (result.event.type === "SERIES_STARTED") {
+              registry.persistVirtualDealer(st.code);
+            }
+            io.to(room(st.code)).emit("message", { op: "event", event: result.event });
+            lastSeq = result.event.seq;
+          }
+
+          if (lastSeq !== undefined) {
+            socket.emit("message", {
+              op: "ack",
+              clientId: parsed.data.clientId,
+              seq: lastSeq,
+            });
+          }
+          return;
+        }
+
+        if (st.role === "dealer" && eventType === "SESSION_ENDED") {
+          const virtualDealer = registry.getVirtualDealer(st.code);
+          if (!virtualDealer) {
+            socket.emit("message", {
+              op: "reject",
+              clientId: parsed.data.clientId,
+              reason: "no virtual dealer",
+            });
+            return;
+          }
+
+          const sessionValidation = validateInboundEvent(
+            parsed.data.event,
+            st.role,
+            module,
+            st.playerId,
+          );
+          if (!sessionValidation.ok) {
+            socket.emit("message", {
+              op: "reject",
+              clientId: parsed.data.clientId,
+              reason: sessionValidation.reason,
+            });
+            return;
+          }
+
+          const at = new Date().toISOString();
+          const toAppend = [virtualDealer.endSeriesEvent(), sessionValidation.event];
+          let lastSeq: number | undefined;
+          for (let i = 0; i < toAppend.length; i++) {
+            const result = table.appendEvent(toAppend[i]!, `${parsed.data.clientId}:${i}`, at);
+            if (result.kind === "duplicate") {
+              lastSeq = result.seq;
+              continue;
+            }
+            registry.persistEvent(st.code, result.event);
+            io.to(room(st.code)).emit("message", { op: "event", event: result.event });
+            lastSeq = result.event.seq;
+          }
+
+          if (lastSeq !== undefined) {
+            socket.emit("message", {
+              op: "ack",
+              clientId: parsed.data.clientId,
+              seq: lastSeq,
+            });
+          }
           return;
         }
       }
