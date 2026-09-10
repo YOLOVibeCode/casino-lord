@@ -17,6 +17,7 @@ import { initialState, type RouletteState } from "./state.js";
 import { rouletteStats } from "./stats.js";
 import type { RouletteBetTarget } from "./bet-target.js";
 import type { RouletteLiveInput, RouletteResult } from "./types.js";
+import { describeRouletteResult } from "./describe-result.js";
 import { virtualWheelStep } from "./virtual.js";
 import { DealerView } from "./views/DealerView.js";
 import { DisplayView } from "./views/DisplayView.js";
@@ -113,5 +114,9 @@ export const rouletteModule: GameModule<
     const result = importBody(text, rules);
     if ("error" in result) return { error: result.error };
     return { results: result.results, warnings: result.warnings };
+  },
+
+  describeResult(result, rules) {
+    return describeRouletteResult(result, rules);
   },
 };

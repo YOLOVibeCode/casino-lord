@@ -16,7 +16,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  min-height: 2.75rem;
+  min-height: max(3rem, 44px);
   padding: 0.25rem 0;
   border: none;
   background: transparent;
@@ -65,8 +65,8 @@
 }
 
 .bet-slip__remove {
-  min-width: 3rem;
-  min-height: 3rem;
+  min-width: max(3rem, 44px);
+  min-height: max(3rem, 44px);
   border: none;
   border-radius: 0.25rem;
   background: rgba(255, 255, 255, 0.12);
@@ -112,7 +112,8 @@
   cursor: not-allowed;
 }
 
-.bet-slip__locked {
+.bet-slip__locked,
+.bet-slip__idle {
   margin-top: 0.5rem;
   text-align: center;
   font-size: max(0.9375rem, 15px);
