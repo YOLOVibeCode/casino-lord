@@ -4,12 +4,15 @@ import "./update-prompt.css";
 export function UpdatePrompt() {
   const [visible, setVisible] = useState(false);
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
+  const reloadPendingRef = useRef(false);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
     const onControllerChange = (): void => {
-      window.location.reload();
+      if (reloadPendingRef.current) {
+        window.location.reload();
+      }
     };
 
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
@@ -39,6 +42,7 @@ export function UpdatePrompt() {
   }, []);
 
   const reload = (): void => {
+    reloadPendingRef.current = true;
     const waiting = registrationRef.current?.waiting;
     if (waiting) {
       waiting.postMessage({ type: "SKIP_WAITING" });
