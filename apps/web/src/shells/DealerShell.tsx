@@ -249,7 +249,7 @@ export function DealerShell({
     });
     if (!ok) return;
     for (const bet of betsView.openBets) {
-      store.emit({ type: "BET_REMOVED", betId: bet.id });
+      store.emit({ type: "BET_REMOVED", betId: bet.id, by: "dealer" });
     }
     setMenuOpen(false);
   }, [betsView.openBets, confirm, store]);

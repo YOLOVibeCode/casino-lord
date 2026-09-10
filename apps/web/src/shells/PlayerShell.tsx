@@ -417,14 +417,27 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       } else if (event.type === "BET_REMOVED") {
         const bet = betsSnapshotRef.current.get(event.betId);
         if (bet?.playerId === playerId) {
-          showToast("Bet removed", "success");
+          if (event.by === "dealer") {
+            const suffix = houseBank ? `${bet.amount} chips returned` : "bet removed";
+            showToast(`The dealer voided your bet — ${suffix}`, "success");
+          } else {
+            showToast("Bet removed", "success");
+          }
         }
       }
     }
 
     lastEventIndexRef.current = events.length;
     betsSnapshotRef.current = new Map(composed.platform.bets.map((b) => [b.id, b]));
-  }, [store.events.length, playerId, module, composed.platform.bets, showToast, store.events]);
+  }, [
+    store.events.length,
+    playerId,
+    module,
+    composed.platform.bets,
+    showToast,
+    store.events,
+    houseBank,
+  ]);
 
   useEffect(() => {
     const roundId = settledRound?.id;
@@ -959,7 +972,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       return `BETS OPEN${cd}`;
     }
     if (round?.status === "closed") return "BETS CLOSED";
-    return "Waiting for the dealer to open bets";
+    return "No round yet";
   })();
 
   const isIdle = !openRound && round?.status !== "closed";

@@ -7,6 +7,7 @@ import { loadConfig } from "../config.js";
 import { createRepository } from "../persistence/index.js";
 import { createRateLimiter } from "../rate-limit.js";
 import { buildServer } from "../server.js";
+import type { VirtualExecutorTimingDeps } from "../tables/virtual-executor.js";
 import { TableRegistry } from "../tables/registry.js";
 
 export interface TestSyncServer {
@@ -25,6 +26,7 @@ export interface StartTestServerOptions {
   rng?: () => number;
   rateLimiter?: ReturnType<typeof createRateLimiter>;
   enableVirtual?: boolean;
+  virtualExecutorTiming?: VirtualExecutorTimingDeps;
 }
 
 export async function startTestServer(
@@ -56,6 +58,9 @@ export async function startTestServer(
     repository,
     ...(options.now ? { now: options.now } : {}),
     ...(options.rng ? { rng: options.rng } : {}),
+    ...(options.virtualExecutorTiming
+      ? { virtualExecutorTiming: options.virtualExecutorTiming }
+      : {}),
     setIntervalFn: ((..._args: unknown[]) => 0) as typeof setInterval,
     clearIntervalFn: () => undefined,
   });

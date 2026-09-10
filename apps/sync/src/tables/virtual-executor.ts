@@ -43,6 +43,11 @@ export function emitVirtualStatus(
   });
 }
 
+export interface VirtualExecutorTimingDeps {
+  nowMs?: () => number;
+  setTimeoutFn?: typeof setTimeout;
+}
+
 export interface ExecuteVirtualOptions {
   io: Server;
   registry: TableRegistry;
@@ -52,6 +57,7 @@ export interface ExecuteVirtualOptions {
   actionTimer: VirtualActionTimer;
   request: VirtualStepRequest;
   clientId: string;
+  timing?: VirtualExecutorTimingDeps;
   onAck?: (seq: number) => void;
   onReject?: (reason: string) => void;
 }
@@ -90,9 +96,12 @@ export function executeVirtualStep(options: ExecuteVirtualOptions): void {
 
   actionTimer.cancel();
 
+  const nowMs = options.timing?.nowMs ?? Date.now;
+  const setTimeoutFn = options.timing?.setTimeoutFn ?? setTimeout;
+
   const settings = table.settings.virtual;
   const kind = module.virtual.kind;
-  const startedAt = Date.now();
+  const startedAt = nowMs();
   const scheduled = virtualDealer.schedulePacedEvents(
     stepEvents,
     new Date(startedAt).toISOString(),
@@ -114,6 +123,8 @@ export function executeVirtualStep(options: ExecuteVirtualOptions): void {
     actionTimer,
     scheduled,
     clientId,
+    nowMs,
+    setTimeoutFn,
     onAck: (seq) => {
       emitVirtualStatus(io, code, liveTable, module, virtualDealer);
       if (virtualDealer.awaiting === "action") {
@@ -136,19 +147,33 @@ interface RunScheduledOptions {
   actionTimer: VirtualActionTimer;
   scheduled: ScheduledEvent[];
   clientId: string;
+  nowMs: () => number;
+  setTimeoutFn: typeof setTimeout;
   onAck: (seq: number) => void;
 }
 
 async function runScheduledEvents(opts: RunScheduledOptions): Promise<void> {
-  const { io, registry, code, liveTable, module, virtualDealer, scheduled, clientId, onAck } = opts;
+  const {
+    io,
+    registry,
+    code,
+    liveTable,
+    module,
+    virtualDealer,
+    scheduled,
+    clientId,
+    nowMs,
+    setTimeoutFn,
+    onAck,
+  } = opts;
 
   let lastSeq = liveTable.latestSeq;
   try {
     for (let index = 0; index < scheduled.length; index++) {
       const { event, at, broadcastOnly } = scheduled[index]!;
-      const wait = Date.parse(at) - Date.now();
+      const wait = Date.parse(at) - nowMs();
       if (wait > 0) {
-        await new Promise((r) => setTimeout(r, wait));
+        await new Promise((r) => setTimeoutFn(r, wait));
       }
       if (registry.get(code) !== liveTable) {
         return;
