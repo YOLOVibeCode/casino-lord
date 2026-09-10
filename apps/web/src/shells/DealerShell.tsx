@@ -270,6 +270,11 @@ export function DealerShell({
     if (!text) return;
     const envelope = parseExportForImport(text);
     const body = "error" in envelope ? text : envelope.body;
+    if (!("error" in envelope) && (envelope.players.length > 0 || envelope.bets.length > 0)) {
+      window.alert(
+        `${envelope.players.length} players, ${envelope.bets.length} bets in this export — not imported`,
+      );
+    }
     const imported = module.importSeries(body, rules);
     if ("error" in imported) {
       window.alert(imported.error);
