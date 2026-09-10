@@ -198,11 +198,6 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         return;
       }
 
-      if (table.sessionEnded) {
-        socket.emit("message", { op: "error", code: "SESSION_ENDED" });
-        return;
-      }
-
       const module = getModule(table.game);
       if (!module) {
         socket.emit("message", { op: "error", code: "UNSUPPORTED_GAME" });
@@ -249,6 +244,10 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
       }
 
       if (role === "dealer") {
+        if (table.sessionEnded) {
+          socket.emit("message", { op: "error", code: "SESSION_ENDED" });
+          return;
+        }
         if (!token) {
           socket.emit("message", { op: "error", code: "BAD_TOKEN" });
           return;

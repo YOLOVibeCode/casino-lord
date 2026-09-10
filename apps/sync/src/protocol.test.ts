@@ -266,6 +266,92 @@ describe("sync protocol", () => {
     dealer.close();
   });
 
+  it("allows display join after SESSION_ENDED for read-only review", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url);
+
+    const dealer = connectClient(server.url);
+    await new Promise<void>((resolve) => dealer.on("connect", () => resolve()));
+    dealer.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
+    await waitForMessage(dealer, (m) => m.op === "joined");
+
+    dealer.emit("message", { op: "event", clientId: "end", event: { type: "SESSION_ENDED" } });
+    await waitForMessage(dealer, (m) => m.op === "ack");
+
+    const display = connectClient(server.url);
+    await new Promise<void>((resolve) => display.on("connect", () => resolve()));
+    display.emit("message", { op: "join", code, role: "display" });
+    const joined = await waitForMessage<JoinedMessage>(display, (m) => m.op === "joined");
+    expect(joined.snapshot?.some((e) => e.seq > 0) || joined.events?.length).toBeTruthy();
+
+    display.emit("message", {
+      op: "event",
+      clientId: "display-write",
+      event: resultRecordedEvent(99, "blocked"),
+    });
+    const reject = await waitForMessage(display, (m) => m.op === "reject");
+    expect(["SESSION_ENDED", "not authorized"]).toContain(reject.reason);
+
+    display.close();
+    dealer.close();
+  });
+
+  it("allows player with token join after SESSION_ENDED", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createPlayerModeTable(server.url);
+    const joined = await joinPlayerViaRest(server.url, code, {
+      name: "Ana",
+      color: PLAYER_COLORS[0]!,
+    });
+
+    const dealer = connectClient(server.url);
+    await new Promise<void>((resolve) => dealer.on("connect", () => resolve()));
+    dealer.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
+    await waitForMessage(dealer, (m) => m.op === "joined");
+
+    dealer.emit("message", { op: "event", clientId: "end", event: { type: "SESSION_ENDED" } });
+    await waitForMessage(dealer, (m) => m.op === "ack");
+
+    const player = connectClient(server.url);
+    await new Promise<void>((resolve) => player.on("connect", () => resolve()));
+    player.emit("message", {
+      op: "join",
+      code,
+      role: "player",
+      token: joined.playerToken,
+    });
+    const playerJoined = await waitForMessage<{ op: "joined"; playerId?: string }>(
+      player,
+      (m) => m.op === "joined",
+    );
+    expect(playerJoined.playerId).toBe(joined.playerId);
+
+    player.close();
+    dealer.close();
+  });
+
+  it("rejects dealer join after SESSION_ENDED", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url);
+
+    const dealer = connectClient(server.url);
+    await new Promise<void>((resolve) => dealer.on("connect", () => resolve()));
+    dealer.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
+    await waitForMessage(dealer, (m) => m.op === "joined");
+
+    dealer.emit("message", { op: "event", clientId: "end", event: { type: "SESSION_ENDED" } });
+    await waitForMessage(dealer, (m) => m.op === "ack");
+    dealer.close();
+
+    const dealer2 = connectClient(server.url);
+    await new Promise<void>((resolve) => dealer2.on("connect", () => resolve()));
+    dealer2.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
+    const err = await waitForMessage(dealer2, (m) => m.op === "error");
+    expect(err.code).toBe("SESSION_ENDED");
+
+    dealer2.close();
+  });
+
   it("creates a craps table via POST /tables", async () => {
     const server = await boot();
     const response = await fetch(`${server.url}/tables`, {
