@@ -320,6 +320,7 @@ export async function triggerVirtualDeal(dealer: Page): Promise<void> {
 }
 
 export async function completeVirtualBlackjackHand(dealer: Page, player: Page): Promise<void> {
+  let stood = false;
   for (let i = 0; i < 32; i += 1) {
     if (
       await dealer
@@ -332,9 +333,11 @@ export async function completeVirtualBlackjackHand(dealer: Page, player: Page): 
 
     const stand = player.getByTestId("action-btn-stand");
     if (
+      !stood &&
       (await stand.isVisible().catch(() => false)) &&
       (await stand.isEnabled().catch(() => false))
     ) {
+      stood = true;
       await stand.click();
       await player.waitForTimeout(VIRTUAL_TRIGGER_GAP_MS);
       continue;

@@ -4,7 +4,6 @@ import {
   closeSyncedSession,
   expectDisplaySettlement,
   openBets,
-  parseBankroll,
   setupSyncedTable,
   triggerVirtualDeal,
   waitForNextVirtualResult,
@@ -37,28 +36,20 @@ test("sync virtual craps shooter rolls until pass-line settlement", async ({ bro
   await ana.getByTestId("bet-zone-pass").click();
   await ben.getByTestId("chip-denom-100").click();
   await ben.getByTestId("bet-zone-pass").click();
-  await closeBetsIfOpen(dealer);
-
-  const settlement = expectDisplaySettlement(display, "Ana", "nonzero", ana, 160_000);
-  const afterBet = parseBankroll(await ana.getByTestId("player-bankroll").textContent());
-
+  const passDecided = /NATURAL|CRAPS|POINT MADE|SEVEN OUT/i;
   for (let i = 0; i < 16; i += 1) {
-    const strip =
-      (await display
-        .getByTestId("betting-strip")
-        .locator(".betting-strip__status")
-        .textContent()) ?? "";
-    const bankroll = parseBankroll(await ana.getByTestId("player-bankroll").textContent());
-    if (/Ana (?:\+[1-9]|-)/.test(strip) || bankroll !== afterBet) {
-      break;
-    }
-
+    await closeBetsIfOpen(dealer);
     await expect(ana.getByTestId("shooter-roll")).toBeVisible();
     await triggerVirtualDeal(dealer);
     await waitForNextVirtualResult(dealer);
+    const last = (await dealer.getByTestId("virtual-last-result").textContent()) ?? "";
+    if (passDecided.test(last)) {
+      await expectDisplaySettlement(display, "Ana", "nonzero", ana, 10_000);
+      break;
+    }
   }
 
-  await settlement;
+  await expect(dealer.getByTestId("virtual-last-result")).toContainText(passDecided);
   await expect(display.getByTestId("virtual-board-tag")).toBeVisible();
   await expect(display.getByTestId("last-roll-dice")).toBeVisible();
 
