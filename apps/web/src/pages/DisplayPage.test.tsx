@@ -55,6 +55,7 @@ function mockSyncStore(): SyncStore {
     takeover: () => undefined,
     destroy: () => undefined,
     getDealerToken: () => null,
+    getModule: () => module,
   });
 }
 
@@ -77,23 +78,11 @@ function renderPage(path: string) {
 describe("DisplayPage", () => {
   afterEach(cleanup);
 
-  it("renders display shell and waiting-for-dealer hint", async () => {
+  it("renders display shell when sync store connects", async () => {
     renderPage("/display/ABCD23");
     await vi.waitFor(() => {
       expect(screen.getByTestId("display-shell")).toBeTruthy();
-      expect(screen.getByTestId("waiting-for-dealer")).toBeTruthy();
     });
-  });
-
-  it("hides the waiting hint once presence reports a dealer", async () => {
-    setPresence({ dealers: 0, displays: 1 });
-    renderPage("/display/ABCD23");
-    await vi.waitFor(() => {
-      expect(screen.getByTestId("waiting-for-dealer")).toBeTruthy();
-    });
-    setPresence({ dealers: 1, displays: 1 });
-    await vi.waitFor(() => {
-      expect(screen.queryByTestId("waiting-for-dealer")).toBeNull();
-    });
+    expect(screen.queryByTestId("waiting-for-dealer")).toBeNull();
   });
 });
