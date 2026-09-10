@@ -145,6 +145,7 @@ export function DealerShell({
   const confirmStarted = useRef(0);
   const lastToastedRejectRef = useRef<string | null>(null);
   const menuPanelRef = useRef<HTMLDivElement>(null);
+  const prevSessionEndedRef = useRef(sessionEnded);
   const [forceTapped, setForceTapped] = useState(false);
 
   const clearConfirmTimer = useCallback(() => {
@@ -324,58 +325,70 @@ export function DealerShell({
     ? { borderColor: confirmState.color, color: confirmState.color }
     : undefined;
 
-  const handleExport = async () => {
-    try {
-      let text: string;
-      const syncStore = isSyncStore(store) ? store : null;
-      const dealerToken = syncStore?.getDealerToken() ?? null;
-
-      if (syncStore && dealerToken) {
-        text = await fetchTableExport(
-          getSyncBaseUrl(),
-          store.code,
-          table.seriesNumber,
-          dealerToken,
-        );
-      } else {
-        const series = buildSeriesFromStoreEvents(store.events, table.seriesNumber);
-        if (!series) {
-          toast.error("No series to export", { testId: "dealer-toast" });
-          return;
-        }
-        const outcomeSource = composed.platform.participation.outcomeSource;
-        text = buildExportText({
-          game: store.game,
-          code: store.code,
-          seriesNumber: table.seriesNumber,
-          seriesStartedAt: series.startedAt,
-          source: outcomeSource,
-          rules,
-          module,
-          series,
-          events: store.events,
-        });
-      }
-
-      const resultCount = countSeriesResults(store.events);
+  const handleExport = useCallback(
+    async (opts?: { toastMessage?: string }) => {
       try {
-        await navigator.clipboard.writeText(text);
-        toast.success(`Export copied — ${resultCount} results`, { testId: "dealer-toast" });
-        setMenuOpen(false);
+        let text: string;
+        const syncStoreForExport = isSyncStore(store) ? store : null;
+        const dealerToken = syncStoreForExport?.getDealerToken() ?? null;
+
+        if (syncStoreForExport && dealerToken) {
+          text = await fetchTableExport(
+            getSyncBaseUrl(),
+            store.code,
+            table.seriesNumber,
+            dealerToken,
+          );
+        } else {
+          const series = buildSeriesFromStoreEvents(store.events, table.seriesNumber);
+          if (!series) {
+            toast.error("No series to export", { testId: "dealer-toast" });
+            return;
+          }
+          const outcomeSource = composed.platform.participation.outcomeSource;
+          text = buildExportText({
+            game: store.game,
+            code: store.code,
+            seriesNumber: table.seriesNumber,
+            seriesStartedAt: series.startedAt,
+            source: outcomeSource,
+            rules,
+            module,
+            series,
+            events: store.events,
+          });
+        }
+
+        const resultCount = countSeriesResults(store.events);
+        const successMessage =
+          opts?.toastMessage ?? `Export copied — ${resultCount} results`;
+        try {
+          await navigator.clipboard.writeText(text);
+          toast.success(successMessage, { testId: "dealer-toast" });
+          setMenuOpen(false);
+        } catch {
+          await prompt({
+            title: "Export",
+            label: "Copy this text manually",
+            defaultValue: text,
+            multiline: true,
+            confirmLabel: "Done",
+          });
+          setMenuOpen(false);
+        }
       } catch {
-        await prompt({
-          title: "Export",
-          label: "Copy this text manually",
-          defaultValue: text,
-          multiline: true,
-          confirmLabel: "Done",
-        });
-        setMenuOpen(false);
+        toast.error("Export failed", { testId: "dealer-toast" });
       }
-    } catch {
-      toast.error("Export failed", { testId: "dealer-toast" });
+    },
+    [composed.platform.participation.outcomeSource, module, prompt, rules, store, table.seriesNumber, toast],
+  );
+
+  useEffect(() => {
+    if (sessionEnded && !prevSessionEndedRef.current) {
+      void handleExport({ toastMessage: "Session ended — export copied" });
     }
-  };
+    prevSessionEndedRef.current = sessionEnded;
+  }, [handleExport, sessionEnded]);
 
   const importPreview = (text: string): string | null => {
     const trimmed = text.trim();
@@ -547,7 +560,7 @@ export function DealerShell({
           topBankrolls={topBankrolls}
           virtualTable={virtualTable}
           {...(revealedSeed !== undefined ? { seedHex: revealedSeed } : {})}
-          onCopyExport={() => void handleExport()}
+          onCopyExport={() => void handleExport(undefined)}
           {...(onNewTable ? { onNewTable } : {})}
           onHome={() => route("/")}
         />
