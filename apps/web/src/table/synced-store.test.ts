@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PLAYER_COLORS } from "@casino-lord/core";
+import { getCurrentSeriesResults, PLAYER_COLORS } from "@casino-lord/core";
 import {
   createTableViaRest,
   joinPlayerViaRest,
@@ -125,6 +125,31 @@ describe("synced store", () => {
 
     dealer.destroy();
     display.destroy();
+  });
+
+  it("roulette undo uses platform currentSeriesResults", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url, {
+      game: "roulette",
+      participation: PLAYER_MODE_PARTICIPATION,
+    });
+
+    const dealer = await openDealer(server.url, code, dealerToken);
+
+    dealer.record({ pocket: 1 }, { quick: false });
+    await new Promise((r) => setTimeout(r, 200));
+    dealer.record({ pocket: 17 }, { quick: false });
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(getCurrentSeriesResults(dealer.getComposed().platform)).toHaveLength(2);
+    expect(dealer.canUndoLastResult().ok).toBe(true);
+
+    dealer.undoLastResult();
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(getCurrentSeriesResults(dealer.getComposed().platform)).toHaveLength(1);
+
+    dealer.destroy();
   });
 
   it("replays a blackjack table log with the blackjack module", async () => {
