@@ -32,12 +32,18 @@ const TOTAL_CHIPS = Array.from({ length: 11 }, (_, i) => i + 2).flatMap((total) 
   return chips;
 });
 
+export interface DealerViewPlayer {
+  id: string;
+  name: string;
+}
+
 export interface DealerViewProps {
   state: CrapsState;
   rules: CrapsRules;
   table: TableMeta;
   emit: Emit;
   record: (result: CrapsResult, opts: { quick: boolean }) => void;
+  players?: readonly DealerViewPlayer[];
   autoAdvance?: boolean;
   expressMode?: boolean;
   haptics?: boolean;
@@ -55,6 +61,7 @@ export function DealerView({
   table,
   emit,
   record,
+  players = [],
   expressMode = true,
   haptics = false,
 }: DealerViewProps) {
@@ -151,13 +158,22 @@ export function DealerView({
 
   const puckOn = phase === "point" && point !== null;
   const shooterLabel = state.seriesLabel ?? `Shooter ${table.seriesNumber}`;
+  const shooterName =
+    (state.currentShooterId !== null
+      ? players.find((p) => p.id === state.currentShooterId)?.name
+      : undefined) ?? "—";
 
   return (
     <div class="craps-display dealer-view" data-testid="dealer-view">
       <header class="dealer-view__header">
-        <span class="dealer-view__puck" data-testid="dealer-puck">
-          {puckLabel(puckOn, point)}
-        </span>
+        <div class="dealer-view__header-main">
+          <span class="dealer-view__puck" data-testid="dealer-puck">
+            {puckLabel(puckOn, point)}
+          </span>
+          <span class="dealer-view__shooter-name" data-testid="dealer-shooter-name">
+            Shooter: {shooterName}
+          </span>
+        </div>
         <span class="dealer-view__shooter">
           {shooterLabel} · Roll {shooter.rollCount + 1}
         </span>

@@ -59,6 +59,21 @@ describe("DealerView", () => {
     );
   });
 
+  it("shows shooter name in header when players prop provided", () => {
+    const state = { ...initialState(), currentShooterId: "p1" };
+    render(
+      <DealerView
+        state={state}
+        rules={DEFAULT_CRAPS_RULES}
+        table={TABLE}
+        emit={vi.fn()}
+        record={vi.fn()}
+        players={[{ id: "p1", name: "Ana" }]}
+      />,
+    );
+    expect(screen.getByTestId("dealer-shooter-name").textContent).toBe("Shooter: Ana");
+  });
+
   it("seven-out chip records total 7", () => {
     const record = vi.fn();
     render(

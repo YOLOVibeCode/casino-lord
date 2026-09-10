@@ -1,0 +1,59 @@
+.player-settings-sheet__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.player-settings-sheet {
+  width: 100%;
+  max-width: 28rem;
+  background: #1a1a1a;
+  color: #f5f5f5;
+  border-radius: 0.75rem 0.75rem 0 0;
+  padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom, 0));
+}
+
+.player-settings-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  font-weight: 700;
+  font-size: max(1.125rem, 18px);
+}
+
+.player-settings-sheet__close {
+  min-width: 3rem;
+  min-height: 3rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.player-settings-sheet__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.player-settings-sheet__field label {
+  font-size: max(0.875rem, 14px);
+  opacity: 0.85;
+}
+
+.player-settings-sheet__field select {
+  min-height: 3rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: max(1rem, 16px);
+}

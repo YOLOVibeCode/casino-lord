@@ -12,6 +12,7 @@ import type { CrapsBetTarget } from "@casino-lord/game-craps";
 import { houseSettings } from "@casino-lord/core/testing";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
 import { PlayerShell } from "./PlayerShell.js";
@@ -302,6 +303,164 @@ describe("PlayerShell", () => {
     const { store } = setupStore({ bankroll: 0 });
     render(<PlayerShell store={store} playerName="Ana" />);
     expect(screen.getByTestId("player-rebuy-hint")).toBeTruthy();
+  });
+
+  it("shows session summary when SESSION_ENDED", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: 4,
+        bankerTotal: 9,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    store.emit({
+      type: "PLAYER_JOINED",
+      player: {
+        id: "p2",
+        name: "Bob",
+        color: "#3366cc",
+        status: "active",
+        joinedAt: "2026-01-01T00:00:03.000Z",
+      },
+    });
+    store.emit({ type: "BANK_ISSUED", playerId: "p2", amount: 500, reason: "buyin" });
+    store.emit({ type: "SESSION_ENDED" });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("player-session-summary")).toBeTruthy();
+    expect(screen.getByTestId("player-session-issued").textContent).toBe("500");
+    expect(screen.getByTestId("player-session-net").textContent).toBe("+95");
+    expect(screen.getByTestId("player-session-bankroll").textContent).toBe("595");
+    expect(screen.getByTestId("player-session-rank").textContent).toBe("#1");
+    expect(screen.queryByTestId("player-bottom-bar")).toBeNull();
+  });
+
+  it("shows verify link on virtual table session end", async () => {
+    const urls = await import("../sync/urls.js");
+    const tableUrlSpy = vi
+      .spyOn(urls, "tableUrl")
+      .mockImplementation((path) => `https://test.example${path}`);
+    const { store } = setupStore();
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: {
+        ...houseSettings().participation,
+        outcomeSource: "virtual",
+      },
+    });
+    store.emit({ type: "SESSION_ENDED" });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    const link = screen.getByTestId("player-session-verify-link") as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toBe(`https://test.example/verify?code=${store.code}`);
+    tableUrlSpy.mockRestore();
+  });
+
+  it("history shows would pay in declared-bets mode", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+    });
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: true,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: 4,
+        bankerTotal: 9,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.getByTestId("player-history-profit-b1").textContent).toBe("would pay +95");
+  });
+
+  it("opens player settings sheet and persists phoneAnimations", () => {
+    localStorage.clear();
+    const { store } = setupStore();
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("player-settings-open"));
+    expect(screen.getByTestId("player-settings-sheet")).toBeTruthy();
+    fireEvent.change(screen.getByTestId("player-phone-animations"), {
+      target: { value: "off" },
+    });
+    const stored = JSON.parse(localStorage.getItem("casino-lord:device-settings") ?? "{}");
+    expect(stored.phoneAnimations).toBe("off");
+    expect(stored.shakeSensitivity).toBe(DEFAULT_DEVICE_SETTINGS.shakeSensitivity);
+  });
+
+  it("history tab shows outcome and profit after settlement", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: 4,
+        bankerTotal: 9,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.getByTestId("player-history-outcome-b1").textContent).toBe("win");
+    expect(screen.getByTestId("player-history-profit-b1").textContent).toBe("+95");
+    expect(screen.getByTestId("player-history-running-net-b1").textContent).toContain("+95");
   });
 
   it("shows fairness commitment on virtual table info tab", () => {

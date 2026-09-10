@@ -65,4 +65,22 @@ describe("device settings", () => {
       scale: 1.5,
     });
   });
+
+  it("defaults phoneAnimations and shakeSensitivity when missing from stored JSON", () => {
+    store.setItem("casino-lord:device-settings", JSON.stringify({ layoutId: "classic" }));
+    expect(loadDeviceSettings(store)).toMatchObject({
+      phoneAnimations: "reduced",
+      shakeSensitivity: "medium",
+    });
+  });
+
+  it("round-trips phoneAnimations and shakeSensitivity", () => {
+    const custom = {
+      ...DEFAULT_DEVICE_SETTINGS,
+      phoneAnimations: "off" as const,
+      shakeSensitivity: "high" as const,
+    };
+    saveDeviceSettings(custom, store);
+    expect(loadDeviceSettings(store)).toEqual(custom);
+  });
 });
