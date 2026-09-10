@@ -8,6 +8,7 @@ import { LocationProvider } from "preact-iso";
 import { DEFAULT_TABLE_SETTINGS, type ResultEnvelope, type TableEvent } from "@casino-lord/core";
 import { createStubModule, STUB_RULES } from "@casino-lord/core/testing";
 import { baccaratModule, DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
+import { rouletteModule, DEFAULT_ROULETTE_RULES } from "@casino-lord/game-roulette";
 import { asUntypedModule } from "../table/module-types.js";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { createTableStore, type TableStore } from "../table/store.js";
@@ -20,6 +21,7 @@ vi.mock("../sync/urls.js", () => ({
 }));
 
 const baccarat = asUntypedModule(baccaratModule);
+const roulette = asUntypedModule(rouletteModule);
 
 const BACCARAT_RESULT = {
   cards: {
@@ -215,18 +217,80 @@ describe("DealerShell virtual panel", () => {
     expect(screen.getByText("NATURAL")).toBeTruthy();
   });
 
-  it("shows empty state before any result", () => {
-    const store = makeVirtualStore();
+  it("shows baccarat empty state before any result", () => {
+    const baseStore = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    const store: TableStore = {
+      ...baseStore,
+      get events() {
+        return virtualBaseEvents();
+      },
+      getComposed: () => ({
+        ...baseStore.getComposed(),
+        platform: {
+          ...baseStore.getComposed().platform,
+          participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
+          currentSeriesResults: [],
+        },
+      }),
+      sendVirtual: vi.fn(),
+      getVirtualStatus: () => ({ awaiting: "trigger" as const }),
+      getVirtualPending: () => null,
+    };
 
     renderDealerShell({
       store,
-      module: asUntypedModule(createStubModule()),
-      rules: STUB_RULES,
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
       deviceSettings: DEFAULT_DEVICE_SETTINGS,
       onDeviceSettingsChange: () => {},
     });
 
     expect(screen.getByTestId("virtual-empty").textContent).toBe("No hands yet — tap DEAL");
+  });
+
+  it("shows roulette empty state before any result", () => {
+    const baseStore = createTableStore({
+      game: "roulette",
+      module: roulette,
+      rules: DEFAULT_ROULETTE_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    const store: TableStore = {
+      ...baseStore,
+      get events() {
+        return virtualBaseEvents();
+      },
+      getComposed: () => ({
+        ...baseStore.getComposed(),
+        platform: {
+          ...baseStore.getComposed().platform,
+          participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
+          currentSeriesResults: [],
+        },
+      }),
+      sendVirtual: vi.fn(),
+      getVirtualStatus: () => ({ awaiting: "trigger" as const }),
+      getVirtualPending: () => null,
+    };
+
+    renderDealerShell({
+      store,
+      module: roulette,
+      rules: DEFAULT_ROULETTE_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    expect(screen.getByTestId("virtual-empty").textContent).toBe("No spins yet — tap SPIN");
   });
 });
 
@@ -274,20 +338,80 @@ describe("DealerShell virtual Force", () => {
     expect(sendVirtual).toHaveBeenCalledWith("force");
   });
 
-  it("uses Force deal fallback when turnPrompt is missing", () => {
-    const store = makeVirtualStore({
-      getVirtualStatus: () => ({ awaiting: "action" as const }),
+  it("uses trigger-specific Force fallback when turnPrompt is missing", () => {
+    const baccaratBase = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
     });
+    const baccaratStore: TableStore = {
+      ...baccaratBase,
+      get events() {
+        return virtualBaseEvents();
+      },
+      getComposed: () => ({
+        ...baccaratBase.getComposed(),
+        platform: {
+          ...baccaratBase.getComposed().platform,
+          participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
+          currentSeriesResults: [],
+        },
+      }),
+      sendVirtual: vi.fn(),
+      getVirtualStatus: () => ({ awaiting: "action" as const }),
+      getVirtualPending: () => null,
+    };
 
     renderDealerShell({
-      store,
-      module: asUntypedModule(createStubModule()),
-      rules: STUB_RULES,
+      store: baccaratStore,
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
       deviceSettings: DEFAULT_DEVICE_SETTINGS,
       onDeviceSettingsChange: () => {},
     });
 
     expect(screen.getByTestId("force-btn").textContent).toBe("Force deal");
+
+    cleanup();
+
+    const rouletteBase = createTableStore({
+      game: "roulette",
+      module: roulette,
+      rules: DEFAULT_ROULETTE_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    const rouletteStore: TableStore = {
+      ...rouletteBase,
+      get events() {
+        return virtualBaseEvents();
+      },
+      getComposed: () => ({
+        ...rouletteBase.getComposed(),
+        platform: {
+          ...rouletteBase.getComposed().platform,
+          participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
+          currentSeriesResults: [],
+        },
+      }),
+      sendVirtual: vi.fn(),
+      getVirtualStatus: () => ({ awaiting: "action" as const }),
+      getVirtualPending: () => null,
+    };
+
+    renderDealerShell({
+      store: rouletteStore,
+      module: roulette,
+      rules: DEFAULT_ROULETTE_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    expect(screen.getByTestId("force-btn").textContent).toBe("Force spin");
   });
 });
 

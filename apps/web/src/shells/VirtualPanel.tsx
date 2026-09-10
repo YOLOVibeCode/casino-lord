@@ -16,6 +16,7 @@ export interface VirtualPanelProps {
   rules: unknown;
   composed: ComposedState<unknown>;
   game: string;
+  triggerLabel: string;
 }
 
 export function VirtualPanel({
@@ -26,6 +27,7 @@ export function VirtualPanel({
   rules,
   composed,
   game,
+  triggerLabel,
 }: VirtualPanelProps) {
   if (virtualPending) {
     const count = countSystemLiveInputsSinceLastResult(events);
@@ -75,7 +77,7 @@ export function VirtualPanel({
   return (
     <div class="dealer-shell__module dealer-shell__virtual-panel">
       <p class="dealer-shell__virtual-empty" data-testid="virtual-empty">
-        No hands yet — tap DEAL
+        No {module.resultLabel.toLowerCase()}s yet — tap {triggerLabel}
       </p>
     </div>
   );

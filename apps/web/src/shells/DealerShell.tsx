@@ -445,7 +445,7 @@ export function DealerShell({
   const forceDisabled = readOnly || !!virtualPending || forceTapped;
   const forceLabel = virtualStatus?.turnPrompt
     ? `Force — skip ${virtualStatus.turnPrompt}`
-    : "Force deal";
+    : `Force ${virtualTriggerLabel.toLowerCase()}`;
 
   const handleConfirmClick = useCallback(() => {
     if (readOnly) return;
@@ -556,6 +556,7 @@ export function DealerShell({
           rules={rules}
           composed={composed}
           game={store.game}
+          triggerLabel={virtualTriggerLabel}
         />
       )}
 
