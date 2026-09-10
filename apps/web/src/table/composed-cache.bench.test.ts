@@ -67,7 +67,11 @@ function seedStoreWithResults(count: number) {
         playerTotal: i % 2 === 0 ? 8 : 5,
         bankerTotal: i % 2 === 0 ? 5 : 8,
       },
-      { id: `result-${i}`, now: `2026-01-01T00:01:${String(i).padStart(2, "0")}.000Z`, quick: true },
+      {
+        id: `result-${i}`,
+        now: `2026-01-01T00:01:${String(i).padStart(2, "0")}.000Z`,
+        quick: true,
+      },
     );
     const event = {
       seq,

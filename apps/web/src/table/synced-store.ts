@@ -498,7 +498,10 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       const prevLen = Number(prevLenStr);
       const prevSeq = Number(prevSeqStr);
       const prevLive = Number(prevLiveStr);
-      const [curLen, curSeq, curLive] = key.split(":").map(Number);
+      const curParts = key.split(":").map(Number);
+      const curLen = curParts[0] ?? 0;
+      const curSeq = curParts[1] ?? 0;
+      const curLive = curParts[2] ?? 0;
       const lastSeq = events.length > 0 ? events[events.length - 1]!.seq : 0;
 
       if (curLive === prevLive && curLive === 0 && curLen > prevLen && lastSeq >= prevSeq) {
