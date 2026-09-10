@@ -429,7 +429,15 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
     lastEventIndexRef.current = events.length;
     betsSnapshotRef.current = new Map(composed.platform.bets.map((b) => [b.id, b]));
-  }, [store.events.length, playerId, module, composed.platform.bets, showToast, store.events, houseBank]);
+  }, [
+    store.events.length,
+    playerId,
+    module,
+    composed.platform.bets,
+    showToast,
+    store.events,
+    houseBank,
+  ]);
 
   useEffect(() => {
     const roundId = settledRound?.id;
@@ -964,7 +972,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       return `BETS OPEN${cd}`;
     }
     if (round?.status === "closed") return "BETS CLOSED";
-    return "Waiting for the dealer to open bets";
+    return "No round yet";
   })();
 
   const isIdle = !openRound && round?.status !== "closed";

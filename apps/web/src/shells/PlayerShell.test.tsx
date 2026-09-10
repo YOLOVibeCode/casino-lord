@@ -1047,7 +1047,8 @@ describe("PlayerShell", () => {
   it("shows idle status and bet slip before first round opens", () => {
     const { store } = setupStore({ roundOpen: false });
     renderPlayerShell({ store, playerName: "Ana" });
-    expect(screen.getByTestId("player-status-bar").textContent).toContain(
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("No round yet");
+    expect(screen.getByTestId("player-betting-hint").textContent).toContain(
       "Waiting for the dealer to open bets",
     );
     expect(screen.getByTestId("bet-slip-idle").textContent).toContain("Bets open soon");
