@@ -72,6 +72,7 @@ interface PlaceBetPayload {
 type FooterTab = "play" | "history" | "leaderboard" | "rules" | "info";
 
 const SETTLEMENT_DISPLAY_MS = 4000;
+const CONNECTION_PILL_DELAY_MS = 2_000;
 const CONNECTION_OFFLINE_DOT_MS = 10_000;
 
 function connectionDotMeta(
@@ -348,6 +349,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const settlementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Partial<Record<FooterTab, HTMLButtonElement | null>>>({});
+  const wasDisconnectedLongEnoughRef = useRef(false);
   const disconnectTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const syncStore = isSyncStore(store) ? store : null;
@@ -442,6 +444,10 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
 
     setNonConnectedMs(0);
     disconnectTimersRef.current.push(
+      setTimeout(() => {
+        setNonConnectedMs(CONNECTION_PILL_DELAY_MS);
+        wasDisconnectedLongEnoughRef.current = true;
+      }, CONNECTION_PILL_DELAY_MS),
       setTimeout(() => {
         setNonConnectedMs(CONNECTION_OFFLINE_DOT_MS);
       }, CONNECTION_OFFLINE_DOT_MS),
@@ -654,6 +660,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const addPending = useCallback(
     (betType: string) => {
       hapticTap();
+      if (!ensureOnlineForBet()) return;
       if (!module || !playerId || !openRound || !me) return;
       const betDef = findBetDef(module.bets, betType);
       if (!betDef) return;
@@ -701,6 +708,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       houseBank,
       showToast,
       hapticTap,
+      ensureOnlineForBet,
     ],
   );
 
@@ -908,9 +916,10 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const handleSelectDenom = useCallback(
     (denom: number) => {
       hapticTap();
+      if (!ensureOnlineForBet()) return;
       setSelectedDenom(denom);
     },
-    [hapticTap],
+    [hapticTap, ensureOnlineForBet],
   );
 
   const getOwnStake = useCallback(
@@ -1077,6 +1086,14 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     connectionState,
     nonConnectedMs,
   );
+  const showConnectionUi =
+    syncStore !== null &&
+    connectionState !== "connected" &&
+    nonConnectedMs >= CONNECTION_PILL_DELAY_MS;
+  const connectionPillText =
+    connectionState === "offline" || nonConnectedMs >= CONNECTION_OFFLINE_DOT_MS
+      ? "Offline — bets can't be placed"
+      : "Reconnecting…";
 
   if (!module) {
     return (
@@ -1186,6 +1203,16 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         </button>
       </header>
 
+      {showConnectionUi && (
+        <div
+          class="player-shell__connection-pill"
+          data-testid="connection-pill"
+          role="status"
+        >
+          {connectionPillText}
+        </div>
+      )}
+
       {houseBank && bankroll === 0 && (
         <p class="player-shell__rebuy" data-testid="player-rebuy-hint">
           Ask the dealer for chips
@@ -1238,7 +1265,10 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         )}
 
         {activeTab === "play" && !sessionEnded && (
-          <>
+          <div
+            class={`player-shell__play-area${showConnectionUi ? " player-shell__tray--disabled" : ""}`}
+            data-testid="player-play-area"
+          >
             <main class="player-shell__main">
               {createElement(PlayerView, {
                 state: composed.module,
@@ -1318,7 +1348,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
                 onPlace={handlePlace}
               />
             </div>
-          </>
+          </div>
         )}
 
         {activeTab === "history" && (

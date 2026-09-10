@@ -1285,5 +1285,50 @@ describe("PlayerShell", () => {
       expect(dot.className).toContain("player-shell__dot--off");
       expect(dot.getAttribute("aria-label")).toBe("Offline");
     });
+
+    it("hides connection pill for the first 2s of reconnecting", () => {
+      vi.useFakeTimers();
+      renderWithConnection("reconnecting");
+      expect(screen.queryByTestId("connection-pill")).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      expect(screen.getByTestId("connection-pill").textContent).toContain("Reconnecting");
+    });
+
+    it("shows offline pill text after 10s non-connected", () => {
+      vi.useFakeTimers();
+      renderWithConnection("reconnecting");
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(screen.getByTestId("connection-pill").textContent).toContain("Offline");
+      expect(screen.getByTestId("connection-pill").textContent).toContain("bets can't be placed");
+    });
+
+    it("dims play area after 2s non-connected", () => {
+      vi.useFakeTimers();
+      renderWithConnection("reconnecting");
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      expect(screen.getByTestId("player-play-area").className).toContain(
+        "player-shell__tray--disabled",
+      );
+    });
+
+    it("toasts offline on chip tap while disconnected", () => {
+      const { store } = setupStore({ getConnectionState: () => "offline" });
+      renderPlayerShell({ store, playerName: "Ana" });
+      fireEvent.click(screen.getByTestId("chip-denom-5"));
+      expect(screen.getByTestId("player-toast").textContent).toContain("Bet not placed — offline");
+    });
+
+    it("toasts offline on felt tap while disconnected", () => {
+      const { store } = setupStore({ getConnectionState: () => "offline" });
+      renderPlayerShell({ store, playerName: "Ana" });
+      tapFeltZone(screen.getByTestId("felt-zone-banker"));
+      expect(screen.getByTestId("player-toast").textContent).toContain("Bet not placed — offline");
+    });
   });
 });
