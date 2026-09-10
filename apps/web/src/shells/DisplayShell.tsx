@@ -346,7 +346,11 @@ export function DisplayShell({
       )}
 
       {historyToast && (
-        <div class="display-shell__toast display-shell__toast--info" data-testid="history-toast" role="alert">
+        <div
+          class="display-shell__toast display-shell__toast--info"
+          data-testid="history-toast"
+          role="alert"
+        >
           {historyToast}
         </div>
       )}

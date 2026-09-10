@@ -387,9 +387,7 @@ describe("SettingsDialog", () => {
     );
 
     expect(screen.getByTestId("participation-locked")).toBeTruthy();
-    const fieldsets = screen
-      .getByTestId("participation-settings")
-      .querySelectorAll("fieldset");
+    const fieldsets = screen.getByTestId("participation-settings").querySelectorAll("fieldset");
     expect(fieldsets.length).toBeGreaterThan(0);
     for (const fieldset of fieldsets) {
       expect(fieldset).toHaveProperty("disabled", true);

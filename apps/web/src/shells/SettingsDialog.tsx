@@ -189,7 +189,10 @@ function ParticipationSettingsForm({
       <h3 class="settings-dialog__section-title">Participation</h3>
       <p class="settings-dialog__hint">Changeable between series only.</p>
       {seriesHasResults && (
-        <p class="settings-dialog__hint settings-dialog__hint--warn" data-testid="participation-locked">
+        <p
+          class="settings-dialog__hint settings-dialog__hint--warn"
+          data-testid="participation-locked"
+        >
           Start a new series to change participation modes (mixed series are not allowed).
         </p>
       )}
