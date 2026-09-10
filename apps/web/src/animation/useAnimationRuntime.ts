@@ -1,4 +1,9 @@
-import { replay, type AnimationTrigger, type TableEvent } from "@casino-lord/core";
+import {
+  replay,
+  type AnimationTrigger,
+  type ComposedState,
+  type TableEvent,
+} from "@casino-lord/core";
 import { derivePlatformAnimations } from "./platform-triggers.js";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { DeviceSettings } from "../settings/device-settings.js";
@@ -211,13 +216,14 @@ export function useAnimationRuntime({
   );
 
   const scheduleForEvent = useCallback(
-    (event: TableEvent, events: readonly TableEvent[]) => {
+    (
+      event: TableEvent,
+      events: readonly TableEvent[],
+      prevComposedHint?: ComposedState<unknown>,
+    ) => {
       if (!enabled || !module) return;
 
-      const tableSettings = replay([...events], module, rules, {
-        code: store.code,
-        includeEphemeral: true,
-      }).platform.settings;
+      const tableSettings = store.getComposed().platform.settings;
 
       const allEventDefs = [...module.animationEvents, ...PLATFORM_ANIMATION_EVENTS];
 
@@ -235,8 +241,9 @@ export function useAnimationRuntime({
       const index = events.findIndex((e) => e.seq === event.seq);
       if (index < 0) return;
 
-      const prevComposed =
-        index === 0
+      const prevComposed: ComposedState<unknown> =
+        prevComposedHint ??
+        (index === 0
           ? {
               module: module.initialState(rules),
               platform: replay([], module, rules, { code: store.code }).platform,
@@ -244,12 +251,15 @@ export function useAnimationRuntime({
           : replay(events.slice(0, index), module, rules, {
               code: store.code,
               includeEphemeral: true,
-            });
+            }));
 
-      const nextComposed = replay(events.slice(0, index + 1), module, rules, {
-        code: store.code,
-        includeEphemeral: true,
-      });
+      const nextComposed: ComposedState<unknown> =
+        index === events.length - 1
+          ? store.getComposed()
+          : replay(events.slice(0, index + 1), module, rules, {
+              code: store.code,
+              includeEphemeral: true,
+            });
 
       const gameTriggers = module.deriveAnimations(prevComposed.module, nextComposed.module, event);
       const platformTriggers = derivePlatformAnimations(prevComposed, nextComposed, event);
@@ -265,7 +275,7 @@ export function useAnimationRuntime({
 
       playTimeline(timeline, prevComposed.module);
     },
-    [enabled, module, phoneMode, playTimeline, rules, store.code],
+    [enabled, module, phoneMode, playTimeline, rules, store],
   );
 
   useEffect(() => {
@@ -285,10 +295,21 @@ export function useAnimationRuntime({
       );
       if (fresh.length === 0) return;
 
+      let prevComposed: ComposedState<unknown> | undefined;
       for (const event of fresh) {
         if (timelineRef.current) finishTimeline();
-        scheduleForEvent(event, events);
+        scheduleForEvent(event, events, prevComposed);
         lastSeenSeq.current = Math.max(lastSeenSeq.current, event.seq);
+
+        const index = events.findIndex((e) => e.seq === event.seq);
+        if (index < 0) continue;
+        prevComposed =
+          index === events.length - 1
+            ? store.getComposed()
+            : replay(events.slice(0, index + 1), module, rules, {
+                code: store.code,
+                includeEphemeral: true,
+              });
       }
     };
 

@@ -1,4 +1,5 @@
 import {
+  applyEvent,
   canUndoResult,
   DEFAULT_TABLE_SETTINGS,
   replay,
@@ -97,7 +98,10 @@ interface StoreInternals {
   seq: number;
 }
 
-function buildStore(internals: StoreInternals): TableStore {
+function buildStore(
+  internals: StoreInternals,
+  initialComposed?: ComposedState<unknown>,
+): TableStore {
   const { code, game, module, rules, listeners, now, id } = internals;
   let { virtualDealer, virtualStatus, virtualPending } = internals;
 
@@ -105,8 +109,40 @@ function buildStore(internals: StoreInternals): TableStore {
     for (const l of listeners) l();
   };
 
-  const getComposed = (): ComposedState<unknown> =>
-    replay(internals.events, module, rules, { code, includeEphemeral: true });
+  const composedCacheKeyFor = (): string => {
+    const evts = internals.events;
+    const lastSeq = evts.length > 0 ? evts[evts.length - 1]!.seq : 0;
+    return `${evts.length}:${lastSeq}`;
+  };
+
+  let composedCache: ComposedState<unknown> | null = initialComposed ?? null;
+  let composedCacheKey = initialComposed ? composedCacheKeyFor() : "";
+
+  const getComposed = (): ComposedState<unknown> => {
+    const key = composedCacheKeyFor();
+    if (key === composedCacheKey && composedCache) return composedCache;
+
+    const evts = internals.events;
+    if (composedCache && composedCacheKey) {
+      const [prevLenStr, prevSeqStr] = composedCacheKey.split(":");
+      const prevLen = Number(prevLenStr);
+      const prevSeq = Number(prevSeqStr);
+      const lastSeq = evts.length > 0 ? evts[evts.length - 1]!.seq : 0;
+      if (evts.length > prevLen && lastSeq >= prevSeq) {
+        let state = composedCache;
+        for (let i = prevLen; i < evts.length; i++) {
+          state = applyEvent(state, evts[i]!, module, rules);
+        }
+        composedCache = state;
+        composedCacheKey = key;
+        return composedCache;
+      }
+    }
+
+    composedCache = replay(evts, module, rules, { code, includeEphemeral: true });
+    composedCacheKey = key;
+    return composedCache;
+  };
 
   const getRules = (): unknown => {
     const composed = getComposed();
@@ -449,7 +485,7 @@ export function reopenTableStore(input: {
     seq,
   };
 
-  return buildStore(internals);
+  return buildStore(internals, composed);
 }
 
 export function composedStateFingerprint(store: TableStore): string {

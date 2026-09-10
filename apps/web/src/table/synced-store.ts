@@ -1,4 +1,5 @@
 import {
+  applyEvent,
   canUndoResult,
   replay,
   resolveEffectiveRules,
@@ -478,8 +479,60 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     return list;
   };
 
-  const getComposed = (): ComposedState<unknown> =>
-    replay(getEventsForReplay(), module, rules, { code, includeEphemeral: true });
+  let composedCache: ComposedState<unknown> | null = null;
+  let composedCacheKey = "";
+
+  const composedCacheKeyFor = (): string => {
+    const lastSeq = events.length > 0 ? events[events.length - 1]!.seq : 0;
+    const liveSeq = liveInput?.seq ?? 0;
+    return `${events.length}:${lastSeq}:${liveSeq}`;
+  };
+
+  const getComposed = (): ComposedState<unknown> => {
+    const key = composedCacheKeyFor();
+    if (key === composedCacheKey && composedCache) return composedCache;
+
+    const replayEvents = getEventsForReplay();
+    if (composedCache && composedCacheKey) {
+      const [prevLenStr, prevSeqStr, prevLiveStr] = composedCacheKey.split(":");
+      const prevLen = Number(prevLenStr);
+      const prevSeq = Number(prevSeqStr);
+      const prevLive = Number(prevLiveStr);
+      const [curLen, curSeq, curLive] = key.split(":").map(Number);
+      const lastSeq = events.length > 0 ? events[events.length - 1]!.seq : 0;
+
+      if (curLive === prevLive && curLive === 0 && curLen > prevLen && lastSeq >= prevSeq) {
+        let state = composedCache;
+        for (let i = prevLen; i < events.length; i++) {
+          state = applyEvent(state, events[i]!, module, rules);
+        }
+        composedCache = state;
+        composedCacheKey = key;
+        return composedCache;
+      }
+
+      if (
+        curLive === prevLive &&
+        curLive > 0 &&
+        curLen === prevLen &&
+        curSeq === prevSeq &&
+        liveInput
+      ) {
+        composedCache = applyEvent(
+          replay(events, module, rules, { code, includeEphemeral: true }),
+          liveInput,
+          module,
+          rules,
+        );
+        composedCacheKey = key;
+        return composedCache;
+      }
+    }
+
+    composedCache = replay(replayEvents, module, rules, { code, includeEphemeral: true });
+    composedCacheKey = key;
+    return composedCache;
+  };
 
   const getRules = (): unknown => {
     const composed = getComposed();
