@@ -4,17 +4,55 @@
   align-items: center;
   gap: 0.5rem 1rem;
   width: 100%;
-  min-height: 48px;
+  min-height: 56px;
   padding: 0.625rem 1rem;
-  border: none;
   border-bottom: 1px solid var(--gold-hairline);
   background: rgba(212, 175, 55, 0.08);
   color: var(--text-primary);
   font: inherit;
   font-size: max(1rem, 16px);
-  cursor: pointer;
   text-align: left;
   flex-shrink: 0;
+}
+
+.betting-bar__toggle {
+  min-height: 56px;
+  min-width: 8rem;
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--gold-hairline);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: max(0.9375rem, 15px);
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.betting-bar__toggle--open {
+  border-color: #4caf50;
+  background: rgba(76, 175, 80, 0.15);
+  color: #a5d6a7;
+}
+
+.betting-bar__toggle--closed {
+  border-color: #ff9800;
+  background: rgba(255, 152, 0, 0.12);
+  color: #ffcc80;
+}
+
+.betting-bar__toggle--idle {
+  border-color: var(--accent, #c9a227);
+  background: rgba(212, 175, 55, 0.15);
+  color: var(--accent, #c9a227);
+}
+
+.betting-bar__info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
 }
 
 .betting-bar__status {
@@ -22,8 +60,26 @@
   color: var(--accent, #c9a227);
 }
 
+.betting-bar__friendly {
+  opacity: 0.9;
+}
+
 .betting-bar__countdown {
   opacity: 0.85;
+}
+
+.betting-bar__zones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  width: 100%;
+}
+
+.betting-bar__legend {
+  width: 100%;
+  font-size: max(0.8125rem, 13px);
+  opacity: 0.7;
 }
 
 .betting-bar__side {

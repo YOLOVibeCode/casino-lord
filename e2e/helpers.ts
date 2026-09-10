@@ -142,7 +142,7 @@ export async function openBets(dealerPage: Page): Promise<void> {
   const status = bar.locator(".betting-bar__status");
   const text = (await status.textContent()) ?? "";
   if (!text.includes("BETS OPEN")) {
-    await bar.click();
+    await bar.getByTestId("betting-toggle-btn").click();
     await status.filter({ hasText: "BETS OPEN" }).waitFor({ timeout: 5_000 });
   }
 }
@@ -152,7 +152,7 @@ export async function closeBetsIfOpen(dealerPage: Page): Promise<void> {
   const status = bar.locator(".betting-bar__status");
   const text = (await status.textContent()) ?? "";
   if (text.includes("BETS OPEN")) {
-    await bar.click();
+    await bar.getByTestId("betting-toggle-btn").click();
     await status.filter({ hasText: /NO MORE BETS|BETS — idle/ }).waitFor({ timeout: 5_000 });
   }
 }

@@ -39,7 +39,7 @@ describe("BettingBar", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("betting-bar"));
+    fireEvent.click(screen.getByTestId("betting-toggle-btn"));
     expect(store.events.some((e) => e.type === "BETS_OPENED")).toBe(true);
   });
 
@@ -72,7 +72,7 @@ describe("BettingBar", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("betting-bar"));
+    fireEvent.click(screen.getByTestId("betting-toggle-btn"));
     vi.advanceTimersByTime(5000);
     const closed = store.events.find((e) => e.type === "BETS_CLOSED");
     expect(closed?.type).toBe("BETS_CLOSED");
