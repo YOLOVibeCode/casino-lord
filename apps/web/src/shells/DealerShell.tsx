@@ -6,13 +6,15 @@ import type { UntypedGameModule } from "../table/module-types.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
 import { tapHaptic } from "../settings/haptics.js";
 import { useBettingRound } from "../betting/use-betting-round.js";
+import { fetchTableExport } from "../sync/api.js";
+import { getSyncBaseUrl } from "../sync/config.js";
 import { QrDialog } from "../sync/QrDialog.js";
 import { tableUrl } from "../sync/urls.js";
 import { isSyncStore } from "../table/sync-store-types.js";
 import type { TableStore } from "../table/store.js";
 import { useStore } from "../hooks/use-store.js";
-import { buildExportText } from "../table/export.js";
-import { countSeries, currentSeriesCommit, currentSeriesStartedAt } from "../table/meta.js";
+import { buildExportText, buildSeriesFromStoreEvents } from "../table/export.js";
+import { currentSeriesCommit } from "../table/meta.js";
 import { BankPanel } from "./BankPanel.js";
 import { BettingBar } from "./BettingBar.js";
 import { SettingsDialog } from "./SettingsDialog.js";
@@ -219,36 +221,42 @@ export function DealerShell({
     : undefined;
 
   const handleExport = async () => {
-    const results =
-      (composed.module as { results?: { id: string; data: unknown }[] }).results ?? [];
-    const series = {
-      id: composed.platform.currentSeriesId ?? "local",
-      number: countSeries([...store.events]),
-      startedAt: currentSeriesStartedAt([...store.events]),
-      results: results.map((r, i) => ({
-        id: r.id,
-        index: i,
-        recordedAt:
-          store.events.find((e) => e.type === "RESULT_RECORDED" && e.result.id === r.id)?.at ?? "",
-        quick: false,
-        source: "physical" as const,
-        by: "dealer" as const,
-        data: r.data,
-      })),
-      rounds: [],
-    };
-    const text = buildExportText({
-      game: store.game,
-      code: store.code,
-      seriesNumber: table.seriesNumber,
-      seriesStartedAt: series.startedAt,
-      source: "physical",
-      rules,
-      module,
-      series,
-    });
-    await navigator.clipboard.writeText(text);
-    setMenuOpen(false);
+    try {
+      let text: string;
+      const syncStore = isSyncStore(store) ? store : null;
+      const dealerToken = syncStore?.getDealerToken() ?? null;
+
+      if (syncStore && dealerToken) {
+        text = await fetchTableExport(
+          getSyncBaseUrl(),
+          store.code,
+          table.seriesNumber,
+          dealerToken,
+        );
+      } else {
+        const series = buildSeriesFromStoreEvents(store.events, table.seriesNumber);
+        if (!series) {
+          showToast("No series to export", "error");
+          return;
+        }
+        const outcomeSource = composed.platform.participation.outcomeSource;
+        text = buildExportText({
+          game: store.game,
+          code: store.code,
+          seriesNumber: table.seriesNumber,
+          seriesStartedAt: series.startedAt,
+          source: outcomeSource,
+          rules,
+          module,
+          series,
+        });
+      }
+
+      await navigator.clipboard.writeText(text);
+      setMenuOpen(false);
+    } catch {
+      showToast("Export failed", "error");
+    }
   };
 
   const handleImport = () => {
@@ -484,6 +492,14 @@ export function DealerShell({
                 <button type="button" onClick={() => void handleExport()}>
                   Export
                 </button>
+                {virtualTable && (
+                  <a
+                    href={tableUrl(`/verify?code=${store.code}`)}
+                    data-testid="menu-export-verify"
+                  >
+                    Verify export
+                  </a>
+                )}
                 <button type="button" onClick={handleImport}>
                   Import
                 </button>
