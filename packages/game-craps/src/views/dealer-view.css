@@ -7,9 +7,23 @@
 
 .dealer-view__header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
   font-size: 0.875rem;
   font-weight: 600;
+}
+
+.dealer-view__header-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+}
+
+.dealer-view__shooter-name {
+  color: var(--craps-cream);
 }
 
 .dealer-view__puck {
