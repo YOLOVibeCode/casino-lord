@@ -13,6 +13,8 @@ import { io, type Socket } from "socket.io-client";
 import { newClientId } from "../sync/client-id.js";
 import { saveDealerToken } from "../sync/dealer-token.js";
 import { savePlayerToken } from "../sync/player-token.js";
+import { SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
+import { getGame } from "./games.js";
 import { buildTableMeta } from "./meta.js";
 import type { UntypedGameModule } from "./module-types.js";
 import { enqueueOfflineEvent, peekOfflineQueue, shiftOfflineQueue } from "./offline-queue.js";
@@ -39,12 +41,21 @@ export interface CreateSyncedStoreOptions {
   role: "dealer" | "display" | "player";
   token?: string;
   syncUrl: string;
-  module: UntypedGameModule;
-  rules: unknown;
+  resolveModule?: (game: GameId) => UntypedGameModule;
+  rules?: unknown;
   takeover?: boolean;
   now?: () => string;
   id?: () => string;
   onJoinError?: (code: string) => void;
+  onReject?: (reason: string) => void;
+}
+
+function defaultResolveModule(game: GameId): UntypedGameModule {
+  const entry = getGame(game);
+  if (!entry?.module) {
+    throw new Error(`Unsupported game: ${game}`);
+  }
+  return entry.module;
 }
 
 function defaultNow(): string {
@@ -97,15 +108,18 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     code,
     role,
     syncUrl,
-    module,
-    rules,
+    resolveModule = defaultResolveModule,
     takeover = false,
     now = defaultNow,
     id = defaultId,
     onJoinError,
+    onReject,
   } = options;
   const token = options.token;
+  const rulesExplicit = options.rules !== undefined;
   let game: GameId = "baccarat";
+  let module = resolveModule(game);
+  let rules: unknown = rulesExplicit ? options.rules : module.defaultRules;
 
   const listeners = new Set<Listener>();
   const events: TableEvent[] = [];
@@ -124,8 +138,31 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   let virtualStatus: VirtualStatus | null = null;
   let virtualPending: VirtualPendingState | null = null;
 
+  let cachedComposed: ComposedState<unknown> | null = null;
+  let composedCacheKey = "";
+
+  const invalidateComposedCache = (): void => {
+    cachedComposed = null;
+    composedCacheKey = "";
+  };
+
+  const applyModuleForGame = (next: GameId): void => {
+    game = next;
+    module = resolveModule(next);
+    if (!rulesExplicit) {
+      rules = module.defaultRules;
+    }
+    invalidateComposedCache();
+  };
+
   const notify = (): void => {
     for (const l of listeners) l();
+  };
+
+  const setReject = (reason: string): void => {
+    rejectReason = reason;
+    onReject?.(reason);
+    notify();
   };
 
   const setConnectionState = (state: ConnectionState): void => {
@@ -234,6 +271,11 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     applyOptimistic(body, clientId);
 
     if (!isOnline()) {
+      if (role === "player") {
+        rollbackPending(clientId);
+        setReject("OFFLINE");
+        return;
+      }
       await enqueueOfflineEvent(code, { clientId, event: body });
       persist();
       return;
@@ -297,7 +339,9 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     clearOfflineTimer();
     setConnectionState("connected");
 
-    if (typeof msg.game === "string") game = msg.game as GameId;
+    if (typeof msg.game === "string") {
+      applyModuleForGame(msg.game as GameId);
+    }
 
     if (Array.isArray(msg.snapshot)) {
       applyServerEvents(msg.snapshot as TableEvent[], true);
@@ -419,8 +463,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       if (typeof msg.clientId === "string") {
         rollbackPending(msg.clientId);
       }
-      rejectReason = String(msg.reason ?? "rejected");
-      notify();
+      setReject(String(msg.reason ?? "rejected"));
       return;
     }
 
@@ -467,7 +510,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       if (stored && stored.events.length > 0 && events.length === 0) {
         invalidateComposedCache();
         events.push(...stored.events);
-        game = stored.game;
+        applyModuleForGame(stored.game);
         recomputeLatestSeq();
         notify();
       }
@@ -486,15 +529,8 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     return list;
   };
 
-  let cachedComposed: ComposedState<unknown> | null = null;
-  let composedCacheKey = "";
-
-  const invalidateComposedCache = (): void => {
-    cachedComposed = null;
-    composedCacheKey = "";
-  };
-
-  const composedCacheKeyFor = (): string => `${events.length}:${latestSeq}:${liveInput?.seq ?? 0}`;
+  const composedCacheKeyFor = (): string =>
+    `${game}:${events.length}:${latestSeq}:${liveInput?.seq ?? 0}`;
 
   const getComposed = (): ComposedState<unknown> => {
     const key = composedCacheKeyFor();
@@ -567,6 +603,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     getComposed,
     getRules,
     getTableMeta,
+    getModule: () => module,
     emit: emitLive,
     record,
     canUndoLastResult,
@@ -650,7 +687,7 @@ export function waitForSyncReady(store: SyncStore, timeoutMs = 8000): Promise<vo
     }
     const timer = setTimeout(() => {
       unsub();
-      reject(new Error("sync join timeout"));
+      reject(new Error(SYNC_JOIN_TIMEOUT));
     }, timeoutMs);
     const unsub = store.subscribe(() => {
       const err = store.getRejectReason();

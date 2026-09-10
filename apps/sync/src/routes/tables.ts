@@ -106,6 +106,11 @@ export function registerTableRoutes(
     const meta = buildTableMeta(composed, [...table.allEvents], module, composed.module);
     const presence = table.presence();
     const playerCount = composed.platform.players.filter((p) => p.status === "active").length;
+    const activeColors = composed.platform.players
+      .filter((p) => p.status !== "removed")
+      .map((p) => p.color);
+    const pendingColors = registry.pendingPayload(code).map((p) => p.color);
+    const takenColors = [...new Set([...activeColors, ...pendingColors])];
 
     return reply.send({
       exists: true,
@@ -117,6 +122,7 @@ export function registerTableRoutes(
       players: playerCount,
       dealerConnected: presence.dealers > 0,
       joiningOpen: composed.platform.settings.players.joiningOpen,
+      takenColors,
     });
   });
 

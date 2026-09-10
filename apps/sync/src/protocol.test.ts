@@ -14,8 +14,8 @@ import {
 
 interface JoinedMessage {
   op: "joined";
-  events?: Array<{ seq: number }>;
-  snapshot?: Array<{ seq: number }>;
+  events?: Array<{ seq: number; type?: string }>;
+  snapshot?: Array<{ seq: number; type?: string }>;
 }
 
 const servers: Array<Awaited<ReturnType<typeof startTestServer>>> = [];
@@ -264,6 +264,76 @@ describe("sync protocol", () => {
     expect(reject.reason).toBe("SESSION_ENDED");
 
     dealer.close();
+  });
+
+  it("allows read-only display and player joins after SESSION_ENDED", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createPlayerModeTable(server.url);
+    const joined = await joinPlayerViaRest(server.url, code, {
+      name: "Ana",
+      color: PLAYER_COLORS[0]!,
+    });
+
+    const dealer = connectClient(server.url);
+    await new Promise<void>((resolve) => dealer.on("connect", () => resolve()));
+    dealer.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
+    await waitForMessage(dealer, (m) => m.op === "joined");
+
+    dealer.emit("message", { op: "event", clientId: "end", event: { type: "SESSION_ENDED" } });
+    await waitForMessage(dealer, (m) => m.op === "ack");
+    dealer.close();
+
+    const display = connectClient(server.url);
+    await new Promise<void>((resolve) => display.on("connect", () => resolve()));
+    display.emit("message", { op: "join", code, role: "display" });
+    const displayJoined = await waitForMessage<JoinedMessage>(display, (m) => m.op === "joined");
+    const snapshotTypes = (displayJoined.snapshot ?? []).map((e) => e.type);
+    expect(snapshotTypes).toContain("SESSION_ENDED");
+
+    const player = connectClient(server.url);
+    await new Promise<void>((resolve) => player.on("connect", () => resolve()));
+    player.emit("message", {
+      op: "join",
+      code,
+      role: "player",
+      token: joined.playerToken,
+    });
+    const playerJoined = await waitForMessage<{ op: string; playerId?: string }>(
+      player,
+      (m) => m.op === "joined",
+    );
+    expect(playerJoined.playerId).toBe(joined.playerId);
+
+    player.emit("message", {
+      op: "event",
+      clientId: "bet-after-end",
+      event: {
+        type: "BET_PLACED",
+        bet: {
+          id: "b-after",
+          playerId: joined.playerId,
+          roundId: "r1",
+          type: "banker",
+          amount: 100,
+          declared: true,
+          working: true,
+          placedAt: new Date().toISOString(),
+          originRoundId: "r1",
+        },
+      },
+    });
+    const playerReject = await waitForMessage(player, (m) => m.op === "reject");
+    expect(playerReject.reason).toBe("SESSION_ENDED");
+
+    const dealerRetry = connectClient(server.url);
+    await new Promise<void>((resolve) => dealerRetry.on("connect", () => resolve()));
+    dealerRetry.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
+    const dealerErr = await waitForMessage(dealerRetry, (m) => m.op === "error");
+    expect(dealerErr.code).toBe("SESSION_ENDED");
+
+    display.close();
+    player.close();
+    dealerRetry.close();
   });
 
   it("creates a craps table via POST /tables", async () => {

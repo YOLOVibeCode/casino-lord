@@ -4,8 +4,10 @@ import { normalizeTableCode } from "@casino-lord/core";
 import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { DisplayShell } from "../shells/DisplayShell.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
+import { SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
 import { tableUrl } from "../sync/urls.js";
 import { getGame } from "../table/games.js";
+import type { UntypedGameModule } from "../table/module-types.js";
 import { createSyncedTableStore, waitForSyncReady } from "../table/synced-store.js";
 import type { SyncStore } from "../table/sync-store-types.js";
 import "./display-page.css";
@@ -17,6 +19,8 @@ export function DisplayPage(_props: { path?: string }) {
   const [store, setStore] = useState<SyncStore | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [offlineJoin, setOfflineJoin] = useState(false);
+  const [connectAttempt, setConnectAttempt] = useState(0);
   const [deviceSettings, setDeviceSettings] = useDeviceSettings();
 
   useEffect(() => {
@@ -26,22 +30,24 @@ export function DisplayPage(_props: { path?: string }) {
       return;
     }
 
-    const entry = getGame("baccarat");
-    if (!entry?.module) {
-      setError("UNSUPPORTED_GAME");
-      setLoading(false);
-      return;
-    }
+    const resolveModule = (g: import("@casino-lord/core").GameId): UntypedGameModule => {
+      const entry = getGame(g);
+      if (!entry?.module) throw new Error("UNSUPPORTED_GAME");
+      return entry.module;
+    };
 
     let destroyed = false;
     let syncStore: SyncStore | null = null;
+
+    setOfflineJoin(false);
+    setError(null);
+    setLoading(true);
 
     syncStore = createSyncedTableStore({
       code,
       role: "display",
       syncUrl: getSyncBaseUrl(),
-      module: entry.module,
-      rules: entry.module.defaultRules,
+      resolveModule,
       onJoinError: (errCode) => {
         if (!destroyed) {
           setError(errCode);
@@ -54,31 +60,47 @@ export function DisplayPage(_props: { path?: string }) {
       .then(() => {
         if (!destroyed) {
           setStore(syncStore);
+          setOfflineJoin(false);
           setLoading(false);
         }
       })
       .catch((err: Error) => {
-        if (!destroyed) {
-          setError(err.message);
+        if (destroyed) return;
+        if (err.message === SYNC_JOIN_TIMEOUT && syncStore && syncStore.events.length > 0) {
+          setStore(syncStore);
+          setOfflineJoin(true);
           setLoading(false);
+          return;
         }
+        setError(err.message);
+        setLoading(false);
       });
 
     return () => {
       destroyed = true;
       syncStore?.destroy();
     };
-  }, [code]);
+  }, [code, connectAttempt]);
 
   useEffect(() => {
-    if (!loading && (error || !store)) {
-      route(`/sync-error?reason=${encodeURIComponent(error ?? "NOT_FOUND")}`);
+    if (loading || offlineJoin) return;
+    if (store && !error) return;
+    if (error) {
+      route(
+        `/sync-error?reason=${encodeURIComponent(error)}&code=${encodeURIComponent(code)}&role=display`,
+      );
     }
-  }, [error, loading, store, route]);
+  }, [error, loading, store, route, code, offlineJoin]);
 
-  // Re-render on presence/connection changes so the waiting banner tracks the store.
   const [, setTick] = useState(0);
   useEffect(() => store?.subscribe(() => setTick((n) => n + 1)), [store]);
+
+  const handleRetryConnect = (): void => {
+    store?.destroy();
+    setStore(null);
+    setOfflineJoin(false);
+    setConnectAttempt((n) => n + 1);
+  };
 
   if (!isSyncConfigured()) {
     return (
@@ -105,22 +127,21 @@ export function DisplayPage(_props: { path?: string }) {
     );
   }
 
-  const entry = getGame(store.game);
-  if (!entry?.module) return null;
-
-  const waitingForDealer = store.getPresence().dealers === 0;
   const displayQrUrl = tableUrl(`/display/${code}`);
 
   return (
     <main class="display-page">
-      {waitingForDealer && (
-        <div class="display-page__waiting" data-testid="waiting-for-dealer">
-          Waiting for dealer
+      {offlineJoin && (
+        <div class="display-page__waiting" data-testid="reconnect-bar">
+          Reconnecting… ·{" "}
+          <button type="button" onClick={handleRetryConnect}>
+            Retry
+          </button>
         </div>
       )}
       <DisplayShell
         store={store}
-        module={entry.module}
+        module={store.getModule()}
         rules={store.getRules()}
         deviceSettings={deviceSettings}
         displayQrUrl={displayQrUrl}

@@ -126,6 +126,26 @@
   justify-content: center;
 }
 
+.dealer-shell__tool-btn--labeled {
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 56px;
+  min-height: 56px;
+  padding: 0.25rem 0.375rem;
+  font-size: 0.6875rem;
+}
+
+.dealer-shell__tool-icon {
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+.dealer-shell__tool-label {
+  font-size: max(0.6875rem, 11px);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
 .dealer-shell__tool-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -134,6 +154,13 @@
 .dealer-shell__menu {
   position: relative;
   margin-left: auto;
+}
+
+.dealer-shell__menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+  background: rgba(0, 0, 0, 0.45);
 }
 
 .dealer-shell__menu-panel {
@@ -147,6 +174,7 @@
   border-radius: 8px;
   padding: 0.5rem 0;
   z-index: 20;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
 }
 
 .dealer-shell__menu-panel button {
@@ -163,6 +191,14 @@
 .dealer-shell__menu-panel button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.dealer-shell__menu-panel a {
+  display: block;
+  padding: 0.75rem 1rem;
+  min-height: 48px;
+  color: var(--text-primary);
+  text-decoration: none;
 }
 
 .dealer-shell__actions {

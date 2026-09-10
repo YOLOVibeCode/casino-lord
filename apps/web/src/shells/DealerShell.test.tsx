@@ -29,8 +29,7 @@ function renderDealerShell(props: Parameters<typeof DealerShell>[0]) {
 }
 
 function openDealerMenu(): void {
-  const menuBtn = screen.getByTestId("dealer-shell").querySelector(".dealer-shell__menu button");
-  fireEvent.click(menuBtn!);
+  fireEvent.click(screen.getByTestId("menu-btn"));
 }
 
 describe("DealerShell", () => {

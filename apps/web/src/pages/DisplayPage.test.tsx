@@ -4,8 +4,9 @@
 import "fake-indexeddb/auto";
 import { cleanup, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createStubModule, STUB_RULES } from "@casino-lord/core/testing";
+import { createStubModule, houseSettings, STUB_RULES } from "@casino-lord/core/testing";
 import { LocationProvider, Router } from "preact-iso";
+import { SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
@@ -21,15 +22,30 @@ vi.mock("../sync/config.js", () => ({
   getSyncBaseUrl: () => "http://127.0.0.1:3000",
 }));
 
+vi.mock("../sync/urls.js", () => ({
+  tableUrl: (path: string) => `http://127.0.0.1:3000${path}`,
+}));
+
+const route = vi.fn();
+vi.mock("preact-iso", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("preact-iso")>();
+  return {
+    ...orig,
+    useLocation: () => ({ route }),
+  };
+});
+
 vi.mock("../hooks/use-device-settings.js", () => ({
   useDeviceSettings: () => [DEFAULT_DEVICE_SETTINGS, vi.fn()],
 }));
 
-let presence = { dealers: 0, displays: 1 };
+let presence = { dealers: 0, displays: 1, players: [] as { id: string; connected: boolean }[] };
+let waitForResult: Error | null = null;
+let withLocalLog = false;
 const listeners = new Set<() => void>();
 
 function setPresence(next: { dealers: number; displays: number }): void {
-  presence = next;
+  presence = { ...next, players: [] };
   for (const l of listeners) l();
 }
 
@@ -43,6 +59,15 @@ function mockSyncStore(): SyncStore {
     now: () => "2026-01-01T00:00:00.000Z",
     id: () => "s1",
   });
+  if (withLocalLog) {
+    const settings = houseSettings();
+    store.emit({
+      type: "TABLE_CREATED",
+      game: "baccarat",
+      participation: settings.participation,
+      settings,
+    });
+  }
   return Object.assign(store, {
     subscribe: (listener: () => void) => {
       listeners.add(listener);
@@ -53,18 +78,20 @@ function mockSyncStore(): SyncStore {
     isReadOnly: () => false,
     getRejectReason: () => null,
     takeover: () => undefined,
-    destroy: () => undefined,
+    destroy: vi.fn(),
     getDealerToken: () => null,
+    getModule: () => module,
   });
 }
 
 vi.mock("../table/synced-store.js", () => ({
   createSyncedTableStore: () => mockSyncStore(),
-  waitForSyncReady: () => Promise.resolve(),
+  waitForSyncReady: () => (waitForResult ? Promise.reject(waitForResult) : Promise.resolve()),
 }));
 
 function renderPage(path: string) {
   window.history.replaceState({}, "", path);
+  route.mockClear();
   return render(
     <LocationProvider>
       <Router>
@@ -75,25 +102,29 @@ function renderPage(path: string) {
 }
 
 describe("DisplayPage", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    waitForResult = null;
+    withLocalLog = false;
+    setPresence({ dealers: 0, displays: 1 });
+  });
 
-  it("renders display shell and waiting-for-dealer hint", async () => {
+  it("renders display shell when sync store connects", async () => {
     renderPage("/display/ABCD23");
     await vi.waitFor(() => {
       expect(screen.getByTestId("display-shell")).toBeTruthy();
-      expect(screen.getByTestId("waiting-for-dealer")).toBeTruthy();
     });
+    expect(screen.queryByTestId("waiting-for-dealer")).toBeNull();
   });
 
-  it("hides the waiting hint once presence reports a dealer", async () => {
-    setPresence({ dealers: 0, displays: 1 });
+  it("renders shell with reconnect bar on join timeout when local log exists", async () => {
+    waitForResult = new Error(SYNC_JOIN_TIMEOUT);
+    withLocalLog = true;
     renderPage("/display/ABCD23");
     await vi.waitFor(() => {
-      expect(screen.getByTestId("waiting-for-dealer")).toBeTruthy();
+      expect(screen.getByTestId("display-shell")).toBeTruthy();
+      expect(screen.getByTestId("reconnect-bar")).toBeTruthy();
     });
-    setPresence({ dealers: 1, displays: 1 });
-    await vi.waitFor(() => {
-      expect(screen.queryByTestId("waiting-for-dealer")).toBeNull();
-    });
+    expect(route).not.toHaveBeenCalledWith(expect.stringContaining("/sync-error"));
   });
 });

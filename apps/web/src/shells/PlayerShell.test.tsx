@@ -53,6 +53,11 @@ function asSyncStore(
   } as SyncStore;
 }
 
+function tapFeltZone(zone: Element): void {
+  fireEvent.pointerDown(zone, { pointerId: 1 });
+  fireEvent.pointerUp(zone, { pointerId: 1 });
+}
+
 describe("PlayerShell", () => {
   afterEach(() => cleanup());
 
@@ -111,6 +116,131 @@ describe("PlayerShell", () => {
     const { store } = setupStore();
     renderPlayerShell({ store, playerName: "Ana" });
     expect(screen.getByTestId("baccarat-player-view")).toBeTruthy();
+  });
+
+  it("shows balance label in header", () => {
+    const { store } = setupStore({ bankroll: 500 });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    const bank = screen.getByTestId("player-bankroll");
+    expect(bank.textContent).toContain("Balance");
+    expect(bank.textContent).toContain("500");
+    expect(bank.getAttribute("aria-label")).toBe("Balance 500 chips");
+  });
+
+  it("shows betting hint when round open with empty slip", () => {
+    const { store } = setupStore();
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("player-betting-hint").textContent).toContain(
+      "Tap a zone to stake 5",
+    );
+  });
+
+  it("shows betting hint when round open with pending bets", () => {
+    const { store } = setupStore();
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("chip-denom-25"));
+    tapFeltZone(screen.getByTestId("felt-zone-banker"));
+    expect(screen.getByTestId("player-betting-hint").textContent).toContain("Tap PLACE to confirm");
+  });
+
+  it("shows idle betting hint when no round is open", () => {
+    const { store } = setupStore({ roundOpen: false });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("player-betting-hint").textContent).toContain(
+      "Waiting for the dealer to open bets",
+    );
+  });
+
+  it("shows closed betting hint when round is closed", () => {
+    const { store } = setupStore();
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("player-betting-hint").textContent).toContain("Bets closed");
+  });
+
+  it("shows PLACE label with remaining balance", () => {
+    const { store } = setupStore({ bankroll: 500 });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("chip-denom-25"));
+    tapFeltZone(screen.getByTestId("felt-zone-banker"));
+    expect(screen.getByTestId("bet-slip-place").textContent).toContain("PLACE 25 · 475 left");
+  });
+
+  it("shows disabled reason when pending stake exceeds bankroll", () => {
+    const { store } = setupStore({ bankroll: 500 });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("chip-denom-100"));
+    tapFeltZone(screen.getByTestId("felt-zone-banker"));
+    act(() => {
+      store.emit({ type: "BANK_ADJUSTED", playerId: "p1", delta: -450, reason: "correction" });
+    });
+    expect(screen.getByTestId("bet-slip-place-reason").textContent).toContain("Insufficient");
+  });
+
+  it("shows success toast after BET_PLACED is in the log", async () => {
+    const { store } = setupStore({ bankroll: 500 });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("chip-denom-25"));
+    tapFeltZone(screen.getByTestId("felt-zone-banker"));
+    fireEvent.click(screen.getByTestId("bet-slip-place"));
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("player-toast").textContent).toContain("Bet placed — 25 on BANKER");
+    });
+  });
+
+  it("shows bet removed toast after removing placed bet", async () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 25,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("bet-slip-remove-b1"));
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("player-toast").textContent).toContain("Bet removed");
+    });
+  });
+
+  it("disables chip tray and felt when bets closed", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 25,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("chip-tray").getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByTestId("felt-zone-banker").getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByTestId("felt-zone-you-banker").textContent).toBe("you");
+    expect(screen.getByTestId("bet-slip-locked")).toBeTruthy();
+  });
+
+  it("footer tabs have aria-label and title", () => {
+    const { store } = setupStore();
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTitle("History")).toBeTruthy();
+    expect(screen.getByTitle("Rules")).toBeTruthy();
+    expect(screen.getByTitle("Information")).toBeTruthy();
   });
 
   it("PLACE emits BET_PLACED with roundId", () => {
@@ -966,5 +1096,84 @@ describe("PlayerShell", () => {
     store.record({ pocket: 17 }, { quick: true });
     renderPlayerShell({ store, playerName: "Ana" });
     expect(screen.getByTestId("player-status-bar").textContent).toContain("17 Black");
+  });
+
+  it("craps settlement status uses roll description", () => {
+    const { store } = setupGameStore("craps");
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "pass",
+        amount: 100,
+        declared: false,
+        working: true,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record({ a: 6, b: 1, total: 7, hard: null }, { quick: true });
+    renderPlayerShell({ store, playerName: "Ana" });
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("6-1 — natural");
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("+100");
+  });
+
+  it("blackjack settlement status uses round description", () => {
+    const { store } = setupGameStore("blackjack", { playerSeat: 1 });
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "main",
+        target: { seat: 1 },
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        dealer: { cards: [], total: 20, bust: false, blackjack: false },
+        seats: {
+          1: [
+            {
+              cards: [],
+              doubled: false,
+              fromSplit: false,
+              surrendered: false,
+              outcome: "win",
+            },
+          ],
+        },
+        depth: "outcomes",
+        dealerError: false,
+      },
+      { quick: true },
+    );
+    renderPlayerShell({ store, playerName: "Ana" });
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("Dealer 20");
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("+100");
+  });
+
+  it("footer arrow keys move between tabs", () => {
+    const { store } = setupStore();
+    renderPlayerShell({ store, playerName: "Ana" });
+    const tablist = screen.getByRole("tablist", { name: "Player sections" });
+    fireEvent.keyDown(tablist, { key: "ArrowRight" });
+    expect(screen.getByRole("tab", { name: "History" }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(tablist, { key: "ArrowRight" });
+    expect(screen.getByRole("tab", { name: "Leaderboard" }).getAttribute("aria-selected")).toBe(
+      "true",
+    );
+    fireEvent.keyDown(tablist, { key: "ArrowLeft" });
+    expect(screen.getByRole("tab", { name: "History" }).getAttribute("aria-selected")).toBe("true");
   });
 });
