@@ -188,6 +188,68 @@ describe("PlayerShell", () => {
     });
   });
 
+  it("shows dealer void toast with chips returned on house bank", async () => {
+    const { store } = setupStore();
+    renderPlayerShell({ store, playerName: "Ana" });
+    act(() => {
+      store.emit({
+        type: "BET_PLACED",
+        bet: {
+          id: "b1",
+          playerId: "p1",
+          roundId: "r1",
+          type: "banker",
+          amount: 25,
+          declared: false,
+          working: false,
+          placedAt: "2026-01-01T00:00:02.000Z",
+          originRoundId: "r1",
+        },
+      });
+    });
+    act(() => {
+      store.emit({ type: "BET_REMOVED", betId: "b1", by: "dealer" });
+    });
+    await vi.waitFor(() => {
+      const toast = screen.getByTestId("player-toast").textContent ?? "";
+      expect(toast).toContain("The dealer voided your bet");
+      expect(toast).toContain("25 chips returned");
+    });
+  });
+
+  it("shows dealer void toast without chips on no bank", async () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+    });
+    renderPlayerShell({ store, playerName: "Ana" });
+    act(() => {
+      store.emit({
+        type: "BET_PLACED",
+        bet: {
+          id: "b1",
+          playerId: "p1",
+          roundId: "r1",
+          type: "banker",
+          amount: 25,
+          declared: true,
+          working: false,
+          placedAt: "2026-01-01T00:00:02.000Z",
+          originRoundId: "r1",
+        },
+      });
+    });
+    act(() => {
+      store.emit({ type: "BET_REMOVED", betId: "b1", by: "dealer" });
+    });
+    await vi.waitFor(() => {
+      const toast = screen.getByTestId("player-toast").textContent ?? "";
+      expect(toast).toContain("The dealer voided your bet");
+      expect(toast).toContain("bet removed");
+    });
+  });
+
   it("shows bet removed toast after removing placed bet", async () => {
     const { store } = setupStore();
     store.emit({
@@ -985,7 +1047,8 @@ describe("PlayerShell", () => {
   it("shows idle status and bet slip before first round opens", () => {
     const { store } = setupStore({ roundOpen: false });
     renderPlayerShell({ store, playerName: "Ana" });
-    expect(screen.getByTestId("player-status-bar").textContent).toContain(
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("No round yet");
+    expect(screen.getByTestId("player-betting-hint").textContent).toContain(
       "Waiting for the dealer to open bets",
     );
     expect(screen.getByTestId("bet-slip-idle").textContent).toContain("Bets open soon");

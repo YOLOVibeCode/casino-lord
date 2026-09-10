@@ -72,7 +72,7 @@ export type TableEvent = TableEventEnvelope &
         betId: string;
         patch: Partial<Pick<PlacedBet, "amount" | "working">>;
       }
-    | { type: "BET_REMOVED"; betId: string }
+    | { type: "BET_REMOVED"; betId: string; by?: "dealer" | "player" }
     | { type: "BETS_CLOSED"; roundId: string; by: "dealer" | "timer" | "auto" }
     | {
         type: "TURN_ASSIGNED";
