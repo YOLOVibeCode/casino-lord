@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { baccaratModule } from "@casino-lord/game-baccarat";
 import { blackjackModule } from "@casino-lord/game-blackjack";
 import { rouletteModule } from "@casino-lord/game-roulette";
-import { createTableViaRest, startTestServer } from "../../../sync/src/test-helpers/server.js";
+import {
+  createTableViaRest,
+  joinPlayerViaRest,
+  startTestServer,
+} from "../../../sync/src/test-helpers/server.js";
+import { peekOfflineQueue } from "./offline-queue.js";
 import { minimalBaccaratResult } from "../../../sync/src/test-helpers/baccarat-result.js";
 import { asUntypedModule } from "./module-types.js";
 import { composedStateFingerprint } from "./store.js";
@@ -332,6 +337,52 @@ describe("synced store", () => {
     expect(moduleState.roads).toBeUndefined();
 
     store.destroy();
+  });
+
+  it("player rejects bets offline without queueing", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url, {
+      game: "baccarat",
+      participation: { playerMode: "on", bank: "house", outcomeSource: "physical" },
+    });
+    const dealer = await openDealer(server.url, code, dealerToken);
+    const playerJoin = await joinPlayerViaRest(server.url, code, {
+      name: "Ana",
+      color: "#E53935",
+    });
+    const rejects: string[] = [];
+    const player = createSyncedTableStore({
+      code,
+      role: "player",
+      token: playerJoin.playerToken,
+      syncUrl: server.url,
+      module,
+      rules,
+      onReject: (reason) => rejects.push(reason),
+    });
+    await waitForSyncReady(player);
+    disconnectSyncStoreForTest(player);
+    await new Promise((r) => setTimeout(r, 100));
+
+    player.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "bet-1",
+        playerId: playerJoin.playerId,
+        roundId: "round-1",
+        type: "player",
+        amount: 10,
+        target: { kind: "player" },
+      },
+    });
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(player.getRejectReason()).toBe("OFFLINE");
+    expect(rejects).toContain("OFFLINE");
+    expect((await peekOfflineQueue(code)).length).toBe(0);
+
+    dealer.destroy();
+    player.destroy();
   });
 
   it("takeover demotes the first dealer", async () => {

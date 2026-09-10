@@ -46,6 +46,7 @@ export interface CreateSyncedStoreOptions {
   now?: () => string;
   id?: () => string;
   onJoinError?: (code: string) => void;
+  onReject?: (reason: string) => void;
 }
 
 function defaultNow(): string {
@@ -102,6 +103,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     now = defaultNow,
     id = defaultId,
     onJoinError,
+    onReject,
   } = options;
   const token = options.token;
   let activeModule = options.module;
@@ -233,9 +235,20 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
 
   const isOnline = (): boolean => joined && connectionState === "connected" && !flushing;
 
+  const reportReject = (reason: string): void => {
+    rejectReason = reason;
+    onReject?.(reason);
+    notify();
+  };
+
   const sendPersistedEvent = async (body: TableEventInput): Promise<void> => {
     if (role === "display" || readOnly) return;
     if (role === "dealer" && readOnly) return;
+
+    if (role === "player" && !isOnline()) {
+      reportReject("OFFLINE");
+      return;
+    }
 
     rejectReason = null;
     const clientId = newClientId();
@@ -381,10 +394,9 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     }
 
     if (msg.op === "error" && typeof msg.code === "string") {
-      rejectReason = msg.code;
+      reportReject(msg.code);
       joined = false;
       onJoinError?.(msg.code);
-      notify();
       return;
     }
 
@@ -425,8 +437,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       if (typeof msg.clientId === "string") {
         rollbackPending(msg.clientId);
       }
-      rejectReason = String(msg.reason ?? "rejected");
-      notify();
+      reportReject(String(msg.reason ?? "rejected"));
       return;
     }
 
