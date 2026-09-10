@@ -627,6 +627,7 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
           actionTimer: registry.getActionTimer(code),
           request,
           clientId: `auto-${Date.now()}`,
+          timing: registry.getVirtualExecutorTiming(),
         });
       }, delayMs);
     }
@@ -835,6 +836,7 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
         actionTimer: registry.getActionTimer(st.code),
         request,
         clientId,
+        timing: registry.getVirtualExecutorTiming(),
         onAck: (seq) => {
           socket.emit("message", { op: "ack", clientId, seq });
         },

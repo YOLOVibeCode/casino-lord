@@ -61,8 +61,27 @@ describe("virtual dealer", () => {
   });
 
   it("dealer virtual trigger deals paced LIVE_INPUT then RESULT_RECORDED", async () => {
-    const server = await boot();
     const revealDelayMs = 120;
+    let clock = 1_000_000;
+    const scheduledDelays: number[] = [];
+    const pendingTimers: Array<{ delayMs: number; run: () => void }> = [];
+
+    const server = await startTestServer({
+      enableVirtual: true,
+      virtualExecutorTiming: {
+        nowMs: () => clock,
+        setTimeoutFn: ((fn: Parameters<typeof setTimeout>[0], ms?: number) => {
+          const delayMs = typeof ms === "number" ? ms : 0;
+          pendingTimers.push({
+            delayMs,
+            run: () => (fn as () => void)(),
+          });
+          return 0 as unknown as ReturnType<typeof setTimeout>;
+        }) as typeof setTimeout,
+      },
+    });
+    servers.push(server);
+
     const { code, dealerToken } = await createTableViaRest(server.url, {
       game: "baccarat",
       participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
@@ -79,27 +98,40 @@ describe("virtual dealer", () => {
     dealer.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
     await waitForMessage(dealer, (m) => m.op === "joined");
 
-    const received: Array<{ type: string; source?: string; arrivedAt: number }> = [];
+    const received: Array<{ type: string; source?: string }> = [];
     display.on("message", (msg) => {
       if (msg.op === "event") {
         received.push({
           type: msg.event.type,
-          arrivedAt: Date.now(),
           ...(msg.event.type === "LIVE_INPUT" ? { source: msg.event.source } : {}),
           ...(msg.event.type === "RESULT_RECORDED" ? { source: msg.event.result.source } : {}),
         });
       }
     });
 
-    const triggeredAt = Date.now();
     dealer.emit("message", { op: "virtual", kind: "trigger", clientId: "v1" });
     // A second trigger while the reveal sequence is in flight is refused (§14.4).
     dealer.emit("message", { op: "virtual", kind: "trigger", clientId: "v2" });
     const busy = await waitForMessage(dealer, (m) => m.op === "reject" && m.clientId === "v2");
     expect(busy.reason).toBe("DEALING");
 
-    await waitForMessage(dealer, (m) => m.op === "ack" && m.clientId === "v1");
-    await new Promise((r) => setTimeout(r, 50));
+    const ackPromise = waitForMessage(dealer, (m) => m.op === "ack" && m.clientId === "v1");
+    let acked = false;
+    void ackPromise.then(() => {
+      acked = true;
+    });
+
+    while (!acked) {
+      const timer = pendingTimers.shift();
+      if (timer) {
+        scheduledDelays.push(timer.delayMs);
+        clock += timer.delayMs;
+        timer.run();
+        continue;
+      }
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    await ackPromise;
 
     const live = received.filter((e) => e.type === "LIVE_INPUT");
     const result = received.find((e) => e.type === "RESULT_RECORDED");
@@ -108,14 +140,15 @@ describe("virtual dealer", () => {
     expect(live.every((e) => e.source === "system")).toBe(true);
     expect(result?.source).toBe("virtual");
 
-    // Reveals arrive spaced in time, not in one burst: the whole sequence takes
-    // at least (n − 1) × revealDelayMs, and the ack comes after the last event.
-    const span = live[live.length - 1]!.arrivedAt - triggeredAt;
-    expect(span).toBeGreaterThanOrEqual((live.length - 1) * revealDelayMs - 20);
-    for (let i = 1; i < live.length; i++) {
-      expect(live[i]!.arrivedAt - live[i - 1]!.arrivedAt).toBeGreaterThanOrEqual(
-        revealDelayMs - 20,
-      );
+    const types = received.map((e) => e.type);
+    const resultIndex = types.indexOf("RESULT_RECORDED");
+    expect(resultIndex).toBeGreaterThan(0);
+    expect(types.slice(0, resultIndex).every((t) => t === "LIVE_INPUT")).toBe(true);
+    expect(types.slice(resultIndex + 1).every((t) => t !== "LIVE_INPUT")).toBe(true);
+
+    expect(scheduledDelays).toHaveLength(live.length - 1);
+    for (const delay of scheduledDelays) {
+      expect(delay).toBe(revealDelayMs);
     }
 
     display.close();
