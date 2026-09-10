@@ -308,14 +308,18 @@ export async function recordBlackjackQuick(dealer: Page, chipId: string): Promis
   await dealer.getByTestId(`outcome-chip-${chipId}`).click();
 }
 
+/** Sync virtual trigger limit is 2 / 1000ms (apps/sync rate-limit). */
+const VIRTUAL_TRIGGER_GAP_MS = 650;
+
 export async function triggerVirtualDeal(dealer: Page): Promise<void> {
   const deal = dealer.getByTestId("deal-btn");
   await expect(deal).toBeEnabled({ timeout: 10_000 });
   await deal.click();
+  await dealer.waitForTimeout(VIRTUAL_TRIGGER_GAP_MS);
 }
 
 export async function completeVirtualBlackjackHand(dealer: Page, player: Page): Promise<void> {
-  for (let i = 0; i < 24; i += 1) {
+  for (let i = 0; i < 32; i += 1) {
     if (
       await dealer
         .getByTestId("virtual-last-result")
@@ -331,7 +335,7 @@ export async function completeVirtualBlackjackHand(dealer: Page, player: Page): 
       (await stand.isEnabled().catch(() => false))
     ) {
       await stand.click();
-      await player.waitForTimeout(500);
+      await player.waitForTimeout(VIRTUAL_TRIGGER_GAP_MS);
       continue;
     }
 
@@ -341,14 +345,14 @@ export async function completeVirtualBlackjackHand(dealer: Page, player: Page): 
       (await force.isEnabled().catch(() => false))
     ) {
       await force.click();
-      await dealer.waitForTimeout(500);
+      await dealer.waitForTimeout(VIRTUAL_TRIGGER_GAP_MS);
       continue;
     }
 
     const deal = dealer.getByTestId("deal-btn");
     if (await deal.isEnabled().catch(() => false)) {
       await deal.click();
-      await dealer.waitForTimeout(900);
+      await dealer.waitForTimeout(1_200);
       continue;
     }
 

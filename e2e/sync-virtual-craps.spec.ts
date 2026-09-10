@@ -10,7 +10,7 @@ import {
 } from "./helpers.js";
 
 test("sync virtual craps shooter rolls until pass-line settlement", async ({ browser }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
 
   const session = await setupSyncedTable(browser, {
     game: "craps",
@@ -52,7 +52,6 @@ test("sync virtual craps shooter rolls until pass-line settlement", async ({ bro
     await expect(ana.getByTestId("shooter-roll")).toBeVisible();
     await triggerVirtualDeal(dealer);
     await waitForNextVirtualResult(dealer);
-    await dealer.waitForTimeout(700);
   }
 
   await expect(ana.getByTestId("player-status-bar")).toContainText(/\+|natural|craps|seven/i, {

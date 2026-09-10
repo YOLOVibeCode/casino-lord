@@ -11,7 +11,7 @@ import {
 } from "./helpers.js";
 
 test("sync virtual blackjack deals seat 1 and settles after the turn", async ({ browser }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(150_000);
 
   const session = await setupSyncedTable(browser, {
     game: "blackjack",

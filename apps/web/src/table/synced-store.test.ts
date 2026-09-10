@@ -135,6 +135,16 @@ describe("synced store", () => {
     });
 
     expect(dealer.getVirtualPending()).toBeNull();
+
+    deliverMessageForTest(dealer, {
+      op: "event",
+      event: {
+        type: "VIRTUAL_PENDING",
+        kind: "wheel",
+        untilAt: "2026-01-01T00:00:11.000Z",
+      },
+    });
+    expect(dealer.getVirtualPending()).toBeNull();
     dealer.destroy();
   });
 

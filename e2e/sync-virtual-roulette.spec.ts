@@ -4,6 +4,7 @@ import {
   closeSyncedSession,
   expectDisplaySettlement,
   openBets,
+  parseBankroll,
   placeFeltBet,
   setupSyncedTable,
   triggerVirtualDeal,
@@ -37,7 +38,16 @@ test("sync virtual roulette with two players settles a red spin", async ({ brows
   await triggerVirtualDeal(dealer);
   await waitForVirtualResult(dealer);
 
-  await expect(ana.getByTestId("player-status-bar")).toContainText(/[+-]\d/, { timeout: 10_000 });
+  await expect
+    .poll(async () => parseBankroll(await ana.getByTestId("player-bankroll").textContent()), {
+      timeout: 15_000,
+    })
+    .not.toBe(500);
+  await expect
+    .poll(async () => parseBankroll(await ben.getByTestId("player-bankroll").textContent()), {
+      timeout: 15_000,
+    })
+    .not.toBe(500);
   await expectDisplaySettlement(display, "Ana", "any", ana);
   await expect(display.getByTestId("virtual-board-tag")).toBeVisible();
   await expect(display.getByTestId("display-view")).toBeVisible();
