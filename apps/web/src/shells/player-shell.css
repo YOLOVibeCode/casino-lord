@@ -43,8 +43,26 @@
   background: #4caf50;
 }
 
+.player-shell__dot--reconnecting {
+  background: #ff9800;
+}
+
 .player-shell__dot--off {
-  background: #888;
+  background: #f44336;
+}
+
+.player-shell__connection-pill {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 0.35rem 0.75rem;
+  font-size: max(0.8125rem, 13px);
+  font-weight: 600;
+  color: #000;
+  background: #ff9800;
+}
+
+.player-shell__tray--disabled {
+  opacity: 0.5;
 }
 
 .player-shell__name {
