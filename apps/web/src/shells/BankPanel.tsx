@@ -1,6 +1,6 @@
 import { getBankroll, getChipsInPlay } from "@casino-lord/core";
 import type { ComposedState, TableSettings } from "@casino-lord/core";
-import { useState } from "preact/hooks";
+import { useCallback, useRef, useState } from "preact/hooks";
 import type { TableStore } from "../table/store.js";
 import "./bank-panel.css";
 
@@ -11,33 +11,63 @@ export interface BankPanelProps {
   onClose: () => void;
 }
 
+type IssueReason = "buyin" | "rebuy" | "bonus" | "correction";
+
 export function BankPanel({ store, composed, settings, onClose }: BankPanelProps) {
   const [selectedPlayer, setSelectedPlayer] = useState(composed.platform.players[0]?.id ?? "");
   const [issueAmount, setIssueAmount] = useState(String(settings.bank.defaultBuyIn));
   const [adjustAmount, setAdjustAmount] = useState("");
-  const [adjustReason, setAdjustReason] = useState("correction");
+  const [takeBackAmount, setTakeBackAmount] = useState("");
+  const [issueReason, setIssueReason] = useState<IssueReason>("buyin");
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const chips = getChipsInPlay(composed.platform);
   const activePlayers = composed.platform.players.filter((p) => p.status !== "removed");
+  const selectedName = activePlayers.find((p) => p.id === selectedPlayer)?.name ?? "player";
+
+  const showToast = useCallback((message: string) => {
+    setToastMsg(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastMsg(null), 4000);
+  }, []);
 
   const issueChips = (
     playerId: string,
     amount: number,
-    reason: "buyin" | "rebuy" | "bonus" | "correction",
+    reason: IssueReason,
+    playerName?: string,
   ) => {
     if (amount <= 0) return;
     store.emit({ type: "BANK_ISSUED", playerId, amount, reason });
+    const name = playerName ?? activePlayers.find((p) => p.id === playerId)?.name ?? "player";
+    showToast(`Issued ${amount.toLocaleString()} to ${name}`);
   };
 
   const adjustChips = (playerId: string, delta: number) => {
+    if (delta === 0) return;
     const bankroll = getBankroll(composed.platform, playerId);
     if (delta < 0 && -delta > bankroll) return;
     store.emit({
       type: "BANK_ADJUSTED",
       playerId,
       delta,
-      reason: adjustReason as "correction" | "takeback",
+      reason: "correction",
     });
+    showToast(`Adjusted ${selectedName} by ${delta > 0 ? "+" : ""}${delta.toLocaleString()}`);
+  };
+
+  const takeBackChips = (playerId: string, amount: number) => {
+    if (amount <= 0) return;
+    const bankroll = getBankroll(composed.platform, playerId);
+    if (amount > bankroll) return;
+    store.emit({
+      type: "BANK_ADJUSTED",
+      playerId,
+      delta: -amount,
+      reason: "takeback",
+    });
+    showToast(`Took back ${amount.toLocaleString()} from ${selectedName}`);
   };
 
   const patchBank = (patch: Partial<TableSettings["bank"]>) => {
@@ -63,72 +93,119 @@ export function BankPanel({ store, composed, settings, onClose }: BankPanelProps
           </div>
         </section>
 
-        <section class="bank-panel__section">
-          <h3>Issue chips</h3>
-          <label>Default buy-in: {settings.bank.defaultBuyIn}</label>
-          <label>
-            Player
-            <select
-              value={selectedPlayer}
-              onChange={(e) => setSelectedPlayer((e.target as HTMLSelectElement).value)}
-            >
-              {activePlayers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Amount
-            <input
-              type="number"
-              min={1}
-              value={issueAmount}
-              onInput={(e) => setIssueAmount((e.target as HTMLInputElement).value)}
-            />
-          </label>
-          <div class="bank-panel__actions">
-            <button
-              type="button"
-              data-testid="issue-one"
-              onClick={() => issueChips(selectedPlayer, Number(issueAmount), "buyin")}
-            >
-              Issue to player
-            </button>
-            <button
-              type="button"
-              data-testid="issue-all"
-              onClick={() => {
-                const amount = Number(issueAmount);
-                for (const p of activePlayers) {
-                  issueChips(p.id, amount, "buyin");
-                }
-              }}
-            >
-              Issue to all
-            </button>
-          </div>
-        </section>
+        {activePlayers.length === 0 ? (
+          <p class="bank-panel__empty" data-testid="bank-empty">
+            No players yet — share the Join QR
+          </p>
+        ) : (
+          <>
+            <section class="bank-panel__section">
+              <h3>Issue chips</h3>
+              <label>Default buy-in: {settings.bank.defaultBuyIn}</label>
+              <label>
+                Player
+                <select
+                  value={selectedPlayer}
+                  onChange={(e) => setSelectedPlayer((e.target as HTMLSelectElement).value)}
+                >
+                  {activePlayers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Reason
+                <select
+                  data-testid="issue-reason"
+                  value={issueReason}
+                  onChange={(e) =>
+                    setIssueReason((e.target as HTMLSelectElement).value as IssueReason)
+                  }
+                >
+                  <option value="buyin">Buy-in</option>
+                  <option value="rebuy">Rebuy</option>
+                  <option value="bonus">Bonus</option>
+                  <option value="correction">Correction</option>
+                </select>
+              </label>
+              <label>
+                Amount
+                <input
+                  type="number"
+                  min={1}
+                  value={issueAmount}
+                  onInput={(e) => setIssueAmount((e.target as HTMLInputElement).value)}
+                />
+              </label>
+              <div class="bank-panel__actions">
+                <button
+                  type="button"
+                  data-testid="issue-one"
+                  onClick={() =>
+                    issueChips(selectedPlayer, Number(issueAmount), issueReason, selectedName)
+                  }
+                >
+                  Issue to player
+                </button>
+                <button
+                  type="button"
+                  data-testid="issue-all"
+                  onClick={() => {
+                    const amount = Number(issueAmount);
+                    for (const p of activePlayers) {
+                      issueChips(p.id, amount, issueReason, p.name);
+                    }
+                  }}
+                >
+                  Issue to all
+                </button>
+              </div>
+            </section>
 
-        <section class="bank-panel__section">
-          <h3>Take back / Adjust</h3>
-          <label>
-            Amount (negative to take back)
-            <input
-              type="number"
-              value={adjustAmount}
-              onInput={(e) => setAdjustAmount((e.target as HTMLInputElement).value)}
-            />
-          </label>
-          <button
-            type="button"
-            data-testid="adjust-chips"
-            onClick={() => adjustChips(selectedPlayer, Number(adjustAmount))}
-          >
-            Adjust
-          </button>
-        </section>
+            <section class="bank-panel__section">
+              <h3>Take back</h3>
+              <label>
+                Amount
+                <input
+                  type="number"
+                  min={1}
+                  data-testid="take-back-amount"
+                  value={takeBackAmount}
+                  onInput={(e) => setTakeBackAmount((e.target as HTMLInputElement).value)}
+                />
+              </label>
+              <button
+                type="button"
+                data-testid="take-back"
+                onClick={() => takeBackChips(selectedPlayer, Number(takeBackAmount))}
+              >
+                Take back
+              </button>
+            </section>
+
+            <section class="bank-panel__section">
+              <h3>Adjust</h3>
+              <label>
+                Adjustment amount
+                <input
+                  type="number"
+                  data-testid="adjust-amount"
+                  value={adjustAmount}
+                  onInput={(e) => setAdjustAmount((e.target as HTMLInputElement).value)}
+                />
+              </label>
+              <button
+                type="button"
+                data-testid="adjust-chips"
+                onClick={() => adjustChips(selectedPlayer, Number(adjustAmount))}
+              >
+                Adjust
+              </button>
+            </section>
+          </>
+        )}
 
         <section class="bank-panel__section">
           <h3>Table limits</h3>
@@ -166,6 +243,12 @@ export function BankPanel({ store, composed, settings, onClose }: BankPanelProps
             />
           </label>
         </section>
+
+        {toastMsg && (
+          <div class="bank-panel__toast" data-testid="bank-toast" role="alert">
+            {toastMsg}
+          </div>
+        )}
       </div>
     </div>
   );

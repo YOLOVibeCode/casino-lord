@@ -72,3 +72,23 @@
   color: inherit;
   cursor: pointer;
 }
+
+.bank-panel__empty {
+  opacity: 0.75;
+  font-size: 0.9rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.bank-panel__toast {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.75rem 1rem;
+  background: rgba(30, 30, 50, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  z-index: 110;
+  max-width: 90vw;
+  font-size: 0.9rem;
+}
