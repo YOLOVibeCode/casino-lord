@@ -1,16 +1,19 @@
 import { useState } from "preact/hooks";
 import { getBankroll } from "@casino-lord/core";
+import type { BlackjackRules } from "@casino-lord/game-blackjack";
 import type { CrapsState } from "@casino-lord/game-craps";
 import { reissuePlayerToken } from "../sync/api.js";
 import { getSyncBaseUrl } from "../sync/config.js";
 import { qrDataUrl } from "../sync/qr.js";
 import { tableUrl } from "../sync/urls.js";
+import { getGame } from "../table/games.js";
 import type { SyncStore } from "../table/sync-store-types.js";
 import "./players-dialog.css";
 
 export interface PlayersDialogProps {
   store: SyncStore;
   onClose: () => void;
+  seatsConfig?: { max: number; assign: "dealer" | "player" | "auto" };
 }
 
 function crapsState(module: unknown): CrapsState | null {
@@ -19,7 +22,7 @@ function crapsState(module: unknown): CrapsState | null {
   return module as CrapsState;
 }
 
-export function PlayersDialog({ store, onClose }: PlayersDialogProps) {
+export function PlayersDialog({ store, onClose, seatsConfig }: PlayersDialogProps) {
   const composed = store.getComposed();
   const pending = store.getPendingPlayers();
   const players = composed.platform.players.filter((p) => p.status !== "removed");
@@ -30,6 +33,10 @@ export function PlayersDialog({ store, onClose }: PlayersDialogProps) {
   const diceLive = craps !== null && (craps.liveInput.a !== null || craps.liveInput.b !== null);
   const dealerAssigns = shooterRotation === "dealer_assigns";
   const assignLabel = dealerAssigns ? "Make shooter" : "Override rotation";
+  const seatConfig = seatsConfig ?? getGame(store.game)?.module?.seats;
+  const rules = store.getRules() as BlackjackRules;
+  const showSeatSelect =
+    store.game === "blackjack" && seatConfig !== undefined && seatConfig.assign !== "player";
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [reissueQr, setReissueQr] = useState("");
@@ -60,6 +67,28 @@ export function PlayersDialog({ store, onClose }: PlayersDialogProps) {
 
   const handleAssignShooter = (playerId: string): void => {
     void store.emit({ type: "TURN_ASSIGNED", playerId, role: "shooter" });
+  };
+
+  const handleSeatChange = (playerId: string, raw: string): void => {
+    const seat = raw === "" ? undefined : Number(raw);
+    if (seat !== undefined && (Number.isNaN(seat) || seat < 1 || seat > rules.seats)) {
+      return;
+    }
+    if (seat !== undefined) {
+      const occupant = players.find((p) => p.id !== playerId && p.seat === seat);
+      if (occupant) {
+        void store.emit({
+          type: "PLAYER_UPDATED",
+          playerId: occupant.id,
+          patch: { seat: undefined },
+        });
+      }
+    }
+    void store.emit({
+      type: "PLAYER_UPDATED",
+      playerId,
+      patch: seat === undefined ? { seat: undefined } : { seat },
+    });
   };
 
   const handleReissue = async (playerId: string): Promise<void> => {
@@ -150,6 +179,24 @@ export function PlayersDialog({ store, onClose }: PlayersDialogProps) {
                   </span>
                 </span>
                 <span class="players-dialog__bank">{bankroll}</span>
+                {showSeatSelect && (
+                  <select
+                    class="players-dialog__seat-select"
+                    data-testid={`seat-select-${p.id}`}
+                    value={p.seat !== undefined ? String(p.seat) : ""}
+                    onChange={(e) => handleSeatChange(p.id, (e.target as HTMLSelectElement).value)}
+                  >
+                    <option value="">—</option>
+                    {Array.from({ length: rules.seats }, (_, i) => {
+                      const seat = i + 1;
+                      return (
+                        <option key={seat} value={String(seat)}>
+                          Seat {seat}
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
                 {renamingId === p.id ? (
                   <>
                     <input
