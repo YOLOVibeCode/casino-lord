@@ -82,6 +82,130 @@ describe("PlayerShell", () => {
     expect(bank.getAttribute("aria-label")).toBe("Balance 500 chips");
   });
 
+  it("shows betting hint when round open with empty slip", () => {
+    const { store } = setupStore();
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("player-betting-hint").textContent).toContain(
+      "Tap a zone to stake 5",
+    );
+  });
+
+  it("shows betting hint when round open with pending bets", () => {
+    const { store } = setupStore();
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("chip-denom-25"));
+    const zone = screen.getByTestId("felt-zone-banker");
+    fireEvent.mouseDown(zone);
+    fireEvent.mouseUp(zone);
+    expect(screen.getByTestId("player-betting-hint").textContent).toContain("Tap PLACE to confirm");
+  });
+
+  it("shows idle betting hint when no round is open", () => {
+    const { store } = setupStore({ roundOpen: false });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("player-betting-hint").textContent).toContain(
+      "Waiting for the dealer to open bets",
+    );
+  });
+
+  it("shows closed betting hint when round is closed", () => {
+    const { store } = setupStore();
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("player-betting-hint").textContent).toContain("Bets closed");
+  });
+
+  it("shows PLACE label with remaining balance", () => {
+    const { store } = setupStore({ bankroll: 500 });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("chip-denom-25"));
+    const zone = screen.getByTestId("felt-zone-banker");
+    fireEvent.mouseDown(zone);
+    fireEvent.mouseUp(zone);
+    expect(screen.getByTestId("bet-slip-place").textContent).toContain("PLACE 25 · 475 left");
+  });
+
+  it("shows disabled reason when pending stake exceeds bankroll", () => {
+    const { store } = setupStore({ bankroll: 500 });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("chip-denom-100"));
+    const zone = screen.getByTestId("felt-zone-banker");
+    fireEvent.mouseDown(zone);
+    fireEvent.mouseUp(zone);
+    act(() => {
+      store.emit({ type: "BANK_ADJUSTED", playerId: "p1", delta: -450, reason: "correction" });
+    });
+    expect(screen.getByTestId("bet-slip-place-reason").textContent).toContain("Insufficient");
+  });
+
+  it("shows success toast after BET_PLACED is in the log", async () => {
+    const { store } = setupStore({ bankroll: 500 });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("chip-denom-25"));
+    const zone = screen.getByTestId("felt-zone-banker");
+    fireEvent.mouseDown(zone);
+    fireEvent.mouseUp(zone);
+    fireEvent.click(screen.getByTestId("bet-slip-place"));
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("player-toast").textContent).toContain("Bet placed — 25 on BANKER");
+    });
+  });
+
+  it("shows bet removed toast after removing placed bet", async () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 25,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByTestId("bet-slip-remove-b1"));
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("player-toast").textContent).toContain("Bet removed");
+    });
+  });
+
+  it("disables chip tray and felt when bets closed", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 25,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTestId("chip-tray").getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByTestId("felt-zone-banker").getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByTestId("felt-zone-you-banker").textContent).toBe("you");
+    expect(screen.getByTestId("bet-slip-locked")).toBeTruthy();
+  });
+
+  it("footer tabs have aria-label and title", () => {
+    const { store } = setupStore();
+    render(<PlayerShell store={store} playerName="Ana" />);
+    expect(screen.getByTitle("History")).toBeTruthy();
+    expect(screen.getByTitle("Rules")).toBeTruthy();
+    expect(screen.getByTitle("Information")).toBeTruthy();
+  });
+
   it("PLACE emits BET_PLACED with roundId", () => {
     const { store } = setupStore();
     const emitSpy = vi.spyOn(store, "emit");

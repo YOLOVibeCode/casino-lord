@@ -129,6 +129,13 @@
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+.player-shell__hint {
+  margin: 0;
+  padding: 0.35rem 0.75rem 0;
+  font-size: max(0.8125rem, 13px);
+  opacity: 0.9;
+}
+
 .player-shell__toast {
   display: flex;
   align-items: center;
@@ -139,6 +146,12 @@
   color: #f44336;
   font-size: max(0.875rem, 14px);
   border-bottom: 1px solid rgba(244, 67, 54, 0.25);
+}
+
+.player-shell__toast--success {
+  background: rgba(76, 175, 80, 0.15);
+  color: #81c784;
+  border-bottom-color: rgba(76, 175, 80, 0.25);
 }
 
 .player-shell__toast-dismiss {
