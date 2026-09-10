@@ -197,6 +197,13 @@
   color: var(--text-muted, #aaa);
 }
 
+.settings-dialog__help {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted, #aaa);
+  line-height: 1.35;
+}
+
 .settings-dialog__hint--warn {
   color: #ffb74d;
 }
