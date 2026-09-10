@@ -19,6 +19,13 @@ import "./play-page.css";
 
 type Phase = "loading" | "join" | "pending" | "playing" | "error";
 
+const NAME_HELPER = "Display name must be 2–16 characters.";
+const NAME_MAX_LENGTH = 16;
+
+function firstAvailableColor(takenColors: string[]): string {
+  return PLAYER_COLORS.find((c) => !takenColors.includes(c)) ?? PLAYER_COLORS[0]!;
+}
+
 const COLOR_LABELS = [
   "Red",
   "Blue",
@@ -48,7 +55,7 @@ function setErrorPhase(setPhase: (p: Phase) => void, setError: (c: string) => vo
 
 export function PlayPage(_props: { path?: string }) {
   const { route } = useLocation();
-  const { params } = useRoute();
+  const { params, query } = useRoute();
   const rawCode = params.code ?? "";
   const code = normalizeTableCode(rawCode);
   const [phase, setPhase] = useState<Phase>("loading");
@@ -58,6 +65,7 @@ export function PlayPage(_props: { path?: string }) {
   const [color, setColor] = useState<string>(PLAYER_COLORS[0]!);
   const [store, setStore] = useState<SyncStore | null>(null);
   const [playerName, setPlayerName] = useState("");
+  const [takenColors, setTakenColors] = useState<string[]>([]);
   const [bootstrapKey, setBootstrapKey] = useState(0);
 
   useEffect(() => {
@@ -87,11 +95,24 @@ export function PlayPage(_props: { path?: string }) {
           return;
         }
 
+        const taken = meta.takenColors ?? [];
+        if (!cancelled) {
+          setTakenColors(taken);
+          setColor((current) => (taken.includes(current) ? firstAvailableColor(taken) : current));
+        }
+
+        const queryToken = query.t;
+        if (queryToken) {
+          savePlayerToken(code, queryToken);
+          stripTokenFromUrl();
+          await connectPlayer(queryToken, "", false);
+          if (!cancelled) return;
+        }
+
         const storedToken = loadPlayerToken(code);
         if (storedToken) {
           await connectPlayer(storedToken, "", false);
-          if (!cancelled) setPhase("playing");
-          return;
+          if (!cancelled) return;
         }
 
         if (!cancelled) setPhase("join");
@@ -105,7 +126,14 @@ export function PlayPage(_props: { path?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [code, bootstrapKey]);
+  }, [code, query.t, bootstrapKey]);
+
+  const stripTokenFromUrl = (): void => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete("t");
+    const qs = params.toString();
+    history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+  };
 
   const connectPlayer = async (token: string, displayName: string, pending: boolean) => {
     const resolveModule = (g: import("@casino-lord/core").GameId): UntypedGameModule => {
@@ -130,7 +158,15 @@ export function PlayPage(_props: { path?: string }) {
       },
     });
 
-    await waitForSyncReady(syncStore);
+    try {
+      await waitForSyncReady(syncStore);
+    } catch {
+      syncStore.destroy();
+      if (syncStore.getRejectReason() === "BAD_TOKEN") {
+        return;
+      }
+      throw new Error(syncStore.getRejectReason() ?? "Could not connect");
+    }
     savePlayerToken(code, token);
     setStore(syncStore);
     const pid = syncStore.getPlayerId();
@@ -149,8 +185,8 @@ export function PlayPage(_props: { path?: string }) {
   const clearStoredAndJoin = () => {
     clearPlayerToken(code);
     setStore(null);
+    setJoinError("PLAYER_BAD_TOKEN");
     setPhase("join");
-    setJoinError("");
   };
 
   useEffect(() => {
@@ -184,6 +220,10 @@ export function PlayPage(_props: { path?: string }) {
     });
     return unsub;
   }, [store]);
+
+  const trimmedNameLength = name.trim().length;
+  const nameValidation = validatePlayerName(name);
+  const joinDisabledReason = nameValidation.ok ? "" : nameValidation.error;
 
   const handleJoin = async () => {
     const validated = validatePlayerName(name);
@@ -265,41 +305,59 @@ export function PlayPage(_props: { path?: string }) {
         <h1>Join table {code}</h1>
         <p class="play-page__disclaimer">Play chips — no cash value</p>
         <label class="play-page__field">
-          <span>Display name</span>
+          <span class="play-page__field-header">
+            <span>Display name</span>
+            <span class="play-page__name-counter" data-testid="name-counter">
+              {trimmedNameLength}/{NAME_MAX_LENGTH}
+            </span>
+          </span>
           <input
             type="text"
             name="nickname"
             autocomplete="nickname"
             value={name}
-            maxLength={16}
+            maxLength={NAME_MAX_LENGTH}
             onInput={(e) => setName((e.target as HTMLInputElement).value)}
             data-testid="player-name-input"
           />
+          <span class="play-page__name-helper">{NAME_HELPER}</span>
         </label>
         <fieldset class="play-page__colors">
           <legend>Colour</legend>
           <div class="play-page__swatch-row">
-            {PLAYER_COLORS.map((c, i) => (
-              <div key={c} class="play-page__swatch-wrap">
-                <button
-                  type="button"
-                  class={`play-page__swatch${color === c ? " play-page__swatch--selected" : ""}`}
-                  style={{ background: c }}
-                  aria-label={COLOR_LABELS[i] ?? c}
-                  aria-pressed={color === c}
-                  onClick={() => setColor(c)}
-                  data-testid={`color-${c}`}
-                />
-                <span class="play-page__swatch-label">{COLOR_LABELS[i] ?? c}</span>
-              </div>
-            ))}
+            {PLAYER_COLORS.map((c, i) => {
+              const isTaken = takenColors.includes(c);
+              return (
+                <div key={c} class="play-page__swatch-wrap">
+                  <button
+                    type="button"
+                    class={`play-page__swatch${color === c ? " play-page__swatch--selected" : ""}${isTaken ? " play-page__swatch--taken" : ""}`}
+                    style={{ background: c }}
+                    aria-label={isTaken ? `${COLOR_LABELS[i] ?? c} taken` : (COLOR_LABELS[i] ?? c)}
+                    aria-pressed={color === c}
+                    disabled={isTaken}
+                    onClick={() => setColor(c)}
+                    data-testid={`color-${c}`}
+                  />
+                  <span class="play-page__swatch-label">
+                    {isTaken ? "taken" : (COLOR_LABELS[i] ?? c)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </fieldset>
         {joinCopy && <p class="play-page__error">{joinCopy.body}</p>}
         <div class="play-page__join-wrap">
+          {joinDisabledReason && (
+            <p class="play-page__join-hint" data-testid="join-disabled-reason">
+              {joinDisabledReason}
+            </p>
+          )}
           <button
             type="button"
             class="play-page__join"
+            disabled={!nameValidation.ok}
             onClick={() => void handleJoin()}
             data-testid="join-btn"
           >

@@ -31,6 +31,11 @@ const COPY: Record<string, SyncErrorCopy> = {
     body: "The dealer token in this link is invalid or expired. Ask the host for a fresh dealer link.",
     actions: ["home"],
   },
+  PLAYER_BAD_TOKEN: {
+    title: "Invalid join link",
+    body: "This join link is no longer valid. Enter your name to join as a new player.",
+    actions: [],
+  },
   SESSION_ENDED: {
     title: "Session ended",
     body: "This table session has ended. You can still review history, but no new results can be recorded.",
