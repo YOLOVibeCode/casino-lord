@@ -5,6 +5,8 @@ import {
   getCurrentRound,
   getSettlementTicker,
   sortPlayers,
+  type PlatformState,
+  type Settlement,
   type TableEvent,
 } from "@casino-lord/core";
 import { createElement } from "preact";
@@ -29,6 +31,38 @@ import { formatBoardLabel } from "../i18n/board-labels.js";
 import { BettingStrip } from "./BettingStrip.js";
 import { LeaderboardInterstitial } from "./LeaderboardInterstitial.js";
 import "./display-shell.css";
+
+function settlementsByBetId(settlements: PlatformState["settlements"]): Map<string, Settlement> {
+  const map = new Map<string, Settlement>();
+  for (const roundSettlements of Object.values(settlements)) {
+    for (const s of roundSettlements) {
+      map.set(s.betId, s);
+    }
+  }
+  return map;
+}
+
+function countAffectedSettlements(
+  before: PlatformState["settlements"],
+  after: PlatformState["settlements"],
+): number {
+  const prev = settlementsByBetId(before);
+  const next = settlementsByBetId(after);
+  const ids = new Set([...prev.keys(), ...next.keys()]);
+  let count = 0;
+  for (const id of ids) {
+    const a = prev.get(id);
+    const b = next.get(id);
+    if (!a || !b) {
+      count++;
+      continue;
+    }
+    if (a.outcome !== b.outcome || a.returned !== b.returned || a.profit !== b.profit) {
+      count++;
+    }
+  }
+  return count;
+}
 
 export interface DisplayShellProps {
   store: TableStore;
@@ -94,7 +128,10 @@ export function DisplayShell({
     : "";
 
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [historyToast, setHistoryToast] = useState<string | null>(null);
   const lastLeaderboardSeq = useRef(0);
+  const prevSettlementsRef = useRef(composed.platform.settlements);
+  const historyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const triggerEvents = store.events.filter(
@@ -106,6 +143,29 @@ export function DisplayShell({
     lastLeaderboardSeq.current = Math.max(...triggerEvents.map((e) => e.seq));
     setShowLeaderboard(true);
   }, [store.events]);
+
+  useEffect(() => {
+    const last = store.events.at(-1);
+    if (last?.type === "RESULT_EDITED" || last?.type === "RESULT_UNDONE") {
+      const affected = countAffectedSettlements(
+        prevSettlementsRef.current,
+        composed.platform.settlements,
+      );
+      if (affected > 0) {
+        setHistoryToast(`History re-evaluated — ${affected} bet(s) affected`);
+        if (historyToastTimer.current) clearTimeout(historyToastTimer.current);
+        historyToastTimer.current = setTimeout(() => setHistoryToast(null), 4000);
+      }
+    }
+    prevSettlementsRef.current = composed.platform.settlements;
+  }, [store.events, composed.platform.settlements]);
+
+  useEffect(
+    () => () => {
+      if (historyToastTimer.current) clearTimeout(historyToastTimer.current);
+    },
+    [],
+  );
 
   const [fsHint, setFsHint] = useState(!deviceSettings.fullScreen);
   const [soundUnlocked, setSoundUnlocked] = useState(() => animationSound.isUnlocked());
@@ -257,6 +317,12 @@ export function DisplayShell({
       {dealerHint && (
         <div class="display-shell__dealer-hint" data-testid="dealer-disconnected">
           {dealerHint}
+        </div>
+      )}
+
+      {historyToast && (
+        <div class="display-shell__toast display-shell__toast--info" data-testid="history-toast" role="alert">
+          {historyToast}
         </div>
       )}
 

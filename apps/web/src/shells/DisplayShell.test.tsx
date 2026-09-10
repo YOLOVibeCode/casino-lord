@@ -2,10 +2,10 @@
  * @vitest-environment jsdom
  */
 import "fake-indexeddb/auto";
-import { render, screen } from "@testing-library/preact";
-import { describe, expect, it } from "vitest";
+import { act, cleanup, render, screen } from "@testing-library/preact";
+import { afterEach, describe, expect, it } from "vitest";
 import { baccaratModule, DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
-import { createStubModule, STUB_RULES } from "@casino-lord/core/testing";
+import { createStubModule, houseSettings, STUB_RULES } from "@casino-lord/core/testing";
 import { asUntypedModule } from "../table/module-types.js";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { createTableStore } from "../table/store.js";
@@ -14,6 +14,8 @@ import { DisplayShell } from "./DisplayShell.js";
 const baccarat = asUntypedModule(baccaratModule);
 
 describe("DisplayShell", () => {
+  afterEach(() => cleanup());
+
   it("renders header with stub module", () => {
     const module = asUntypedModule(createStubModule());
     const store = createTableStore({
@@ -84,5 +86,80 @@ describe("DisplayShell", () => {
     );
 
     expect(screen.getByText(/Player \/ 闲:/)).toBeTruthy();
+  });
+
+  it("shows history re-evaluated toast when edit changes settlements", () => {
+    const module = asUntypedModule(createStubModule());
+    let n = 0;
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => `2026-01-01T00:00:${String(++n).padStart(2, "0")}.000Z`,
+      id: () => `id-${n}`,
+    });
+
+    store.emit({ type: "PARTICIPATION_CHANGED", participation: houseSettings().participation });
+    store.emit({
+      type: "PLAYER_JOINED",
+      player: {
+        id: "p1",
+        name: "Ana",
+        color: "#f00",
+        status: "active",
+        joinedAt: "2026-01-01T00:00:01.000Z",
+      },
+    });
+    store.emit({
+      type: "BANK_ISSUED",
+      playerId: "p1",
+      amount: 500,
+      reason: "buyin",
+    });
+    store.emit({ type: "BETS_OPENED", roundId: "r1" });
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "high",
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:05.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record({ value: 15 }, { quick: false });
+
+    render(
+      <DisplayShell
+        store={store}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+
+    const recorded = (store.getComposed().module as { results: { id: string; value: number }[] })
+      .results[0]!;
+    act(() => {
+      store.editResult({
+        id: recorded.id,
+        index: 0,
+        recordedAt: "2026-01-01T00:00:10.000Z",
+        quick: false,
+        source: "physical",
+        by: "dealer",
+        data: { value: 5 },
+        roundId: "r1",
+      });
+    });
+
+    expect(screen.getByTestId("history-toast").textContent).toMatch(/history re-evaluated/i);
+    expect(screen.getByTestId("history-toast").textContent).toMatch(/1 bet\(s\) affected/i);
   });
 });
