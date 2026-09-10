@@ -1,0 +1,54 @@
+import { expect, test } from "@playwright/test";
+import {
+  closeBetsIfOpen,
+  closeSyncedSession,
+  expectDisplaySettlement,
+  openBets,
+  parseBankroll,
+  placeFeltBet,
+  recordBlackjackQuick,
+  setupSyncedTable,
+} from "./helpers.js";
+
+test("sync blackjack with two seated players and quick-entry settlement", async ({ browser }) => {
+  const session = await setupSyncedTable(browser, {
+    game: "blackjack",
+    withPlayers: true,
+    houseBank: true,
+    players: [
+      { name: "Ana", color: "#E53935" },
+      { name: "Ben", color: "#FB8C00" },
+    ],
+  });
+  const { dealer, display, players } = session;
+  const [ana, ben] = players;
+  if (!ana || !ben) throw new Error("expected two player pages");
+
+  await ana.getByTestId("seat-pick-1").click();
+  await ben.getByTestId("seat-pick-2").click();
+  await expect(ana.getByTestId("my-seat-panel")).toContainText("SEAT 1");
+  await expect(ben.getByTestId("my-seat-panel")).toContainText("SEAT 2");
+
+  const anaBefore = parseBankroll(await ana.getByTestId("player-bankroll").textContent());
+  const benBefore = parseBankroll(await ben.getByTestId("player-bankroll").textContent());
+
+  await openBets(dealer);
+  await placeFeltBet(ana, "felt-zone-main");
+  await placeFeltBet(ben, "felt-zone-main");
+  await closeBetsIfOpen(dealer);
+
+  await recordBlackjackQuick(dealer, "17");
+
+  await expect
+    .poll(async () => parseBankroll(await ana.getByTestId("player-bankroll").textContent()))
+    .toBeLessThan(anaBefore);
+  await expect
+    .poll(async () => parseBankroll(await ben.getByTestId("player-bankroll").textContent()))
+    .toBeLessThan(benBefore);
+
+  await expectDisplaySettlement(display, "Ana", "lose");
+  await expectDisplaySettlement(display, "Ben", "lose");
+  await expect(display.getByTestId("display-view")).toBeVisible();
+
+  await closeSyncedSession(session);
+});

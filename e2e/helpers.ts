@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Browser, type Page } from "@playwright/test";
 
 export interface CreatedTable {
   code: string;
@@ -109,10 +109,151 @@ export async function recordBaccaratQuick(
 
 export async function waitForVirtualReveal(page: Page): Promise<void> {
   const pending = page.getByTestId("virtual-pending-ring");
-  if (await pending.isVisible().catch(() => false)) {
-    await pending.waitFor({ state: "hidden", timeout: 15_000 });
+  try {
+    await pending.waitFor({ state: "visible", timeout: 3_000 });
+    await pending.waitFor({ state: "hidden", timeout: 20_000 });
+  } catch {
+    // Ring may have already completed, or this surface does not show it.
   }
   await page.waitForTimeout(200);
+}
+
+export async function joinAsPlayer(
+  page: Page,
+  code: string,
+  name: string,
+  color: string,
+): Promise<void> {
+  await page.goto(`/play/${code}`);
+  await page.getByTestId("player-name-input").fill(name);
+  await page.getByTestId(`color-${color}`).click();
+  await page.getByTestId("join-btn").click();
+}
+
+export async function admitIfPending(player: Page, dealer: Page): Promise<void> {
+  if (
+    await player
+      .getByTestId("pending-message")
+      .isVisible()
+      .catch(() => false)
+  ) {
+    await dealer.getByTestId("players-btn").click();
+    await dealer.getByTestId("players-dialog").waitFor();
+    const approve = dealer.locator('[data-testid^="approve-"]');
+    const count = await approve.count();
+    for (let i = 0; i < count; i += 1) {
+      await approve.nth(i).click();
+    }
+    await dealer.getByTestId("players-dialog").locator('button[aria-label="Close"]').click();
+  }
+  await player.getByTestId("player-shell").waitFor({ timeout: 10_000 });
+}
+
+export async function issueChipsToAll(dealer: Page): Promise<void> {
+  await dealer.getByTestId("bank-btn").click();
+  await dealer.getByTestId("bank-panel").waitFor();
+  await dealer.getByTestId("issue-all").click();
+  await dealer.getByTestId("bank-panel").locator('button[aria-label="Close"]').click();
+}
+
+export async function placeFeltBet(player: Page, zoneTestId: string, denom = 100): Promise<void> {
+  await player.getByTestId(`chip-denom-${denom}`).click();
+  await player.getByTestId(zoneTestId).click();
+  await player.getByTestId("bet-slip-place").click();
+}
+
+export async function expectDisplaySettlement(
+  display: Page,
+  playerName: string,
+  kind: "any" | "win" | "lose" | "nonzero" = "any",
+): Promise<void> {
+  const status = display.getByTestId("betting-strip").locator(".betting-strip__status");
+  const pattern =
+    kind === "win"
+      ? new RegExp(`${playerName} \\+[1-9]`)
+      : kind === "lose"
+        ? new RegExp(`${playerName} -`)
+        : kind === "nonzero"
+          ? new RegExp(`${playerName} (?:\\+[1-9]|-)`)
+          : new RegExp(`${playerName} [+-]`);
+  await expect(status).toContainText(pattern, { timeout: 20_000 });
+}
+
+export interface SyncedSession {
+  code: string;
+  dealer: Page;
+  display: Page;
+  players: Page[];
+}
+
+export async function setupSyncedTable(
+  browser: Browser,
+  options: CreateTableOptions & { players: Array<{ name: string; color: string }> },
+): Promise<SyncedSession> {
+  const landing = await browser.newPage();
+  const { code, dealerToken } = await createTable(landing, options);
+  await landing.close();
+
+  const dealer = await browser.newPage();
+  await dealer.goto(`/dealer/${code}?t=${encodeURIComponent(dealerToken)}`);
+  await dealer.getByTestId("dealer-shell").waitFor();
+
+  const players: Page[] = [];
+  for (const p of options.players) {
+    const page = await browser.newPage();
+    await joinAsPlayer(page, code, p.name, p.color);
+    players.push(page);
+  }
+
+  for (const page of players) {
+    await admitIfPending(page, dealer);
+  }
+
+  if (options.houseBank) {
+    await issueChipsToAll(dealer);
+    for (const page of players) {
+      await page.getByTestId("player-bankroll").waitFor();
+    }
+  }
+
+  const display = await browser.newPage();
+  await display.goto(`/display/${code}`);
+  await display.getByTestId("display-shell").waitFor();
+
+  return { code, dealer, display, players };
+}
+
+export async function closeSyncedSession(session: SyncedSession): Promise<void> {
+  await session.dealer.close();
+  await session.display.close();
+  await Promise.all(session.players.map((page) => page.close()));
+}
+
+export async function recordRoulettePocket(dealer: Page, pocket: string): Promise<void> {
+  await dealerPane(dealer).getByTestId(`number-cell-${pocket}`).click();
+  await dealer.getByTestId("confirm-btn").click();
+}
+
+export async function recordCrapsTotal(dealer: Page, total: number): Promise<void> {
+  const pane = dealerPane(dealer);
+  if (
+    !(await pane
+      .getByTestId("total-mode")
+      .isVisible()
+      .catch(() => false))
+  ) {
+    await pane.getByTestId("total-mode-toggle").click();
+  }
+  await pane.getByTestId(`outcome-chip-t${total}`).click();
+}
+
+export async function recordBlackjackQuick(dealer: Page, chipId: string): Promise<void> {
+  await dealerPane(dealer).getByTestId(`outcome-chip-${chipId}`).click();
+}
+
+export async function triggerVirtualDeal(dealer: Page, display: Page): Promise<void> {
+  await dealer.getByTestId("deal-btn").click();
+  await waitForVirtualReveal(display);
 }
 
 export async function startFreshSolo(page: Page, game: string): Promise<void> {
