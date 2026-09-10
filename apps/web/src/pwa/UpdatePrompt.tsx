@@ -11,8 +11,10 @@ export function UpdatePrompt() {
   const toast = useToast();
   const [updateReady, setUpdateReady] = useState(false);
   const toastShown = useRef(false);
+  const pendingReload = useRef(false);
 
   const reload = useCallback(() => {
+    pendingReload.current = true;
     const registration = getServiceWorkerRegistration();
     if (registration?.waiting) {
       postSkipWaiting(registration.waiting);
@@ -27,6 +29,7 @@ export function UpdatePrompt() {
     let cancelled = false;
 
     const onControllerChange = (): void => {
+      if (!pendingReload.current) return;
       window.location.reload();
     };
 
