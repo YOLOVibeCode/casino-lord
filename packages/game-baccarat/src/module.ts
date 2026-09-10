@@ -1,4 +1,3 @@
-import type { Component } from "preact";
 import type { GameModule, Series } from "@casino-lord/core";
 import { deriveBaccaratAnimations, baccaratAnimationEvents } from "./animations.js";
 import { baccaratBets } from "./bets.js";
@@ -31,10 +30,6 @@ import {
   shoePenetration,
   type VirtualShoeSession,
 } from "./virtual.js";
-
-function stubComponent(): Component<Record<string, unknown>> {
-  return (() => null) as unknown as Component<Record<string, unknown>>;
-}
 
 function resultToImportedHand(result: BaccaratResult): ImportedHand {
   return {
