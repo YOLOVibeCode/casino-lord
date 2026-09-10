@@ -219,6 +219,11 @@ export function DealerView({
           type="button"
           class="dealer-view__mode-toggle"
           data-testid="total-mode-toggle"
+          title={
+            totalMode
+              ? "Switch to Die A and Die B faces"
+              : "Switch to totals 2–12 (Hard/Easy when ambiguous)"
+          }
           onClick={() => setTotalMode((v) => !v)}
         >
           {totalMode ? "Face mode" : "Total mode"}
@@ -227,6 +232,7 @@ export function DealerView({
           type="button"
           class="dealer-view__seven-out"
           data-testid="seven-out-chip"
+          title="Record a 7 with unknown faces — next shooter"
           onClick={handleSevenOut}
         >
           Seven Out

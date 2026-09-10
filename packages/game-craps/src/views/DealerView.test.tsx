@@ -74,6 +74,32 @@ describe("DealerView", () => {
     expect(screen.getByTestId("dealer-shooter-name").textContent).toBe("Shooter: Ana");
   });
 
+  it("quick-entry buttons expose title tooltips", () => {
+    render(
+      <DealerView
+        state={initialState()}
+        rules={DEFAULT_CRAPS_RULES}
+        table={TABLE}
+        emit={vi.fn()}
+        record={vi.fn()}
+      />,
+    );
+    const modeToggle = screen.getByTestId("total-mode-toggle");
+    expect(modeToggle.getAttribute("title")).toBe(
+      "Switch to totals 2–12 (Hard/Easy when ambiguous)",
+    );
+    expect(modeToggle.textContent).toBe("Total mode");
+
+    fireEvent.click(modeToggle);
+    const faceModeToggle = screen.getByTestId("total-mode-toggle");
+    expect(faceModeToggle.getAttribute("title")).toBe("Switch to Die A and Die B faces");
+    expect(faceModeToggle.textContent).toBe("Face mode");
+
+    expect(screen.getByTestId("seven-out-chip").getAttribute("title")).toBe(
+      "Record a 7 with unknown faces — next shooter",
+    );
+  });
+
   it("seven-out chip records total 7", () => {
     const record = vi.fn();
     render(
