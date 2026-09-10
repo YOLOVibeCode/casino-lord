@@ -7,12 +7,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { houseSettings } from "@casino-lord/core/testing";
 import { baccaratModule } from "@casino-lord/game-baccarat";
 import { DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
+import { DEFAULT_ROULETTE_RULES, rouletteModule } from "@casino-lord/game-roulette";
 import { asUntypedModule } from "../table/module-types.js";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { createTableStore } from "../table/store.js";
 import { DisplayShell } from "./DisplayShell.js";
 
 const baccarat = asUntypedModule(baccaratModule);
+const roulette = asUntypedModule(rouletteModule);
 
 function quickResult(outcome: "P" | "B" | "T") {
   return {
@@ -248,5 +250,33 @@ describe("DisplayShell animations", () => {
     });
 
     expect(screen.getByTestId("animation-layer")).toBeTruthy();
+  });
+
+  it("schedules spin animation when roulette records a colour win", async () => {
+    let n = 0;
+    const store = createTableStore({
+      game: "roulette",
+      module: roulette,
+      rules: DEFAULT_ROULETTE_RULES,
+      rng: () => 0,
+      now: () => `2026-01-01T00:00:${String(++n).padStart(2, "0")}.000Z`,
+      id: () => `id-${n}`,
+    });
+
+    render(
+      <DisplayShell
+        store={store}
+        module={roulette}
+        rules={DEFAULT_ROULETTE_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+
+    await act(async () => {
+      store.record({ pocket: 1 }, { quick: true });
+    });
+
+    expect(screen.getByTestId("animation-layer")).toBeTruthy();
+    expect(document.querySelector('[data-style="spin"][data-phase="main"]')).toBeTruthy();
   });
 });

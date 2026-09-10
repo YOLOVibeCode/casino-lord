@@ -2,9 +2,18 @@ import type { GameId, TableEvent } from "@casino-lord/core";
 import { isPersistedEvent } from "@casino-lord/core";
 
 const DB_NAME = "casino-lord";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE = "tables";
 const OFFLINE_STORE = "offline-queue";
+const VIRTUAL_STATE_STORE = "virtual-state";
+
+export interface PersistedVirtualState {
+  code: string;
+  seriesId: string;
+  seedHex: string;
+  session: unknown;
+  awaiting: "none" | "action" | "trigger";
+}
 
 export interface StoredTable {
   code: string;
@@ -26,7 +35,40 @@ export function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(OFFLINE_STORE)) {
         db.createObjectStore(OFFLINE_STORE, { keyPath: "code" });
       }
+      if (!db.objectStoreNames.contains(VIRTUAL_STATE_STORE)) {
+        db.createObjectStore(VIRTUAL_STATE_STORE, { keyPath: "code" });
+      }
     };
+  });
+}
+
+export async function saveVirtualState(state: PersistedVirtualState): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(VIRTUAL_STATE_STORE, "readwrite");
+    const req = tx.objectStore(VIRTUAL_STATE_STORE).put(state);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve();
+  });
+}
+
+export async function loadVirtualState(code: string): Promise<PersistedVirtualState | null> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(VIRTUAL_STATE_STORE, "readonly");
+    const req = tx.objectStore(VIRTUAL_STATE_STORE).get(code);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve((req.result as PersistedVirtualState | undefined) ?? null);
+  });
+}
+
+export async function deleteVirtualState(code: string): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(VIRTUAL_STATE_STORE, "readwrite");
+    const req = tx.objectStore(VIRTUAL_STATE_STORE).delete(code);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve();
   });
 }
 

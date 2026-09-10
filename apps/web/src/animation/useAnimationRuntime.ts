@@ -92,19 +92,23 @@ function toActiveSegment(
     intensity: preset.intensity,
     durationMs: segment.endMs - segment.startMs,
     ...(preset.text !== undefined ? { text: substituteBannerText(preset.text, vars) } : {}),
-    ...(preset.style === "burst" || preset.style === "particles" ? { anchor } : {}),
+    ...(preset.style === "burst" || preset.style === "particles" || preset.style === "chips"
+      ? { anchor }
+      : {}),
     ...(preset.style === "trail" || preset.style === "dragon" ? { path: path ?? [] } : {}),
+    ...(preset.style === "spin" ? { vars } : {}),
     phase: segment.phase,
   };
 }
 
 export interface UseAnimationRuntimeOptions {
   store: TableStore;
-  module: UntypedGameModule;
+  module: UntypedGameModule | undefined;
   rules: unknown;
   deviceSettings: DeviceSettings;
   overlayRef: { current: HTMLElement | null };
   enabled: boolean;
+  phoneMode?: boolean;
 }
 
 export interface AnimationRuntimeState {
@@ -122,6 +126,7 @@ export function useAnimationRuntime({
   deviceSettings,
   overlayRef,
   enabled,
+  phoneMode = false,
 }: UseAnimationRuntimeOptions): AnimationRuntimeState {
   const lastSeenSeq = useRef(0);
   const seeded = useRef(false);
@@ -207,7 +212,7 @@ export function useAnimationRuntime({
 
   const scheduleForEvent = useCallback(
     (event: TableEvent, events: readonly TableEvent[]) => {
-      if (!enabled) return;
+      if (!enabled || !module) return;
 
       const tableSettings = replay([...events], module, rules, {
         code: store.code,
@@ -220,6 +225,7 @@ export function useAnimationRuntime({
         const trigger: AnimationTrigger = { eventId: event.eventId, vars: PREVIEW_VARS };
         const timeline = buildAnimationTimeline([trigger], allEventDefs, {
           prefersReducedMotion: prefersReducedMotion(),
+          phoneMode,
           resolvePreset: (eventId) => resolvePreset(eventId, module, tableSettings),
         });
         if (timeline) playTimeline(timeline, null);
@@ -252,13 +258,14 @@ export function useAnimationRuntime({
 
       const timeline = buildAnimationTimeline(triggers, allEventDefs, {
         prefersReducedMotion: prefersReducedMotion(),
+        phoneMode,
         resolvePreset: (eventId) => resolvePreset(eventId, module, tableSettings),
       });
       if (!timeline) return;
 
       playTimeline(timeline, prevComposed.module);
     },
-    [enabled, module, playTimeline, rules, store.code],
+    [enabled, module, phoneMode, playTimeline, rules, store.code],
   );
 
   useEffect(() => {
@@ -266,6 +273,8 @@ export function useAnimationRuntime({
   }, [deviceSettings.soundEnabled]);
 
   useEffect(() => {
+    if (!module) return;
+
     lastSeenSeq.current = store.events.reduce((max, e) => Math.max(max, e.seq), 0);
     seeded.current = true;
 
@@ -284,7 +293,7 @@ export function useAnimationRuntime({
     };
 
     return store.subscribe(processEvents);
-  }, [store, scheduleForEvent, finishTimeline]);
+  }, [store, module, scheduleForEvent, finishTimeline]);
 
   useEffect(() => () => clearTimers(), [clearTimers]);
 

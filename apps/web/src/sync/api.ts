@@ -80,6 +80,22 @@ export async function joinTablePlayer(
   return (await response.json()) as JoinPlayerResponse;
 }
 
+export async function fetchTableExport(
+  baseUrl: string,
+  rawCode: string,
+  seriesNumber: number,
+  dealerToken: string,
+): Promise<string> {
+  const code = normalizeTableCode(rawCode);
+  const response = await fetch(`${baseUrl}/tables/${code}/export?series=${seriesNumber}`, {
+    headers: { Authorization: `Bearer ${dealerToken}` },
+  });
+  if (!response.ok) {
+    throw new Error(`export failed: ${response.status}`);
+  }
+  return response.text();
+}
+
 export async function reissuePlayerToken(
   baseUrl: string,
   rawCode: string,

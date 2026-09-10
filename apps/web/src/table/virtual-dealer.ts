@@ -4,19 +4,22 @@ import {
   createSeededRng,
   hexToBytes,
   triggerForKind,
+  type ComposedState,
   type Rng,
   type TableEvent,
   type VirtualTrigger,
 } from "@casino-lord/core";
-import { randomBytes } from "node:crypto";
-import type { UntypedModule } from "../modules.js";
-import type { TableInstance } from "./table-instance.js";
+import type { UntypedGameModule } from "./module-types.js";
 
 export interface ScheduledEvent {
   event: Omit<TableEvent, "seq" | "at">;
   at: string;
-  /** Ephemeral events are broadcast only, never persisted. */
   broadcastOnly?: boolean;
+}
+
+export interface VirtualTableContext {
+  getComposed(): ComposedState<unknown>;
+  getRules(): unknown;
 }
 
 export interface VirtualDealerState {
@@ -34,6 +37,12 @@ export type VirtualStepRequest =
   | { mode: "force-trigger"; trigger: VirtualTrigger }
   | { mode: "force-action"; playerId: string; action: unknown };
 
+export function randomSeed(): Uint8Array {
+  const seed = new Uint8Array(32);
+  crypto.getRandomValues(seed);
+  return seed;
+}
+
 export class VirtualDealer {
   private state: VirtualDealerState;
 
@@ -42,7 +51,7 @@ export class VirtualDealer {
     seriesId: string,
     seed?: Uint8Array,
   ) {
-    const seriesSeed = seed ?? randomBytes(32);
+    const seriesSeed = seed ?? randomSeed();
     this.state = {
       seriesId,
       seed: seriesSeed,
@@ -57,11 +66,14 @@ export class VirtualDealer {
     return this.state.seriesId;
   }
 
-  /** True while a paced reveal sequence is still being emitted (§14.4). */
   dealing = false;
 
   get awaiting(): "none" | "action" | "trigger" {
     return this.state.awaiting;
+  }
+
+  get session(): unknown {
+    return this.state.session;
   }
 
   getCommit(): string {
@@ -72,22 +84,49 @@ export class VirtualDealer {
     return bytesToHex(this.state.seed);
   }
 
-  getSeedBytes(): Uint8Array {
-    return this.state.seed;
-  }
-
   getDrawLog(): ReadonlyArray<{ from: number; to: number }> {
     return this.state.drawLog;
   }
 
+  exportState(): {
+    seriesId: string;
+    seedHex: string;
+    session: unknown;
+    awaiting: VirtualDealerState["awaiting"];
+  } {
+    return {
+      seriesId: this.state.seriesId,
+      seedHex: this.getSeedHex(),
+      session: this.state.session,
+      awaiting: this.state.awaiting,
+    };
+  }
+
+  restoreState(input: {
+    seriesId: string;
+    seedHex: string;
+    session: unknown;
+    awaiting: VirtualDealerState["awaiting"];
+  }): void {
+    const seed = hexToBytes(input.seedHex);
+    this.state = {
+      seriesId: input.seriesId,
+      seed,
+      rng: createSeededRng(seed),
+      session: input.session,
+      awaiting: input.awaiting,
+      drawLog: [],
+    };
+  }
+
   getTurnHint(
-    table: TableInstance,
-    module: UntypedModule,
+    ctx: VirtualTableContext,
+    module: UntypedGameModule,
   ): { playerId: string | null; prompt: string } | null {
     if (!module.turn) {
       return null;
     }
-    const composed = table.getComposed();
+    const composed = ctx.getComposed();
     const turn = module.turn(composed.module);
     if (!turn) {
       return null;
@@ -113,12 +152,16 @@ export class VirtualDealer {
     } as Omit<TableEvent, "seq" | "at">;
   }
 
-  private rotateSeries(auto: boolean, label?: string): Omit<TableEvent, "seq" | "at">[] {
+  rotateSeries(
+    auto: boolean,
+    label?: string,
+    newSeriesId?: string,
+  ): Omit<TableEvent, "seq" | "at">[] {
     const ended = this.endSeriesEvent();
-    const newSeriesId = crypto.randomUUID();
-    const newSeed = randomBytes(32);
+    const nextSeriesId = newSeriesId ?? crypto.randomUUID();
+    const newSeed = randomSeed();
     this.state = {
-      seriesId: newSeriesId,
+      seriesId: nextSeriesId,
       seed: newSeed,
       rng: createSeededRng(newSeed),
       session: null,
@@ -148,16 +191,16 @@ export class VirtualDealer {
   }
 
   runStep(
-    table: TableInstance,
-    module: UntypedModule,
+    ctx: VirtualTableContext,
+    module: UntypedGameModule,
     request: VirtualStepRequest,
   ): Omit<TableEvent, "seq" | "at">[] {
     if (!module.virtual) {
       throw new Error("module has no virtual handler");
     }
 
-    const composed = table.getComposed();
-    const rules = table.getEffectiveRules();
+    const composed = ctx.getComposed();
+    const rules = ctx.getRules();
     const moduleState = composed.module;
     const defaultTrigger = triggerForKind(module.virtual.kind);
 
@@ -174,7 +217,7 @@ export class VirtualDealer {
       ...(request.mode === "action" || request.mode === "force-action"
         ? { action: { playerId: request.playerId, action: request.action } }
         : {}),
-    } as Parameters<NonNullable<UntypedModule["virtual"]>["step"]>[0];
+    } as Parameters<NonNullable<UntypedGameModule["virtual"]>["step"]>[0];
 
     const out = module.virtual.step(stepInput);
 
@@ -269,7 +312,7 @@ export class VirtualDealer {
   }
 }
 
-export function defaultActionForModule(module: UntypedModule): unknown {
+export function defaultActionForModule(module: UntypedGameModule): unknown {
   const stand = module.playerActions?.find((a) => a.id === "stand");
   if (stand) {
     return stand.action;
@@ -279,4 +322,49 @@ export function defaultActionForModule(module: UntypedModule): unknown {
     return first.action;
   }
   throw new Error("module has no default action");
+}
+
+export function buildVirtualStatus(
+  ctx: VirtualTableContext,
+  module: UntypedGameModule,
+  virtualDealer: VirtualDealer,
+): {
+  awaiting: "none" | "action" | "trigger";
+  turnPlayerId?: string;
+  turnPrompt?: string;
+} {
+  const hint = virtualDealer.getTurnHint(ctx, module);
+  return {
+    awaiting: virtualDealer.awaiting,
+    ...(hint?.playerId ? { turnPlayerId: hint.playerId } : {}),
+    ...(hint?.prompt ? { turnPrompt: hint.prompt } : {}),
+  };
+}
+
+export function resolveVirtualRequest(
+  kind: "trigger" | "action" | "force",
+  module: UntypedGameModule,
+  payload: unknown,
+  playerId: string | undefined,
+  forceDefaultAction?: unknown,
+): VirtualStepRequest | null {
+  if (!module.virtual) {
+    return null;
+  }
+  const trigger = triggerForKind(module.virtual.kind);
+
+  if (kind === "trigger") {
+    return { mode: "trigger", trigger };
+  }
+  if (kind === "action") {
+    const actionPayload = payload as { action?: unknown } | undefined;
+    if (!playerId || actionPayload?.action === undefined) {
+      return null;
+    }
+    return { mode: "action", playerId, action: actionPayload.action };
+  }
+  if (forceDefaultAction !== undefined && playerId) {
+    return { mode: "force-action", playerId, action: forceDefaultAction };
+  }
+  return { mode: "force-trigger", trigger };
 }

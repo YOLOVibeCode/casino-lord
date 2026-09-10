@@ -1,6 +1,9 @@
 import type { LayoutPreset } from "@casino-lord/core";
 import { browserStorage, type StorageLike } from "./storage.js";
 
+export type DeviceTheme = "table-felt" | "midnight" | "crimson" | "high-contrast";
+export type BoardLanguage = "EN" | "ZH" | "EN+ZH";
+
 export interface DeviceSettings {
   layoutId: string;
   scale: number;
@@ -13,6 +16,8 @@ export interface DeviceSettings {
   fullScreen: boolean;
   animations: boolean;
   soundEnabled: boolean;
+  theme: DeviceTheme;
+  boardLanguage: BoardLanguage;
 }
 
 const STORAGE_KEY = "casino-lord:device-settings";
@@ -29,7 +34,15 @@ export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
   fullScreen: false,
   animations: true,
   soundEnabled: false,
+  theme: "table-felt",
+  boardLanguage: "EN",
 };
+
+export function applyDevicePresentation(settings: DeviceSettings): void {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.theme = settings.theme;
+  document.documentElement.dataset.boardLanguage = settings.boardLanguage;
+}
 
 export function loadDeviceSettings(store: StorageLike | null = browserStorage()): DeviceSettings {
   if (!store) return { ...DEFAULT_DEVICE_SETTINGS };

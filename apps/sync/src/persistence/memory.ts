@@ -5,6 +5,11 @@ export function createMemoryRepository(): TableRepository {
   const tables = new Map<string, TableRow>();
   const events = new Map<string, TableEvent[]>();
   const players = new Map<string, PlayerRow>();
+  const virtualSeeds = new Map<string, Buffer>();
+
+  function virtualSeedKey(code: string, seriesId: string): string {
+    return `${code}:${seriesId}`;
+  }
 
   function playerKey(code: string, playerId: string): string {
     return `${code}:${playerId}`;
@@ -33,6 +38,11 @@ export function createMemoryRepository(): TableRepository {
       for (const key of [...players.keys()]) {
         if (key.startsWith(`${code}:`)) {
           players.delete(key);
+        }
+      }
+      for (const key of [...virtualSeeds.keys()]) {
+        if (key.startsWith(`${code}:`)) {
+          virtualSeeds.delete(key);
         }
       }
     },
@@ -120,6 +130,22 @@ export function createMemoryRepository(): TableRepository {
       for (const key of [...players.keys()]) {
         if (key.startsWith(`${code}:`)) {
           players.delete(key);
+        }
+      }
+    },
+
+    saveVirtualSeed(code: string, seriesId: string, blob: Buffer): void {
+      virtualSeeds.set(virtualSeedKey(code, seriesId), blob);
+    },
+
+    getVirtualSeed(code: string, seriesId: string): Buffer | null {
+      return virtualSeeds.get(virtualSeedKey(code, seriesId)) ?? null;
+    },
+
+    deleteVirtualSeeds(code: string): void {
+      for (const key of [...virtualSeeds.keys()]) {
+        if (key.startsWith(`${code}:`)) {
+          virtualSeeds.delete(key);
         }
       }
     },

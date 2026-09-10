@@ -42,4 +42,27 @@ describe("device settings", () => {
     expect(loadDeviceSettings(null)).toEqual(DEFAULT_DEVICE_SETTINGS);
     expect(() => saveDeviceSettings(DEFAULT_DEVICE_SETTINGS, null)).not.toThrow();
   });
+
+  it("round-trips theme and boardLanguage", () => {
+    const custom = {
+      ...DEFAULT_DEVICE_SETTINGS,
+      theme: "midnight" as const,
+      boardLanguage: "EN+ZH" as const,
+    };
+    saveDeviceSettings(custom, store);
+    expect(loadDeviceSettings(store)).toEqual(custom);
+  });
+
+  it("defaults theme and boardLanguage when missing from stored JSON", () => {
+    store.setItem(
+      "casino-lord:device-settings",
+      JSON.stringify({ layoutId: "classic", scale: 1.5 }),
+    );
+    expect(loadDeviceSettings(store)).toMatchObject({
+      theme: "table-felt",
+      boardLanguage: "EN",
+      layoutId: "classic",
+      scale: 1.5,
+    });
+  });
 });

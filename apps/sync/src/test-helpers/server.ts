@@ -20,6 +20,7 @@ export interface TestSyncServer {
 export interface StartTestServerOptions {
   persist?: "memory" | "sqlite";
   sqlitePath?: string;
+  seedKey?: string;
   now?: () => string;
   rng?: () => number;
   rateLimiter?: ReturnType<typeof createRateLimiter>;
@@ -45,6 +46,7 @@ export async function startTestServer(
     ENABLE_PLAYER_MODE: "true",
     ENABLE_VIRTUAL: options.enableVirtual === false ? "false" : "true",
     MAX_PLAYERS_HARD: "50",
+    ...(options.seedKey !== undefined ? { SEED_KEY: options.seedKey } : {}),
   });
 
   const repository = createRepository(config);
