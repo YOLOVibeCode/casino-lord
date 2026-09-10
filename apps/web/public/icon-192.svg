@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="32" fill="#0b3d2e"/>
+  <circle cx="96" cy="96" r="72" fill="none" stroke="#d4af37" stroke-width="8"/>
+  <text x="96" y="108" text-anchor="middle" font-family="Georgia, serif" font-size="48" font-weight="700" fill="#d4af37">CL</text>
+</svg>

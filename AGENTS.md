@@ -31,10 +31,10 @@ pnpm workspace. Packages are created as milestones land (SPEC.md §29); only wha
 packages/core/            @casino-lord/core — platform primitives. Pure. No deps. Exists.
 packages/ui/              shared inputs: CardPicker, OutcomeChips, NumberGrid, DicePicker, ChipTray, BetSlip, FeltZones, ActionButtons exist.
 packages/game-baccarat/   GameModule for baccarat. Exists.
-packages/game-roulette/   GameModule for roulette. Engine + dealer/display/player views exist (M7); no virtual yet.
-packages/game-craps/      GameModule for craps. Engine + dealer/display/player views exist (M8); no virtual yet.
-packages/game-blackjack/  GameModule for blackjack. Engine + dealer/display/player views exist (M9); no virtual yet.
-apps/web/                 Vite + Preact SPA: dealer / display / player shells, sync client, animation runtime. Exists (M2–M4).
+packages/game-roulette/   GameModule for roulette. Engine + dealer/display/player views + virtual exist (M7).
+packages/game-craps/      GameModule for craps. Engine + dealer/display/player views + virtual exist (M8).
+packages/game-blackjack/  GameModule for blackjack. Engine + dealer/display/player views + virtual exist (M9).
+apps/web/                 Vite + Preact SPA: dealer / display / player shells, sync client, animation runtime, Solo in-process Virtual Dealer, PWA, themes. Exists (M2–M4, M10).
 apps/sync/                Fastify + Socket.IO relay + SQLite persistence + Virtual Dealer. Exists (M3, M6).
 ```
 

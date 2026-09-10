@@ -229,4 +229,136 @@ describe("virtual dealer", () => {
     if (!logged || !replayResult) return;
     expect(replayResult.result.data).toEqual(logged.result.data);
   });
+
+  it("dealer New Series reveals prior seed and commits next series", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url, {
+      game: "baccarat",
+      participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
+    });
+
+    const table = server.registry.get(code)!;
+    const series1Start = table.allEvents.find((e) => e.type === "SERIES_STARTED");
+    expect(series1Start?.type).toBe("SERIES_STARTED");
+
+    const dealer = connectClient(server.url);
+    await new Promise<void>((resolve) => dealer.on("connect", () => resolve()));
+    dealer.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
+    await waitForMessage(dealer, (m) => m.op === "joined");
+
+    dealer.emit("message", {
+      op: "event",
+      clientId: "ns1",
+      event: { type: "SERIES_STARTED", seriesId: "client-id", label: "Shoe 2" },
+    });
+    await waitForMessage(dealer, (m) => m.op === "ack" && m.clientId === "ns1");
+
+    expect(table.allEvents.map((e) => e.type)).toEqual([
+      "TABLE_CREATED",
+      "SERIES_STARTED",
+      "SERIES_ENDED",
+      "SERIES_STARTED",
+    ]);
+
+    const series1End = table.allEvents.find((e) => e.type === "SERIES_ENDED");
+    const seriesStarts = table.allEvents.filter((e) => e.type === "SERIES_STARTED");
+    const series2Start = seriesStarts[1];
+    expect(series1End?.type).toBe("SERIES_ENDED");
+    expect(series2Start?.type).toBe("SERIES_STARTED");
+    if (series2Start?.type === "SERIES_STARTED") {
+      expect(series2Start.commit).toHaveLength(64);
+      expect(series2Start.seriesId).not.toBe("client-id");
+    }
+
+    const fair1 = await fetch(`${server.url}/tables/${code}/fairness?series=1`);
+    const body1 = (await fair1.json()) as { commit: string; seed?: string; draws: unknown[] };
+    expect(body1.seed).toHaveLength(64);
+    if (series1Start?.type === "SERIES_STARTED" && series1End?.type === "SERIES_ENDED") {
+      expect(series1End.seriesId).toBe(series1Start.seriesId);
+      expect(verifyCommit(hexToBytes(body1.seed!), code, series1Start.seriesId, body1.commit)).toBe(
+        true,
+      );
+    }
+
+    const fair2 = await fetch(`${server.url}/tables/${code}/fairness?series=2`);
+    const body2 = (await fair2.json()) as { commit: string; seed?: string; draws: unknown[] };
+    expect(body2.commit).toHaveLength(64);
+    expect(body2.seed).toBeUndefined();
+    if (series2Start?.type === "SERIES_STARTED") {
+      expect(body2.commit).toBe(series2Start.commit);
+    }
+
+    dealer.close();
+  });
+
+  it("rejects dealer SERIES_STARTED with client-supplied commit", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url, {
+      game: "baccarat",
+      participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
+    });
+
+    const dealer = connectClient(server.url);
+    await new Promise<void>((resolve) => dealer.on("connect", () => resolve()));
+    dealer.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
+    await waitForMessage(dealer, (m) => m.op === "joined");
+
+    dealer.emit("message", {
+      op: "event",
+      clientId: "bad-commit",
+      event: {
+        type: "SERIES_STARTED",
+        seriesId: "client-id",
+        commit: "deadbeef".repeat(8),
+      },
+    });
+    const reject = await waitForMessage(
+      dealer,
+      (m) => m.op === "reject" && m.clientId === "bad-commit",
+    );
+    expect(reject.reason).toBe("client commit not allowed");
+
+    const table = server.registry.get(code)!;
+    expect(table.allEvents.map((e) => e.type)).toEqual(["TABLE_CREATED", "SERIES_STARTED"]);
+
+    dealer.close();
+  });
+
+  it("dealer End Session reveals seed before SESSION_ENDED", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url, {
+      game: "baccarat",
+      participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
+    });
+
+    const table = server.registry.get(code)!;
+    const series1Start = table.allEvents.find((e) => e.type === "SERIES_STARTED");
+    expect(series1Start?.type).toBe("SERIES_STARTED");
+
+    const dealer = connectClient(server.url);
+    await new Promise<void>((resolve) => dealer.on("connect", () => resolve()));
+    dealer.emit("message", { op: "join", code, role: "dealer", token: dealerToken });
+    await waitForMessage(dealer, (m) => m.op === "joined");
+
+    dealer.emit("message", {
+      op: "event",
+      clientId: "end1",
+      event: { type: "SESSION_ENDED" },
+    });
+    await waitForMessage(dealer, (m) => m.op === "ack" && m.clientId === "end1");
+
+    const types = table.allEvents.map((e) => e.type);
+    expect(types).toEqual(["TABLE_CREATED", "SERIES_STARTED", "SERIES_ENDED", "SESSION_ENDED"]);
+
+    const fair1 = await fetch(`${server.url}/tables/${code}/fairness?series=1`);
+    const body1 = (await fair1.json()) as { commit: string; seed?: string; draws: unknown[] };
+    expect(body1.seed).toHaveLength(64);
+    if (series1Start?.type === "SERIES_STARTED") {
+      expect(verifyCommit(hexToBytes(body1.seed!), code, series1Start.seriesId, body1.commit)).toBe(
+        true,
+      );
+    }
+
+    dealer.close();
+  });
 });

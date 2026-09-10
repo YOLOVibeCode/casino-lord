@@ -232,23 +232,42 @@ describe("PlayerView", () => {
     expect(chip.textContent).toContain("C");
   });
 
-  it("working toggle emits toggle_working action", () => {
-    const comeBet: PlacedBet<CrapsBetTarget> = {
-      id: "come-8",
-      playerId: "p1",
-      roundId: "r1",
-      type: "come",
-      target: { kind: "point", value: 8 },
-      amount: 25,
-      declared: false,
-      working: true,
-      placedAt: "2026-01-01T00:00:00.000Z",
-      originRoundId: "r1",
-    };
-    const { act } = renderPlayerView({ me: makeMe({ openBets: [comeBet] }) });
+  const comeBetFixture: PlacedBet<CrapsBetTarget> = {
+    id: "come-8",
+    playerId: "p1",
+    roundId: "r1",
+    type: "come",
+    target: { kind: "point", value: 8 },
+    amount: 25,
+    declared: false,
+    working: true,
+    placedAt: "2026-01-01T00:00:00.000Z",
+    originRoundId: "r1",
+  };
+
+  function selectComeBet(): void {
     fireEvent.click(screen.getByTestId("come-chip-8"));
+  }
+
+  it("working toggle emits toggle_working action", () => {
+    const { act } = renderPlayerView({ me: makeMe({ openBets: [comeBetFixture] }) });
+    selectComeBet();
     fireEvent.click(screen.getByTestId("working-toggle"));
     expect(act).toHaveBeenCalledWith({ kind: "toggle_working", betId: "come-8" });
+  });
+
+  it("press emits press action with selected betId", () => {
+    const { act } = renderPlayerView({ me: makeMe({ openBets: [comeBetFixture] }) });
+    selectComeBet();
+    fireEvent.click(screen.getByTestId("working-press"));
+    expect(act).toHaveBeenCalledWith({ kind: "press", betId: "come-8" });
+  });
+
+  it("take down emits take_down action with selected betId", () => {
+    const { act } = renderPlayerView({ me: makeMe({ openBets: [comeBetFixture] }) });
+    selectComeBet();
+    fireEvent.click(screen.getByTestId("working-take-down"));
+    expect(act).toHaveBeenCalledWith({ kind: "take_down", betId: "come-8" });
   });
 
   it("shows shooter controls only for current shooter", () => {

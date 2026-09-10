@@ -389,6 +389,8 @@ export function DealerShell({
             state: composed.module,
             rules,
             table,
+            events: store.events,
+            players: composed.platform.players,
             emit: (body: Parameters<typeof store.emit>[0]) => {
               if (body.type === "LIVE_INPUT") betting.onDealerEntry();
               store.emit(body);
@@ -666,7 +668,11 @@ export function DealerShell({
         />
       )}
       {activeDialog === "players" && syncStore && (
-        <PlayersDialog store={syncStore} onClose={() => setActiveDialog(null)} />
+        <PlayersDialog
+          store={syncStore}
+          {...(module.seats !== undefined ? { seatsConfig: module.seats } : {})}
+          onClose={() => setActiveDialog(null)}
+        />
       )}
       {activeDialog === "qr" && syncStore && (
         <QrDialog
