@@ -142,7 +142,7 @@ export function screenshotMaskLocators(page: Page) {
     page.locator(".betting-strip__bar"),
     page.locator(".display-shell--idle-attract .display-shell__module"),
     page.locator(".display-shell__animation-overlay"),
-    page.locator(".player-shell__animation-overlay"),
+    page.locator(".player-shell__animation-overlay:not(:empty)"),
     page.locator('[data-testid="virtual-pending-ring"]'),
     page.locator('[data-testid="connection-dot"]'),
   ];
