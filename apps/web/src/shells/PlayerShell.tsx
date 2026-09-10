@@ -1,3 +1,4 @@
+import { describeCrapsResult, findCrapsRollInfo } from "@casino-lord/game-craps";
 import {
   buildLeaderboard,
   getBankroll,
@@ -7,11 +8,13 @@ import {
   sortPlayers,
   type BetCatalogue,
   type BetDef,
+  type GameId,
   type PlacedBet,
   type PlatformState,
   type Settlement,
   type TableEvent,
 } from "@casino-lord/core";
+import type { CrapsResult } from "@casino-lord/game-craps";
 import {
   ActionButtons,
   BetSlip,
@@ -102,9 +105,68 @@ interface HistoryRow {
   amount: number;
   roundId: string;
   outcome: Settlement["outcome"] | null;
+  resultDescription: string | null;
   profit: number | null;
   profitLabel: string | null;
   runningNet: number | null;
+}
+
+interface ResultModule {
+  id: GameId;
+  resultLabel: string;
+  describeResult?: (result: unknown, rules: unknown) => string;
+}
+
+function getResultEntries(
+  gameId: GameId,
+  moduleState: unknown,
+): Array<{ id: string; data?: unknown }> {
+  if (!moduleState || typeof moduleState !== "object") return [];
+  const state = moduleState as Record<string, unknown>;
+  switch (gameId) {
+    case "baccarat":
+    case "craps":
+      return (state.results as Array<{ id: string; data: unknown }> | undefined) ?? [];
+    case "roulette":
+      return (state.spins as Array<{ id: string; data: unknown }> | undefined) ?? [];
+    case "blackjack":
+      return (state.rounds as Array<{ id: string; data: unknown }> | undefined) ?? [];
+    default:
+      return [];
+  }
+}
+
+function findResultData(
+  gameId: GameId,
+  moduleState: unknown,
+  resultId: string,
+): unknown | null {
+  return getResultEntries(gameId, moduleState).find((r) => r.id === resultId)?.data ?? null;
+}
+
+function resultNumber(gameId: GameId, moduleState: unknown, resultId: string): number {
+  const entries = getResultEntries(gameId, moduleState);
+  const idx = entries.findIndex((r) => r.id === resultId);
+  return idx >= 0 ? idx + 1 : entries.length;
+}
+
+export function describeResultLine(
+  module: ResultModule,
+  rules: unknown,
+  moduleState: unknown,
+  resultId: string,
+): string {
+  const resultData = findResultData(module.id, moduleState, resultId);
+  if (resultData !== null) {
+    if (module.id === "craps") {
+      const rollInfo = findCrapsRollInfo(moduleState, resultId);
+      return describeCrapsResult(resultData as CrapsResult, rollInfo);
+    }
+    if (module.describeResult) {
+      return module.describeResult(resultData, rules);
+    }
+  }
+  return `${module.resultLabel} #${resultNumber(module.id, moduleState, resultId)}`;
 }
 
 function formatProfitLabel(profit: number, declared: boolean): string {
@@ -120,6 +182,9 @@ export function buildHistoryRows(
   playerId: string,
   catalogue: BetCatalogue<unknown, unknown, unknown, unknown>,
   declaredMode: boolean,
+  module: ResultModule,
+  rules: unknown,
+  moduleState: unknown,
 ): HistoryRow[] {
   const bets = platform.bets
     .filter((b) => b.playerId === playerId)
@@ -133,12 +198,17 @@ export function buildHistoryRows(
 
     if (settlement && round?.status === "settled") {
       runningNet += settlement.profit;
+      const resultDescription =
+        round.resultId !== undefined
+          ? describeResultLine(module, rules, moduleState, round.resultId)
+          : null;
       return {
         id: bet.id,
         label: betLabel(catalogue, bet.type),
         amount: bet.amount,
         roundId: bet.roundId,
         outcome: settlement.outcome,
+        resultDescription,
         profit: settlement.profit,
         profitLabel: formatProfitLabel(settlement.profit, declaredMode),
         runningNet,
@@ -151,6 +221,7 @@ export function buildHistoryRows(
       amount: bet.amount,
       roundId: bet.roundId,
       outcome: null,
+      resultDescription: null,
       profit: null,
       profitLabel: null,
       runningNet: null,
@@ -171,17 +242,9 @@ function sumSettlementProfit(platform: PlatformState, playerId: string): number 
   return total;
 }
 
-function buildSettlementSummary(
-  outcome: string,
-  playerTotal: number | null,
-  bankerTotal: number | null,
-  profit: number,
-): string {
-  const outcomeLabel = outcome === "B" ? "Banker" : outcome === "P" ? "Player" : "Tie";
-  const total = outcome === "B" ? bankerTotal : outcome === "P" ? playerTotal : playerTotal;
+function buildSettlementSummary(headline: string, profit: number): string {
   const sign = profit >= 0 ? "+" : "";
   const verb = profit >= 0 ? "won" : "lost";
-  const headline = total !== null ? `${outcomeLabel} ${total}` : outcomeLabel;
   return `${headline} — you ${verb} ${sign}${profit}`;
 }
 
@@ -280,24 +343,18 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       else if (s.profit < 0) byZone[bet.type] = "lose";
     }
 
-    const mod = snapshot.module as {
-      results?: {
-        data: {
-          outcome: string;
-          bankerTotal: number | null;
-          playerTotal: number | null;
-        };
-      }[];
-    };
-    const last = mod.results?.at(-1)?.data;
+    const settledRoundData = snapshot.platform.rounds.find((r) => r.id === roundId);
+    const resultId = settledRoundData?.resultId;
+    const mod = moduleEntry?.module;
+    const headline =
+      mod && resultId
+        ? describeResultLine(mod, rules, snapshot.module, resultId)
+        : mod
+          ? `${mod.resultLabel} #${snapshot.platform.rounds.filter((r) => r.status === "settled").length}`
+          : "Result";
 
-    if (last && profit !== 0) {
-      const summary = buildSettlementSummary(
-        last.outcome,
-        last.playerTotal,
-        last.bankerTotal,
-        profit,
-      );
+    if (resultId && profit !== 0) {
+      const summary = buildSettlementSummary(headline, profit);
       setSettlementSummary(summary);
       setSettlementFlash(profit > 0 ? "win" : "lose");
       setSettlementByZone(byZone);
@@ -312,7 +369,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     return () => {
       if (settlementTimer.current) clearTimeout(settlementTimer.current);
     };
-  }, [store, playerId, settledRound?.id]);
+  }, [store, playerId, settledRound?.id, moduleEntry?.module, rules]);
 
   useEffect(() => {
     if (!openRound?.closesAt) {
@@ -732,9 +789,17 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const historyRows = useMemo(
     () =>
       playerId && module
-        ? buildHistoryRows(composed.platform, playerId, module.bets, !houseBank)
+        ? buildHistoryRows(
+            composed.platform,
+            playerId,
+            module.bets,
+            !houseBank,
+            module,
+            rules,
+            composed.module,
+          )
         : [],
-    [composed.platform, playerId, module, houseBank],
+    [composed.platform, playerId, module, houseBank, rules],
   );
 
   const connection = isSyncStore(store) ? store.getConnectionState() : "offline";
@@ -918,6 +983,14 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
                   <span class="player-shell__history-label">
                     {row.label} — {row.amount}
                   </span>
+                  {row.resultDescription !== null && (
+                    <span
+                      class="player-shell__history-result"
+                      data-testid={`player-history-result-${row.id}`}
+                    >
+                      {row.resultDescription}
+                    </span>
+                  )}
                   {row.outcome !== null && (
                     <span
                       class={`player-shell__history-outcome player-shell__history-outcome--${row.outcome}`}

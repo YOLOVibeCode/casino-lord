@@ -183,4 +183,21 @@ describe("baccaratModule", () => {
     const result = baccaratModule.importSeries("NOT_VALID!!!", DEFAULT_BACCARAT_RULES);
     expect("error" in result).toBe(true);
   });
+
+  it("describeResult formats hand totals", () => {
+    expect(
+      baccaratModule.describeResult?.(
+        {
+          cards: null,
+          outcome: "B",
+          playerTotal: 5,
+          bankerTotal: 7,
+          playerPair: false,
+          bankerPair: false,
+          natural: false,
+        },
+        DEFAULT_BACCARAT_RULES,
+      ),
+    ).toBe("Banker 7 – Player 5");
+  });
 });
