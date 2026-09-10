@@ -39,29 +39,45 @@ type ActiveDialog = "settings" | "history" | "calculator" | "qr" | "players" | "
 
 const ROTATE_HINT_KEY = "casino-lord:dealer-rotate-hint-dismissed";
 
-export const SOLO_PLAYERS_HINT =
-  "Players requires a synced table — use Create Table on the home screen.";
+export const SOLO_PLAYERS_HINT = "Local players are managed in the Solo page";
 
 const REJECT_MESSAGES: Record<string, string> = {
-  SESSION_ENDED: "This table session has ended.",
-  NOT_FOUND: "That table code was not found.",
-  BAD_TOKEN: "The dealer token is invalid.",
-  DECLINED: "The action was declined by the server.",
+  MIXED_SERIES: "Cannot mix physical and virtual results in one series.",
+  DEALING: "Wait for the current deal to finish.",
+  SESSION_ENDED: "This session has ended.",
+  NOT_FOUND: "Table not found.",
+  BAD_TOKEN: "Your link is invalid or expired.",
+  DEALER_ACTIVE: "Another dealer is already connected.",
+  DECLINED: "Request declined.",
+  demoted: "You are in read-only mode.",
+  "not authorized": "You are not authorized for that action.",
+  "rate limit exceeded": "Too many requests — try again in a moment.",
+  "awaiting action": "Waiting for a player action first.",
+  NOT_VIRTUAL: "This table is not virtual.",
+  VIRTUAL_DISABLED: "Virtual dealing is disabled.",
+  UNSUPPORTED_GAME: "This game is not supported.",
+  "no virtual dealer": "Virtual dealer is not available.",
+  "virtual step failed": "Virtual deal failed.",
 };
 
 export function describeReject(reason: string): string {
-  return REJECT_MESSAGES[reason] ?? `Action rejected: ${reason}`;
+  return REJECT_MESSAGES[reason] ?? reason.replace(/_/g, " ").toLowerCase();
 }
 
 export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  return target.isContentEditable;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    target.isContentEditable ||
+    !!target.closest("[role=dialog]")
+  );
 }
 
 export function lastRecordedEvent(
-  events: TableEvent[],
+  events: readonly TableEvent[],
 ): Extract<TableEvent, { type: "RESULT_RECORDED" }> | undefined {
   for (let i = events.length - 1; i >= 0; i--) {
     const event = events[i];
@@ -70,23 +86,16 @@ export function lastRecordedEvent(
   return undefined;
 }
 
-function resultDetail(data: unknown): string | undefined {
-  if (typeof data !== "object" || data === null) return undefined;
-  const r = data as Record<string, unknown>;
-  if (typeof r.total === "number") {
-    return r.hard === true ? `${r.total}H` : String(r.total);
-  }
-  const pt = r.playerTotal;
-  const bt = r.bankerTotal;
-  if (typeof pt === "number" && typeof bt === "number") return `${pt}–${bt}`;
-  if (typeof r.value === "number") return String(r.value);
-  if (typeof r.outcome === "string") return r.outcome;
-  return undefined;
-}
-
-export function formatRecordedToast(resultLabel: string, index: number, detail?: string): string {
-  const base = `${resultLabel} ${index + 1} recorded`;
-  return detail ? `${base} · ${detail}` : base;
+export function formatRecordedToast(
+  module: UntypedGameModule,
+  envelope: ResultEnvelope<unknown>,
+): string {
+  const describeResult = (module as { describeResult?: (data: unknown) => string }).describeResult;
+  const label =
+    typeof describeResult === "function"
+      ? describeResult(envelope.data)
+      : `${module.resultLabel} ${envelope.index + 1}`;
+  return `${label} recorded`;
 }
 
 export interface InlineConfirmProps {
@@ -116,6 +125,7 @@ export function InlineConfirm({ message, onConfirm, onCancel }: InlineConfirmPro
 export interface InlinePromptProps {
   message: string;
   defaultValue?: string;
+  readOnly?: boolean;
   onSubmit: (value: string) => void;
   onCancel: () => void;
 }
@@ -123,27 +133,50 @@ export interface InlinePromptProps {
 export function InlinePrompt({
   message,
   defaultValue = "",
+  readOnly = false,
   onSubmit,
   onCancel,
 }: InlinePromptProps) {
   const [value, setValue] = useState(defaultValue);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!readOnly) return;
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+  }, [readOnly]);
   return (
     <div class="dealer-shell__overlay" data-testid="inline-prompt" role="dialog" aria-modal="true">
       <div class="dealer-shell__overlay-card">
         <p>{message}</p>
         <textarea
+          ref={inputRef}
           class="dealer-shell__prompt-input"
           data-testid="inline-prompt-input"
+          readOnly={readOnly}
           value={value}
           onInput={(e) => setValue((e.target as HTMLTextAreaElement).value)}
         />
         <div class="dealer-shell__overlay-actions">
-          <button type="button" data-testid="inline-prompt-submit" onClick={() => onSubmit(value)}>
-            OK
-          </button>
-          <button type="button" data-testid="inline-prompt-cancel" onClick={onCancel}>
-            Cancel
-          </button>
+          {readOnly ? (
+            <button type="button" data-testid="inline-prompt-close" onClick={onCancel}>
+              Close
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                data-testid="inline-prompt-submit"
+                onClick={() => onSubmit(value)}
+              >
+                OK
+              </button>
+              <button type="button" data-testid="inline-prompt-cancel" onClick={onCancel}>
+                Cancel
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -154,6 +187,7 @@ type PendingConfirm = { message: string; onConfirm: () => void } | null;
 type PendingPrompt = {
   message: string;
   defaultValue?: string;
+  readOnly?: boolean;
   onSubmit: (value: string) => void;
 } | null;
 
@@ -205,7 +239,6 @@ export function DealerShell({
   });
   const betsView = buildBetsView(composed.platform, module, composed.module);
   const [undoArmed, setUndoArmed] = useState(false);
-  const [undoHand, setUndoHand] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [confirmProgress, setConfirmProgress] = useState(0);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -238,28 +271,18 @@ export function DealerShell({
     store.emit({ type: "LIVE_INPUT", payload: { slots: {} }, source: "dealer" });
   }, [store]);
 
-  const toastForRecorded = useCallback(
-    (result: unknown, index: number) => {
-      const detail =
-        confirmState?.label?.replace(/^✓\s*/, "").replace(/^CONFIRM\s+/i, "") ??
-        resultDetail(result);
-      showToast(formatRecordedToast(module.resultLabel, index, detail), "info");
-    },
-    [confirmState?.label, module.resultLabel, showToast],
-  );
+  const toastAfterRecord = useCallback(() => {
+    const event = lastRecordedEvent(store.events);
+    if (event) showToast(formatRecordedToast(module, event.result), "info");
+  }, [module, showToast, store]);
 
   const handleRecord = useCallback(
     (result: unknown, opts: { quick: boolean }) => {
       betting.onDealerEntry();
-      const index = Array.isArray((composed.module as { results?: unknown[] }).results)
-        ? (composed.module as { results: unknown[] }).results.length
-        : 0;
       store.record(result, opts);
-      if (!opts.quick) {
-        toastForRecorded(result, index);
-      }
+      toastAfterRecord();
     },
-    [betting, composed.module, store, toastForRecorded],
+    [betting, store, toastAfterRecord],
   );
 
   const executeConfirm = useCallback(() => {
@@ -278,12 +301,9 @@ export function DealerShell({
       setEditingEnvelope(null);
       store.emit(clearLiveInput);
     } else {
-      const index = Array.isArray((composed.module as { results?: unknown[] }).results)
-        ? (composed.module as { results: unknown[] }).results.length
-        : 0;
       betting.onDealerEntry();
       store.record(confirmState.result, { quick: false });
-      toastForRecorded(confirmState.result, index);
+      toastAfterRecord();
       if (confirmState.autoSeries) {
         store.startNewSeries(undefined, { auto: true });
       }
@@ -292,13 +312,12 @@ export function DealerShell({
   }, [
     betting,
     clearConfirmTimer,
-    composed.module,
     confirmState,
     deviceSettings.haptics,
     editingEnvelope,
     module.id,
     store,
-    toastForRecorded,
+    toastAfterRecord,
   ]);
 
   const startConfirmDelay = useCallback(() => {
@@ -334,7 +353,6 @@ export function DealerShell({
 
     if (!undoArmed) {
       setUndoArmed(true);
-      setUndoHand(count);
       if (undoTimer.current) clearTimeout(undoTimer.current);
       undoTimer.current = setTimeout(() => setUndoArmed(false), 3000);
       return;
@@ -359,6 +377,7 @@ export function DealerShell({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;
+      if (menuOpen || activeDialog || pendingConfirm || pendingPrompt) return;
       if (e.key === "z" || e.key === "Z") {
         e.preventDefault();
         handleUndo();
@@ -374,7 +393,25 @@ export function DealerShell({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [confirmState?.enabled, handleUndo, requestNewSeries, startConfirmDelay]);
+  }, [
+    activeDialog,
+    confirmState?.enabled,
+    handleUndo,
+    menuOpen,
+    pendingConfirm,
+    pendingPrompt,
+    requestNewSeries,
+    startConfirmDelay,
+  ]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
 
   useEffect(() => {
     if (!virtualPending) {
@@ -403,8 +440,10 @@ export function DealerShell({
   const handleExport = async () => {
     try {
       let text: string;
+      let resultCount: number;
       const syncStore = isSyncStore(store) ? store : null;
       const dealerToken = syncStore?.getDealerToken() ?? null;
+      const series = buildSeriesFromStoreEvents(store.events, table.seriesNumber);
 
       if (syncStore && dealerToken) {
         text = await fetchTableExport(
@@ -413,12 +452,13 @@ export function DealerShell({
           table.seriesNumber,
           dealerToken,
         );
+        resultCount = series?.results.length ?? 0;
       } else {
-        const series = buildSeriesFromStoreEvents(store.events, table.seriesNumber);
         if (!series) {
           showToast("No series to export", "error");
           return;
         }
+        resultCount = series.results.length;
         const outcomeSource = composed.platform.participation.outcomeSource;
         text = buildExportText({
           game: store.game,
@@ -435,12 +475,13 @@ export function DealerShell({
 
       try {
         await navigator.clipboard.writeText(text);
-        showToast("Export copied to clipboard", "info");
+        showToast(`Export copied — ${resultCount} results`, "info");
         setMenuOpen(false);
       } catch {
         setPendingPrompt({
-          message: "Clipboard unavailable — copy export text:",
+          message: "Copy failed — select and copy manually:",
           defaultValue: text,
+          readOnly: true,
           onSubmit: () => {
             setMenuOpen(false);
             setPendingPrompt(null);
@@ -551,11 +592,7 @@ export function DealerShell({
           ? "Offline"
           : "Local / Solo";
 
-  const undoLabel = undoArmed
-    ? `Tap again to undo ${module.resultLabel} ${undoHand}`
-    : `Undo last ${module.resultLabel}`;
-
-  const forceLabel = virtualPending ? "Deal now" : "Force";
+  const undoLabel = undoArmed ? `Undo last ${module.resultLabel}` : "UNDO";
 
   return (
     <div class="dealer-shell" data-testid="dealer-shell">
@@ -766,7 +803,7 @@ export function DealerShell({
                     Import
                   </button>
                   <a href={tableUrl(`/verify?code=${store.code}`)} data-testid="menu-verify">
-                    {virtualTable ? "Verify export" : "Verify fairness"}
+                    Verify fairness / export
                   </a>
                   <button
                     type="button"
@@ -855,19 +892,21 @@ export function DealerShell({
               >
                 {virtualTriggerLabel}
               </button>
-              <button
-                type="button"
-                class="dealer-shell__btn"
-                disabled={readOnly || forceUsed}
-                data-testid="force-btn"
-                onClick={() => {
-                  if (forceUsed) return;
-                  setForceUsed(true);
-                  store.sendVirtual("force");
-                }}
-              >
-                {forceLabel}
-              </button>
+              {virtualPending && !awaitingPlayerAction && (
+                <button
+                  type="button"
+                  class="dealer-shell__btn"
+                  disabled={readOnly || forceUsed}
+                  data-testid="force-btn"
+                  onClick={() => {
+                    if (forceUsed) return;
+                    setForceUsed(true);
+                    store.sendVirtual("force");
+                  }}
+                >
+                  Deal now
+                </button>
+              )}
             </>
           ) : (
             <>
@@ -926,6 +965,7 @@ export function DealerShell({
           {...(pendingPrompt.defaultValue !== undefined
             ? { defaultValue: pendingPrompt.defaultValue }
             : {})}
+          {...(pendingPrompt.readOnly ? { readOnly: true } : {})}
           onSubmit={pendingPrompt.onSubmit}
           onCancel={() => setPendingPrompt(null)}
         />

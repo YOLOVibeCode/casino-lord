@@ -144,7 +144,7 @@ describe("DealerShell", () => {
     expect(store.events.some((e) => e.type === "SESSION_ENDED")).toBe(false);
   });
 
-  it("undo button uses resultLabel in label text", () => {
+  it("undo button uses resultLabel when armed", () => {
     const module = asUntypedModule(createStubModule());
     const store = createTableStore({
       game: "baccarat",
@@ -164,7 +164,9 @@ describe("DealerShell", () => {
       onDeviceSettingsChange: () => {},
     });
 
-    expect(screen.getByTestId("undo-btn").textContent).toMatch(/Undo last Round/i);
+    expect(screen.getByTestId("undo-btn").textContent).toBe("UNDO");
+    fireEvent.click(screen.getByTestId("undo-btn"));
+    expect(screen.getByTestId("undo-btn").textContent).toBe("Undo last Round");
   });
 
   it("shows recorded toast after confirming a complete hand", () => {
@@ -288,7 +290,7 @@ describe("DealerShell", () => {
       });
 
       expect(navigator.clipboard.writeText).toHaveBeenCalled();
-      expect(screen.getByTestId("dealer-toast").textContent).toMatch(/copied to clipboard/i);
+      expect(screen.getByTestId("dealer-toast").textContent).toMatch(/Export copied — 0 results/);
     });
 
     it("shows inline prompt when clipboard write fails", async () => {
@@ -477,8 +479,8 @@ describe("DealerShell", () => {
     document.body.appendChild(input);
     input.focus();
 
-    fireEvent.keyDown(input, { key: "z" });
-    expect(screen.getByTestId("undo-btn").textContent).toMatch(/^Undo last Round$/);
+    fireEvent.keyDown(input, { key: "z", bubbles: true });
+    expect(screen.getByTestId("undo-btn").textContent).toBe("UNDO");
     document.body.removeChild(input);
   });
 
