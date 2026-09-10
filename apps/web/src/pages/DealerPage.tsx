@@ -19,6 +19,9 @@ export function DealerPage(_props: { path?: string }) {
   const [store, setStore] = useState<SyncStore | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dealerActive, setDealerActive] = useState(false);
+  const [connectAttempt, setConnectAttempt] = useState(0);
+  const [takeoverMode, setTakeoverMode] = useState(false);
   const [deviceSettings, setDeviceSettings] = useDeviceSettings();
 
   useEffect(() => {
@@ -41,6 +44,10 @@ export function DealerPage(_props: { path?: string }) {
 
     let destroyed = false;
     let syncStore: SyncStore | null = null;
+    setDealerActive(false);
+    setError(null);
+    setStore(null);
+    setLoading(true);
 
     void (async () => {
       try {
@@ -65,7 +72,15 @@ export function DealerPage(_props: { path?: string }) {
           syncUrl: getSyncBaseUrl(),
           module: entry.module,
           rules: entry.module.defaultRules,
+          takeover: takeoverMode,
           onJoinError: (errCode) => {
+            if (!destroyed && errCode === "DEALER_ACTIVE") {
+              syncStore?.destroy();
+              syncStore = null;
+              setDealerActive(true);
+              setLoading(false);
+              return;
+            }
             if (!destroyed) {
               setError(errCode);
               setLoading(false);
@@ -79,10 +94,16 @@ export function DealerPage(_props: { path?: string }) {
           setLoading(false);
         }
       } catch (err) {
-        if (!destroyed) {
-          setError(err instanceof Error ? err.message : "Could not load table");
+        if (destroyed) return;
+        const message = err instanceof Error ? err.message : "Could not load table";
+        if (message === "DEALER_ACTIVE") {
+          syncStore?.destroy();
+          setDealerActive(true);
           setLoading(false);
+          return;
         }
+        setError(message);
+        setLoading(false);
       }
     })();
 
@@ -90,17 +111,21 @@ export function DealerPage(_props: { path?: string }) {
       destroyed = true;
       syncStore?.destroy();
     };
-  }, [code, query.t]);
+  }, [code, query.t, connectAttempt, takeoverMode]);
 
   useEffect(() => {
-    if (!loading && (error || !store)) {
+    if (!loading && !dealerActive && (error || !store)) {
       route(`/sync-error?reason=${encodeURIComponent(error ?? "NOT_FOUND")}`);
     }
-  }, [error, loading, store, route]);
+  }, [error, loading, store, dealerActive, route]);
 
-  // Re-render on demotion/connection changes so the banner tracks the store.
   const [, setTick] = useState(0);
   useEffect(() => store?.subscribe(() => setTick((n) => n + 1)), [store]);
+
+  const handleTakeover = (): void => {
+    setTakeoverMode(true);
+    setConnectAttempt((n) => n + 1);
+  };
 
   if (!isSyncConfigured()) {
     return (
@@ -115,6 +140,23 @@ export function DealerPage(_props: { path?: string }) {
     return (
       <main class="dealer-page">
         <p>Connecting…</p>
+      </main>
+    );
+  }
+
+  if (dealerActive) {
+    return (
+      <main class="dealer-page dealer-page--error">
+        <div class="dealer-page__active-card" data-testid="dealer-active-card">
+          <h1>Another device is dealing this table</h1>
+          <p>You can take over dealing or open this table as a display.</p>
+          <div class="dealer-page__active-actions">
+            <button type="button" onClick={handleTakeover}>
+              Take over
+            </button>
+            <a href={`/display/${code}`}>Open as Display</a>
+          </div>
+        </div>
       </main>
     );
   }

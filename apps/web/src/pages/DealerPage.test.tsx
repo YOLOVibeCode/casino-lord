@@ -28,11 +28,22 @@ vi.mock("../sync/api.js", () => ({
   })),
 }));
 
-const createSyncedTableStoreMock = vi.fn(() => mockSyncStore());
+let joinError: string | null = null;
+const createSyncedTableStoreMock = vi.fn((opts?: { onJoinError?: (code: string) => void }) => {
+  if (joinError) {
+    queueMicrotask(() => opts?.onJoinError?.(joinError!));
+    return mockSyncStore();
+  }
+  return mockSyncStore();
+});
+const waitForSyncReadyMock = vi.fn(() => {
+  if (joinError) return Promise.reject(new Error(joinError));
+  return Promise.resolve();
+});
 
 vi.mock("../table/synced-store.js", () => ({
   createSyncedTableStore: (...args: unknown[]) => createSyncedTableStoreMock(...args),
-  waitForSyncReady: () => Promise.resolve(),
+  waitForSyncReady: (...args: unknown[]) => waitForSyncReadyMock(...args),
 }));
 
 let readOnly = false;
@@ -80,7 +91,10 @@ function renderPage(path: string) {
 }
 
 describe("DealerPage", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    joinError = null;
+    cleanup();
+  });
 
   it("renders dealer shell when sync store connects", async () => {
     renderPage("/dealer/ABCD23?t=test-token");
@@ -97,6 +111,18 @@ describe("DealerPage", () => {
     });
     const call = createSyncedTableStoreMock.mock.calls[0]?.[0] as { module: { id: string } };
     expect(call.module.id).toBe(rouletteModule.id);
+  });
+
+  it("shows dealer-active card with takeover and display link", async () => {
+    joinError = "DEALER_ACTIVE";
+    renderPage("/dealer/ABCD23?t=test-token");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("dealer-active-card")).toBeTruthy();
+    });
+    expect(screen.getByText("Take over")).toBeTruthy();
+    expect(screen.getByText("Open as Display")).toBeTruthy();
+    const displayLink = screen.getByText("Open as Display") as HTMLAnchorElement;
+    expect(displayLink.getAttribute("href")).toBe("/display/ABCD23");
   });
 
   it("shows the demoted banner when the store becomes read-only", async () => {
