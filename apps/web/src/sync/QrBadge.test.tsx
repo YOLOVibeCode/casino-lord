@@ -23,4 +23,18 @@ describe("QrBadge", () => {
     expect(image.className).toContain("qr-badge__image");
     expect(screen.getByText("ABCD12")).toBeTruthy();
   });
+
+  it("renders custom caption when provided", async () => {
+    render(
+      <QrBadge
+        url="https://example.com/play/ABCD12"
+        tableCode="ABCD12"
+        caption="Scan to join · ABCD12"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Scan to join · ABCD12")).toBeTruthy();
+    });
+  });
 });

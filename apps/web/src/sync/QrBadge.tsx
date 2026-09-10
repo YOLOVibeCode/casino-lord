@@ -5,9 +5,10 @@ export interface QrBadgeProps {
   url: string;
   title?: string;
   tableCode?: string;
+  caption?: string;
 }
 
-export function QrBadge({ url, title = "Display QR", tableCode }: QrBadgeProps) {
+export function QrBadge({ url, title = "Display QR", tableCode, caption }: QrBadgeProps) {
   const [svg, setSvg] = useState("");
 
   useEffect(() => {
@@ -32,7 +33,7 @@ export function QrBadge({ url, title = "Display QR", tableCode }: QrBadgeProps) 
         aria-label={ariaLabel}
         dangerouslySetInnerHTML={{ __html: svg }}
       />
-      {tableCode && <span class="qr-badge__code">{tableCode}</span>}
+      {(caption ?? tableCode) && <span class="qr-badge__code">{caption ?? tableCode}</span>}
     </span>
   );
 }
