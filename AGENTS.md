@@ -29,13 +29,13 @@ pnpm workspace. Packages are created as milestones land (SPEC.md §29); only wha
 
 ```
 packages/core/            @casino-lord/core — platform primitives. Pure. No deps. Exists.
-packages/ui/              shared inputs: CardPicker, OutcomeChips, NumberGrid, DicePicker exist; chip tray / felt zones planned (M5).
+packages/ui/              shared inputs: CardPicker, OutcomeChips, NumberGrid, DicePicker, ChipTray, BetSlip, FeltZones, ActionButtons exist.
 packages/game-baccarat/   GameModule for baccarat. Exists.
-packages/game-roulette/   GameModule for roulette. Engine + dealer/display views exist (M7); PlayerView stub, no virtual yet.
-packages/game-craps/      GameModule for craps. Engine + dealer/display views exist (M8); PlayerView stub, no virtual yet.
-packages/game-blackjack/  GameModule for blackjack. Engine + dealer/display views exist (M9); PlayerView stub, no virtual yet.
+packages/game-roulette/   GameModule for roulette. Engine + dealer/display/player views exist (M7); no virtual yet.
+packages/game-craps/      GameModule for craps. Engine + dealer/display/player views exist (M8); no virtual yet.
+packages/game-blackjack/  GameModule for blackjack. Engine + dealer/display/player views exist (M9); no virtual yet.
 apps/web/                 Vite + Preact SPA: dealer / display / player shells, sync client, animation runtime. Exists (M2–M4).
-apps/sync/                Fastify + Socket.IO relay + SQLite persistence. Exists (M3). Virtual Dealer planned (M6).
+apps/sync/                Fastify + Socket.IO relay + SQLite persistence + Virtual Dealer. Exists (M3, M6).
 ```
 
 - Tests live next to the code: `src/foo.ts` is tested by `src/foo.test.ts`. Vitest picks up `packages/*/src/**/*.test.ts`, `packages/*/src/**/*.test.tsx`, and `apps/*/src/**/*.test.ts(x)`.
