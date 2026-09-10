@@ -147,6 +147,7 @@ export function TableCreatedPage(_props: { path?: string }) {
           <a href={dealerUrl} data-testid="open-dealer">
             Open Dealer here
           </a>
+          <a href={dealerUrl} data-testid="created-dealer-link" hidden aria-hidden="true" />
           <p class="table-created__warning" data-testid="dealer-private-warning">
             Anyone with this link can control the table.
           </p>
