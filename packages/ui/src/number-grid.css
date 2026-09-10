@@ -24,8 +24,8 @@
 }
 
 .number-grid__cell {
-  min-height: 48px;
-  min-width: 48px;
+  min-height: max(3.5rem, 56px);
+  min-width: max(3.5rem, 56px);
   border: 2px solid rgba(255, 255, 255, 0.15);
   border-radius: 0.35rem;
   font-size: 1.125rem;
@@ -63,7 +63,7 @@
 
 .number-grid__confirm {
   margin-top: 0.5rem;
-  min-height: 48px;
+  min-height: max(3rem, 44px);
   border: none;
   border-radius: 0.35rem;
   background: #d4af37;
