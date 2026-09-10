@@ -773,8 +773,12 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
         />
         <span class={dotClass} data-testid="connection-dot" />
         <span class="player-shell__name">{playerName}</span>
-        <span class="player-shell__bank" data-testid="player-bankroll">
-          ⛁ {displayBankroll.toLocaleString()}
+        <span
+          class="player-shell__bank"
+          data-testid="player-bankroll"
+          aria-label={`Balance ${bankroll} chips`}
+        >
+          Balance ⛁ {displayBankroll.toLocaleString()}
         </span>
         <span class="player-shell__code">{store.code}</span>
         <button

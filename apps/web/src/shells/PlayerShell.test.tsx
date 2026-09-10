@@ -73,6 +73,15 @@ describe("PlayerShell", () => {
     expect(screen.getByTestId("baccarat-player-view")).toBeTruthy();
   });
 
+  it("shows balance label in header", () => {
+    const { store } = setupStore({ bankroll: 500 });
+    render(<PlayerShell store={store} playerName="Ana" />);
+    const bank = screen.getByTestId("player-bankroll");
+    expect(bank.textContent).toContain("Balance");
+    expect(bank.textContent).toContain("500");
+    expect(bank.getAttribute("aria-label")).toBe("Balance 500 chips");
+  });
+
   it("PLACE emits BET_PLACED with roundId", () => {
     const { store } = setupStore();
     const emitSpy = vi.spyOn(store, "emit");
