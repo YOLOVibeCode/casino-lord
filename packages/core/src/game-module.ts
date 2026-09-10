@@ -112,4 +112,7 @@ export interface GameModule<Rules, Result, LiveInput, State, BetTarget = unknown
     text: string,
     rules: Rules,
   ): { results: Result[]; warnings: string[] } | { error: string };
+
+  /** Player-facing one-line result summary (SPEC.md §6, §11.1). */
+  describeResult?(result: Result, rules: Rules): string;
 }

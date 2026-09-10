@@ -49,12 +49,6 @@ export interface DealerViewProps {
   haptics?: boolean;
 }
 
-function tapHaptic(enabled: boolean): void {
-  if (enabled && typeof navigator.vibrate === "function") {
-    navigator.vibrate(10);
-  }
-}
-
 export function DealerView({
   state,
   rules,
@@ -81,18 +75,16 @@ export function DealerView({
 
   const handleDieA = useCallback(
     (face: DieFace) => {
-      tapHaptic(haptics);
       emitLive(face, liveInput.b);
     },
-    [emitLive, liveInput.b, haptics],
+    [emitLive, liveInput.b],
   );
 
   const handleDieB = useCallback(
     (face: DieFace) => {
-      tapHaptic(haptics);
       emitLive(liveInput.a, face);
     },
-    [emitLive, liveInput.a, haptics],
+    [emitLive, liveInput.a],
   );
 
   const handleClear = useCallback(() => {
@@ -210,6 +202,7 @@ export function DealerView({
           dieA={liveInput.a}
           dieB={liveInput.b}
           expressMode={expressMode}
+          haptics={haptics}
           onDieA={handleDieA}
           onDieB={handleDieB}
           onCommit={handleCommit}

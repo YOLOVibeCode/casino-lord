@@ -56,7 +56,33 @@ export async function createTable(
 
   const url = new URL(page.url());
   const code = url.pathname.split("/").pop() ?? "";
-  const dealerToken = url.searchParams.get("t") ?? "";
+
+  let dealerToken = url.searchParams.get("t") ?? "";
+  if (!dealerToken) {
+    const dealerHref = await page.getByTestId("open-dealer").getAttribute("href");
+    if (dealerHref) {
+      dealerToken = new URL(dealerHref, page.url()).searchParams.get("t") ?? "";
+    }
+  }
+  if (!dealerToken) {
+    dealerToken = await page.evaluate((tableCode) => {
+      const key = `casino-lord:dealer-token:${tableCode}`;
+      const raw = localStorage.getItem(key);
+      if (!raw) return "";
+      try {
+        const parsed = JSON.parse(raw) as { token?: string };
+        return typeof parsed.token === "string" ? parsed.token : raw;
+      } catch {
+        return raw;
+      }
+    }, code);
+  }
+
+  if (!code || !dealerToken) {
+    throw new Error(
+      `createTable: missing code or dealer token (code=${code}, token present=${Boolean(dealerToken)})`,
+    );
+  }
 
   return { code, dealerToken };
 }

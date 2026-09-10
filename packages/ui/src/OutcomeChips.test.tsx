@@ -26,8 +26,8 @@ describe("OutcomeChips", () => {
     const onLongPress = vi.fn();
     render(<OutcomeChips chips={CHIPS} onTap={onTap} onLongPress={onLongPress} />);
     const chip = screen.getByTestId("outcome-chip-P");
-    fireEvent.mouseDown(chip);
-    fireEvent.mouseUp(chip);
+    fireEvent.pointerDown(chip, { pointerId: 1 });
+    fireEvent.pointerUp(chip, { pointerId: 1 });
     expect(onTap).toHaveBeenCalledWith("P");
     expect(onLongPress).not.toHaveBeenCalled();
   });
@@ -37,9 +37,9 @@ describe("OutcomeChips", () => {
     const onLongPress = vi.fn();
     render(<OutcomeChips chips={CHIPS} onTap={onTap} onLongPress={onLongPress} />);
     const chip = screen.getByTestId("outcome-chip-B");
-    fireEvent.mouseDown(chip);
+    fireEvent.pointerDown(chip, { pointerId: 1 });
     vi.advanceTimersByTime(500);
-    fireEvent.mouseUp(chip);
+    fireEvent.pointerUp(chip, { pointerId: 1 });
     expect(onLongPress).toHaveBeenCalledWith("B");
     expect(onTap).not.toHaveBeenCalled();
   });

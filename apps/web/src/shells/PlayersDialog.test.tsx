@@ -10,7 +10,24 @@ import { crapsModule, DEFAULT_CRAPS_RULES } from "@casino-lord/game-craps";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
 import type { SyncStore } from "../table/sync-store-types.js";
+import { reissuePlayerToken } from "../sync/api.js";
+import { qrDataUrl } from "../sync/qr.js";
 import { PlayersDialog } from "./PlayersDialog.js";
+
+vi.mock("../sync/config.js", () => ({
+  getSyncBaseUrl: () => "http://test.local",
+  isSyncConfigured: () => true,
+  resolveSyncUrl: () => "http://test.local",
+}));
+
+vi.mock("../sync/api.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../sync/api.js")>();
+  return { ...actual, reissuePlayerToken: vi.fn() };
+});
+
+vi.mock("../sync/qr.js", () => ({
+  qrDataUrl: vi.fn(async () => "data:image/png;base64,test"),
+}));
 
 function wrapSyncStore(store: ReturnType<typeof createTableStore>): SyncStore {
   const sendAdmit = vi.fn();
@@ -36,7 +53,29 @@ function wrapSyncStore(store: ReturnType<typeof createTableStore>): SyncStore {
   }) as SyncStore;
 }
 
-function mockBaccaratSyncStore(): SyncStore {
+function mockBaccaratSyncStore(opts?: { autoBuyIn?: boolean }): SyncStore {
+  const module = asUntypedModule(createStubModule());
+  const store = createTableStore({
+    game: "baccarat",
+    module,
+    rules: STUB_RULES,
+    rng: () => 0,
+    now: () => "2026-01-01T00:00:00.000Z",
+    id: () => "e1",
+  });
+  store.emit({
+    type: "SETTINGS_CHANGED",
+    patch: {
+      participation: houseSettings().participation,
+      bank: { autoBuyIn: opts?.autoBuyIn ?? false },
+    },
+  });
+  return Object.assign(wrapSyncStore(store), {
+    getPendingPlayers: () => [{ id: "p1", name: "Ana", color: "#E53935" }],
+  }) as SyncStore;
+}
+
+function mockStoreWithZeroBankroll(): SyncStore {
   const module = asUntypedModule(createStubModule());
   const store = createTableStore({
     game: "baccarat",
@@ -50,9 +89,17 @@ function mockBaccaratSyncStore(): SyncStore {
     type: "SETTINGS_CHANGED",
     patch: { participation: houseSettings().participation },
   });
-  return Object.assign(wrapSyncStore(store), {
-    getPendingPlayers: () => [{ id: "p1", name: "Ana", color: "#E53935" }],
-  }) as SyncStore;
+  store.emit({
+    type: "PLAYER_JOINED",
+    player: {
+      id: "p1",
+      name: "Ana",
+      color: "#E53935",
+      status: "active",
+      joinedAt: "2026-01-01T00:00:00.000Z",
+    },
+  });
+  return wrapSyncStore(store);
 }
 
 function mockCrapsSyncStore(): SyncStore {
@@ -250,5 +297,58 @@ describe("PlayersDialog", () => {
       />,
     );
     expect(screen.queryByTestId("seat-select-p1")).toBeNull();
+  });
+
+  it("reissue encodes player token in URL and shows warning", async () => {
+    vi.mocked(reissuePlayerToken).mockResolvedValue({ playerToken: "new-token" });
+    const store = mockStoreWithZeroBankroll();
+    render(<PlayersDialog store={store} onClose={() => undefined} />);
+    fireEvent.click(screen.getByTestId("reissue-p1"));
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("reissue-link")).toBeTruthy();
+    });
+    const link = screen.getByTestId("reissue-link");
+    expect(link.getAttribute("href")).toContain("?t=new-token");
+    expect(screen.getByTestId("reissue-warning").textContent).toContain(
+      "Anyone with this link can join as this player",
+    );
+    expect(qrDataUrl).toHaveBeenCalledWith(expect.stringContaining("?t=new-token"));
+  });
+
+  it("approve shows buy-in toast with one-tap issue action", async () => {
+    const store = mockBaccaratSyncStore({ autoBuyIn: false });
+    render(<PlayersDialog store={store} onClose={() => undefined} />);
+    fireEvent.click(screen.getByTestId("approve-p1"));
+    expect(store.sendAdmit).toHaveBeenCalledWith("p1", true);
+    expect(screen.getByTestId("players-toast").textContent).toContain("issue 500 chips");
+    fireEvent.click(screen.getByTestId("players-toast-action"));
+    const issued = store.events.find((e) => e.type === "BANK_ISSUED");
+    expect(issued).toMatchObject({
+      type: "BANK_ISSUED",
+      playerId: "p1",
+      amount: 500,
+      reason: "buyin",
+    });
+  });
+
+  it("closes on Escape via dialog a11y", () => {
+    const onClose = vi.fn();
+    const store = mockBaccaratSyncStore();
+    render(<PlayersDialog store={store} onClose={onClose} />);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows Issue button when player bankroll is zero", () => {
+    const store = mockStoreWithZeroBankroll();
+    render(<PlayersDialog store={store} onClose={() => undefined} />);
+    fireEvent.click(screen.getByTestId("issue-buyin-p1"));
+    const issued = store.events.find((e) => e.type === "BANK_ISSUED");
+    expect(issued).toMatchObject({
+      type: "BANK_ISSUED",
+      playerId: "p1",
+      amount: 500,
+      reason: "buyin",
+    });
   });
 });

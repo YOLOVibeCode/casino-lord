@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { tapHaptic } from "./haptics.js";
 import "./dice-picker.css";
 
 export type DieFace = 1 | 2 | 3 | 4 | 5 | 6;
@@ -20,6 +21,7 @@ export interface DicePickerProps {
   expressMode: boolean;
   confirmRequired?: boolean;
   blocked?: string;
+  haptics?: boolean;
   onDieA: (face: DieFace) => void;
   onDieB: (face: DieFace) => void;
   onCommit: () => void;
@@ -40,7 +42,12 @@ function DieGrid({
   onSelect: (face: DieFace) => void;
 }) {
   return (
-    <div class="dice-picker__die" data-testid={`die-${die.toLowerCase()}-grid`}>
+    <div
+      class="dice-picker__die"
+      role="group"
+      aria-label={`Die ${die}`}
+      data-testid={`die-${die.toLowerCase()}-grid`}
+    >
       <div class="dice-picker__die-label">DIE {die}</div>
       <div class="dice-picker__faces">
         {FACES.map((face) => (
@@ -74,6 +81,7 @@ export function DicePicker({
   expressMode,
   confirmRequired = false,
   blocked,
+  haptics = false,
   onDieA,
   onDieB,
   onCommit,
@@ -90,6 +98,7 @@ export function DicePicker({
   const handleFaceSelect = useCallback(
     (die: "A" | "B", face: DieFace) => {
       if (blocked) return;
+      tapHaptic(haptics);
       if (die === "A") {
         onDieA(face);
         setPendingDie("B");
@@ -103,7 +112,7 @@ export function DicePicker({
         onCommit();
       }
     },
-    [blocked, dieA, dieB, expressMode, onCommit, onDieA, onDieB],
+    [blocked, dieA, dieB, expressMode, haptics, onCommit, onDieA, onDieB],
   );
 
   const canConfirm = dieA !== null && dieB !== null && !blocked;

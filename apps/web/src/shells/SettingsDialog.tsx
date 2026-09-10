@@ -1,5 +1,6 @@
 import { createElement } from "preact";
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
+import { useDialogA11y } from "./use-dialog-a11y.js";
 import type { ComponentType } from "preact";
 import type { LayoutPreset, Participation, TableSettings } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
@@ -30,6 +31,12 @@ export function SettingsDialog({
 }: SettingsDialogProps) {
   const [tab, setTab] = useState<Tab>("rules");
   const [localDevice, setLocalDevice] = useState<DeviceSettings>(deviceSettings);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { dialogProps } = useDialogA11y({
+    panelRef,
+    onClose,
+    titleId: "settings-dialog-title",
+  });
   const composed = store.getComposed();
   const tableSettings = composed.platform.settings;
   const moduleResults = (composed.module as { results?: unknown[] }).results;
@@ -51,10 +58,15 @@ export function SettingsDialog({
   return (
     <div class="settings-dialog__backdrop" data-testid="settings-dialog" onClick={onClose}>
       <div
+        ref={panelRef}
         class={`settings-dialog${tab === "animations" ? " settings-dialog--wide" : ""}`}
+        {...dialogProps}
         onClick={(e) => e.stopPropagation()}
       >
         <header class="settings-dialog__header">
+          <h2 id="settings-dialog-title" class="settings-dialog__sr-title">
+            Settings
+          </h2>
           <div class="settings-dialog__tabs">
             <button
               type="button"
@@ -328,6 +340,9 @@ function BankBettingSettingsForm({
             }
           />
         </label>
+        <p class="settings-dialog__help" data-testid="help-max-exposure">
+          Caps how many chips the house can lose on one bet. Set to 0 to disable the cap.
+        </p>
       </div>
       <div class="settings-dialog__field">
         <label>
@@ -342,6 +357,9 @@ function BankBettingSettingsForm({
             }
           />
         </label>
+        <p class="settings-dialog__help">
+          Profit multiple that triggers the big-win celebration on the display.
+        </p>
       </div>
       <div class="settings-dialog__field">
         <label>
@@ -359,17 +377,23 @@ function BankBettingSettingsForm({
       </div>
       <div class="settings-dialog__field">
         <label>
-          Auto-open delay (ms)
+          Auto-open delay (sec)
           <input
             type="number"
             min={0}
-            data-testid="betting-auto-open-ms"
-            value={settings.betting.autoOpenDelayMs}
+            step={0.1}
+            data-testid="betting-auto-open-sec"
+            value={settings.betting.autoOpenDelayMs / 1000}
             onChange={(e) =>
-              patchBetting({ autoOpenDelayMs: Number((e.target as HTMLInputElement).value) })
+              patchBetting({
+                autoOpenDelayMs: Math.round(Number((e.target as HTMLInputElement).value) * 1000),
+              })
             }
           />
         </label>
+        <p class="settings-dialog__help">
+          Wait time after a result before the next betting round opens automatically.
+        </p>
       </div>
       <div class="settings-dialog__field">
         <label>
@@ -419,6 +443,9 @@ function BankBettingSettingsForm({
           />{" "}
           Auto-close on dealer entry
         </label>
+        <p class="settings-dialog__help">
+          Closes betting when the dealer starts entering a result or virtual trigger.
+        </p>
         <label>
           <input
             type="checkbox"
@@ -428,6 +455,9 @@ function BankBettingSettingsForm({
           />{" "}
           Auto buy-in on join
         </label>
+        <p class="settings-dialog__help">
+          Issues the default buy-in automatically when a player is approved or joins.
+        </p>
       </div>
     </>
   );
@@ -701,6 +731,9 @@ function DeviceSettingsForm({
           />{" "}
           Road fit
         </label>
+        <p class="settings-dialog__help">
+          Shrinks baccarat road grids to fit the display without scrolling.
+        </p>
         <label>
           <input
             type="checkbox"
@@ -718,6 +751,9 @@ function DeviceSettingsForm({
           />{" "}
           Express mode
         </label>
+        <p class="settings-dialog__help">
+          Skips non-essential animation delays for faster-paced sessions.
+        </p>
         <label>
           <input
             type="checkbox"
@@ -726,6 +762,9 @@ function DeviceSettingsForm({
           />{" "}
           Auto-advance
         </label>
+        <p class="settings-dialog__help">
+          Moves to the next dealer input slot automatically after each entry.
+        </p>
         <label>
           <input
             type="checkbox"
@@ -742,14 +781,18 @@ function DeviceSettingsForm({
           />{" "}
           Hide cursor
         </label>
-        <label>
+        <label data-testid="auto-full-screen-label">
           <input
             type="checkbox"
+            data-testid="device-auto-full-screen"
             checked={settings.fullScreen}
             onChange={(e) => onChange({ fullScreen: (e.target as HTMLInputElement).checked })}
           />{" "}
-          Full screen hint
+          Auto full screen
         </label>
+        <p class="settings-dialog__help">
+          When on, the display enters full screen on first tap without showing a persistent hint.
+        </p>
         <label>
           <input
             type="checkbox"
@@ -770,20 +813,26 @@ function DeviceSettingsForm({
         </label>
       </div>
       <div class="settings-dialog__field">
-        <label for="confirm-delay">Confirm delay ({settings.confirmDelayMs} ms)</label>
+        <label for="confirm-delay">
+          Confirm delay ({(settings.confirmDelayMs / 1000).toFixed(1)} sec)
+        </label>
         <input
           id="confirm-delay"
           type="range"
           min={0}
-          max={3000}
-          step={100}
-          value={settings.confirmDelayMs}
+          max={3}
+          step={0.1}
+          data-testid="confirm-delay-sec"
+          value={settings.confirmDelayMs / 1000}
           onInput={(e) =>
             onChange({
-              confirmDelayMs: Number((e.target as HTMLInputElement).value),
+              confirmDelayMs: Math.round(Number((e.target as HTMLInputElement).value) * 1000),
             })
           }
         />
+        <p class="settings-dialog__help">
+          Pause before the dealer confirm button activates, reducing mis-taps.
+        </p>
       </div>
     </>
   );

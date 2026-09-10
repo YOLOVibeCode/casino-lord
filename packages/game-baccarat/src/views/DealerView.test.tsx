@@ -123,8 +123,8 @@ describe("DealerView", () => {
         record={record}
       />,
     );
-    fireEvent.mouseDown(screen.getByTestId("outcome-chip-P"));
-    fireEvent.mouseUp(screen.getByTestId("outcome-chip-P"));
+    fireEvent.pointerDown(screen.getByTestId("outcome-chip-P"), { pointerId: 1 });
+    fireEvent.pointerUp(screen.getByTestId("outcome-chip-P"), { pointerId: 1 });
     expect(record).toHaveBeenCalledWith(
       {
         cards: null,
@@ -234,8 +234,8 @@ describe("DealerView", () => {
     fireEvent.click(screen.getByTestId("slot-P1"));
     await waitFor(() => expect(screen.getByTestId("card-picker")).toBeTruthy());
 
-    fireEvent.mouseDown(screen.getByTestId("outcome-chip-P"));
-    fireEvent.mouseUp(screen.getByTestId("outcome-chip-P"));
+    fireEvent.pointerDown(screen.getByTestId("outcome-chip-P"), { pointerId: 1 });
+    fireEvent.pointerUp(screen.getByTestId("outcome-chip-P"), { pointerId: 1 });
 
     expect(record).toHaveBeenCalledWith(expect.objectContaining({ outcome: "P" }), { quick: true });
     await waitFor(() => expect(screen.queryByTestId("card-picker")).toBeNull());
