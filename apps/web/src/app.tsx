@@ -11,11 +11,13 @@ import { TableCreatedPage } from "./pages/TableCreatedPage.js";
 import { VerifyPage } from "./pages/VerifyPage.js";
 import { ConfirmProvider } from "./ui/ConfirmSheet.js";
 import { PromptProvider } from "./ui/PromptSheet.js";
+import { UpdatePrompt } from "./pwa/UpdatePrompt.js";
 import { ToastProvider } from "./ui/Toast.js";
 
 export function App() {
   return (
     <ToastProvider>
+      <UpdatePrompt />
       <ConfirmProvider>
         <PromptProvider>
           <LocationProvider>

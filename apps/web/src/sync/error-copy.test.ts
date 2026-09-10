@@ -1,39 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { describeSyncError } from "./error-copy.js";
-
-const LISTED_CODES = [
-  "NOT_FOUND",
-  "BAD_TOKEN",
-  "SESSION_ENDED",
-  "DEALER_ACTIVE",
-  "TABLE_FULL",
-  "JOINING_CLOSED",
-  "INVALID_NAME",
-  "INVALID_COLOR",
-  "PLAYERS_DISABLED",
-  "UNSUPPORTED_GAME",
-  "NOT_CONFIGURED",
-  "rate limit exceeded",
-  "join failed: 500",
-  "sync join timeout",
-  "MIXED_SERIES",
-  "DEALING",
-  "NOT_VIRTUAL",
-  "VIRTUAL_DISABLED",
-  "not authorized",
-  "player cannot emit BET_PLACED",
-];
+import {
+  CANONICAL_SYNC_ERROR_CODES,
+  describeSyncError,
+  isGenericSyncError,
+  SYNC_JOIN_TIMEOUT,
+} from "./error-copy.js";
 
 describe("describeSyncError", () => {
-  it.each(LISTED_CODES)("returns copy for %s", (code) => {
-    const result = describeSyncError(code);
-    expect(result.title.length).toBeGreaterThan(0);
-    expect(result.body.length).toBeGreaterThan(0);
-    expect(result.actions.length).toBeGreaterThan(0);
+  it("covers every canonical code with non-generic copy", () => {
+    for (const code of CANONICAL_SYNC_ERROR_CODES) {
+      const copy = describeSyncError(code);
+      expect(isGenericSyncError(copy), `expected mapped copy for ${code}`).toBe(false);
+      expect(copy.title.length).toBeGreaterThan(0);
+      expect(copy.body.length).toBeGreaterThan(0);
+      expect(copy.actions.length).toBeGreaterThan(0);
+    }
   });
 
-  it("maps legacy PlayPage strings", () => {
-    expect(describeSyncError("Table not found").title).toBe("Table not found");
-    expect(describeSyncError("Sync server not configured").title).toBe("Sync not configured");
+  it("maps any join failed 5xx status to server-unavailable copy", () => {
+    const copy = describeSyncError("join failed: 502");
+    expect(copy.title).toBe("Server unavailable");
+    expect(isGenericSyncError(copy)).toBe(false);
+  });
+
+  it("falls back to generic copy for unknown codes", () => {
+    const copy = describeSyncError("TOTALLY_UNKNOWN_XYZ");
+    expect(isGenericSyncError(copy)).toBe(true);
+  });
+
+  it("exports sync join timeout constant", () => {
+    expect(SYNC_JOIN_TIMEOUT).toBe("sync join timeout");
+    expect(describeSyncError(SYNC_JOIN_TIMEOUT).title).toBe("Connection timed out");
   });
 });

@@ -40,6 +40,13 @@
   padding-left: 1.25rem;
 }
 
+.leaderboard-interstitial__disclaimer {
+  margin: 0 0 1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
 .leaderboard-interstitial button {
   display: block;
   margin: 0 auto;

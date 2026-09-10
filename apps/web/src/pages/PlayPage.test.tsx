@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  */
 import "fake-indexeddb/auto";
-import { cleanup, render, screen } from "@testing-library/preact";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LocationProvider, Router } from "preact-iso";
 
 vi.mock("../sync/config.js", () => ({
@@ -11,124 +11,137 @@ vi.mock("../sync/config.js", () => ({
   getSyncBaseUrl: () => "http://test",
 }));
 
-const getTableMetaMock = vi.fn(async () => ({
-  exists: true,
-  game: "roulette" as const,
-  participation: {
-    playerMode: "on" as const,
-    bank: "none" as const,
-    outcomeSource: "physical" as const,
-  },
-  joiningOpen: true,
-  playerColors: ["#E53935"],
-}));
+let mockTableGame: "baccarat" | "roulette" = "baccarat";
 
 vi.mock("../sync/api.js", () => ({
-  getTableMeta: (...args: unknown[]) => getTableMetaMock(...args),
+  getTableMeta: vi.fn(async () => ({
+    exists: true,
+    game: mockTableGame,
+    participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+    joiningOpen: true,
+  })),
   joinTablePlayer: vi.fn(),
 }));
 
 const loadPlayerToken = vi.fn(() => null as string | null);
+const savePlayerToken = vi.fn();
+const clearPlayerToken = vi.fn();
 
 vi.mock("../sync/player-token.js", () => ({
   loadPlayerToken: () => loadPlayerToken(),
-  savePlayerToken: vi.fn(),
-  clearPlayerToken: vi.fn(),
+  savePlayerToken: (...args: unknown[]) => savePlayerToken(...args),
+  clearPlayerToken: (...args: unknown[]) => clearPlayerToken(...args),
 }));
+
+const createSyncedTableStore = vi.fn();
+const waitForSyncReady = vi.fn(async (store: { getRejectReason: () => string | null }) => {
+  const reason = store.getRejectReason();
+  if (reason) {
+    throw new Error(reason);
+  }
+});
 
 vi.mock("../table/synced-store.js", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../table/synced-store.js")>();
-  const { baccaratModule } = await import("@casino-lord/game-baccarat");
-  const { DEFAULT_BACCARAT_RULES } = await import("@casino-lord/game-baccarat");
-  const { createTableStore } = await import("../table/store.js");
-  const { asUntypedModule } = await import("../table/module-types.js");
-  const { houseSettings } = await import("@casino-lord/core/testing");
-
   return {
     ...orig,
-    waitForSyncReady: vi.fn(async () => {}),
-    createSyncedTableStore: vi.fn(() => {
-      const store = createTableStore({
-        game: "baccarat",
-        module: asUntypedModule(baccaratModule),
-        rules: DEFAULT_BACCARAT_RULES,
-        rng: () => 0,
-        now: () => "2026-01-01T00:00:00.000Z",
-        id: () => "id-1",
-      });
-      store.emit({ type: "PARTICIPATION_CHANGED", participation: houseSettings().participation });
-      store.emit({
-        type: "PLAYER_JOINED",
-        player: {
-          id: "p1",
-          name: "Ana",
-          color: "#f00",
-          status: "active",
-          joinedAt: "2026-01-01T00:00:01.000Z",
-        },
-      });
-      return {
-        ...store,
-        getPlayerId: () => "p1",
-        getConnectionState: () => "connected" as const,
-        getRejectReason: () => null,
-        destroy: vi.fn(),
-        subscribe: store.subscribe,
-      };
-    }),
+    waitForSyncReady: (...args: unknown[]) => waitForSyncReady(...args),
+    createSyncedTableStore: (...args: unknown[]) => createSyncedTableStore(...args),
   };
 });
 
+import { PLAYER_COLORS } from "@casino-lord/core";
+import { houseSettings } from "@casino-lord/core/testing";
+import { baccaratModule, DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
+import { rouletteModule, DEFAULT_ROULETTE_RULES } from "@casino-lord/game-roulette";
+import { getTableMeta } from "../sync/api.js";
+import { describeSyncError } from "../sync/error-copy.js";
 import { PlayPage } from "./PlayPage.js";
+import { createTableStore } from "../table/store.js";
+import { asUntypedModule } from "../table/module-types.js";
+
+function buildMockStore(options?: { rejectToken?: boolean }) {
+  const isRoulette = mockTableGame === "roulette";
+  const module = asUntypedModule(isRoulette ? rouletteModule : baccaratModule);
+  const store = createTableStore({
+    game: mockTableGame,
+    module,
+    rules: isRoulette ? DEFAULT_ROULETTE_RULES : DEFAULT_BACCARAT_RULES,
+    rng: () => 0,
+    now: () => "2026-01-01T00:00:00.000Z",
+    id: () => "id-1",
+  });
+  store.emit({ type: "PARTICIPATION_CHANGED", participation: houseSettings().participation });
+  store.emit({
+    type: "PLAYER_JOINED",
+    player: {
+      id: "p1",
+      name: "Ana",
+      color: "#f00",
+      status: "active",
+      joinedAt: "2026-01-01T00:00:01.000Z",
+    },
+  });
+
+  const rejectReason = options?.rejectToken ? "BAD_TOKEN" : null;
+
+  return {
+    ...store,
+    getPlayerId: () => "p1",
+    getConnectionState: () => (rejectReason ? "reconnecting" : "connected"),
+    getRejectReason: () => rejectReason,
+    getModule: () => module,
+    destroy: vi.fn(),
+    subscribe: store.subscribe,
+  };
+}
+
+function renderPlayPage(path = "/play/K7X2PQ") {
+  window.history.replaceState({}, "", path);
+  render(
+    <LocationProvider>
+      <Router>
+        <PlayPage path="/play/:code" />
+      </Router>
+    </LocationProvider>,
+  );
+}
 
 describe("PlayPage", () => {
-  afterEach(() => cleanup());
+  beforeEach(() => {
+    mockTableGame = "baccarat";
+    loadPlayerToken.mockReturnValue(null);
+    createSyncedTableStore.mockImplementation(
+      (opts: { token?: string; onJoinError?: (code: string) => void }) => {
+        const rejectToken = opts.token === "bad-token";
+        if (rejectToken && opts.onJoinError) {
+          queueMicrotask(() => opts.onJoinError!("BAD_TOKEN"));
+        }
+        return buildMockStore({ rejectToken });
+      },
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    mockTableGame = "baccarat";
+    loadPlayerToken.mockReturnValue(null);
+  });
 
   it("renders player shell when stored token exists", async () => {
     loadPlayerToken.mockReturnValue("token-abc");
-    window.history.replaceState({}, "", "/play/K7X2PQ");
-    render(
-      <LocationProvider>
-        <Router>
-          <PlayPage path="/play/:code" />
-        </Router>
-      </LocationProvider>,
-    );
+    renderPlayPage("/play/K7X2PQ");
     await vi.waitFor(() => {
       expect(screen.getByTestId("player-shell")).toBeTruthy();
     });
-    loadPlayerToken.mockReturnValue(null);
-  });
-
-  it("passes the roulette module from table meta to the synced store", async () => {
-    const { createSyncedTableStore } = await import("../table/synced-store.js");
-    const { rouletteModule } = await import("@casino-lord/game-roulette");
-    loadPlayerToken.mockReturnValue("token-abc");
-    window.history.replaceState({}, "", "/play/K7X2PQ");
-    render(
-      <LocationProvider>
-        <Router>
-          <PlayPage path="/play/:code" />
-        </Router>
-      </LocationProvider>,
+    expect(createSyncedTableStore).toHaveBeenCalledWith(
+      expect.objectContaining({ token: "token-abc" }),
     );
-    await vi.waitFor(() => {
-      expect(vi.mocked(createSyncedTableStore)).toHaveBeenCalled();
-    });
-    const call = vi.mocked(createSyncedTableStore).mock.calls[0]?.[0] as { module: { id: string } };
-    expect(call.module.id).toBe(rouletteModule.id);
-    loadPlayerToken.mockReturnValue(null);
   });
 
   it("renders join form when no stored token", async () => {
-    window.history.replaceState({}, "", "/play/K7X2PQ");
-    render(
-      <LocationProvider>
-        <Router>
-          <PlayPage path="/play/:code" />
-        </Router>
-      </LocationProvider>,
-    );
+    renderPlayPage("/play/K7X2PQ");
     await vi.waitFor(() => {
       expect(screen.getByTestId("play-page")).toBeTruthy();
       expect(screen.getByTestId("player-name-input")).toBeTruthy();
@@ -137,39 +150,85 @@ describe("PlayPage", () => {
     });
   });
 
-  it("disables taken colours on the join form", async () => {
-    window.history.replaceState({}, "", "/play/K7X2PQ");
-    render(
-      <LocationProvider>
-        <Router>
-          <PlayPage path="/play/:code" />
-        </Router>
-      </LocationProvider>,
-    );
+  it("connects with ?t= query token and strips it from the URL", async () => {
+    renderPlayPage("/play/K7X2PQ?t=reissued-token");
     await vi.waitFor(() => {
-      const taken = screen.getByTestId("color-#E53935") as HTMLButtonElement;
-      expect(taken.disabled).toBe(true);
-      expect(screen.getByText("Taken")).toBeTruthy();
+      expect(screen.getByTestId("player-shell")).toBeTruthy();
     });
+    expect(savePlayerToken).toHaveBeenCalledWith("K7X2PQ", "reissued-token");
+    expect(createSyncedTableStore).toHaveBeenCalledWith(
+      expect.objectContaining({ token: "reissued-token" }),
+    );
+    expect(window.location.search).not.toContain("t=");
   });
 
-  it("connects with token from ?t= query param", async () => {
-    const { createSyncedTableStore } = await import("../table/synced-store.js");
-    const { savePlayerToken } = await import("../sync/player-token.js");
-    loadPlayerToken.mockReturnValue(null);
-    window.history.replaceState({}, "", "/play/K7X2PQ?t=url-token");
-    render(
-      <LocationProvider>
-        <Router>
-          <PlayPage path="/play/:code" />
-        </Router>
-      </LocationProvider>,
-    );
+  it("prefers ?t= over stored token", async () => {
+    loadPlayerToken.mockReturnValue("old-token");
+    renderPlayPage("/play/K7X2PQ?t=new-token");
     await vi.waitFor(() => {
-      expect(vi.mocked(createSyncedTableStore)).toHaveBeenCalled();
+      expect(screen.getByTestId("player-shell")).toBeTruthy();
     });
-    const call = vi.mocked(createSyncedTableStore).mock.calls.at(-1)?.[0] as { token?: string };
-    expect(call.token).toBe("url-token");
-    expect(vi.mocked(savePlayerToken)).toHaveBeenCalledWith("K7X2PQ", "url-token");
+    expect(createSyncedTableStore).toHaveBeenCalledWith(
+      expect.objectContaining({ token: "new-token" }),
+    );
+  });
+
+  it("shows join form with message when ?t= token is invalid", async () => {
+    renderPlayPage("/play/K7X2PQ?t=bad-token");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("player-name-input")).toBeTruthy();
+    });
+    expect(clearPlayerToken).toHaveBeenCalledWith("K7X2PQ");
+    expect(screen.getByText(describeSyncError("PLAYER_BAD_TOKEN").body)).toBeTruthy();
+  });
+
+  it("shows name counter and disables join for short names", async () => {
+    renderPlayPage("/play/K7X2PQ");
+    const input = await screen.findByTestId("player-name-input");
+    fireEvent.input(input, { target: { value: "A" } });
+    expect(screen.getByTestId("name-counter").textContent).toBe("1/16");
+    expect(screen.getByTestId("join-btn")).toHaveProperty("disabled", true);
+    expect(screen.getByTestId("join-disabled-reason").textContent).toMatch(/2–16/);
+  });
+
+  it("enables join when name is valid", async () => {
+    renderPlayPage("/play/K7X2PQ");
+    const input = await screen.findByTestId("player-name-input");
+    fireEvent.input(input, { target: { value: "Ana" } });
+    expect(screen.getByTestId("name-counter").textContent).toBe("3/16");
+    expect(screen.getByTestId("join-btn")).toHaveProperty("disabled", false);
+  });
+
+  it("disables taken colours and selects first available", async () => {
+    vi.mocked(getTableMeta).mockResolvedValueOnce({
+      exists: true,
+      game: "baccarat",
+      participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+      joiningOpen: true,
+      takenColors: [PLAYER_COLORS[0]!],
+    });
+    renderPlayPage("/play/K7X2PQ");
+    const takenSwatch = await screen.findByTestId(`color-${PLAYER_COLORS[0]}`);
+    expect(takenSwatch).toHaveProperty("disabled", true);
+    expect(screen.getByText("taken")).toBeTruthy();
+    const availableSwatch = screen.getByTestId(`color-${PLAYER_COLORS[1]}`);
+    expect(availableSwatch.className).toContain("play-page__swatch--selected");
+  });
+
+  it("renders roulette player view without baccarat felt zones", async () => {
+    mockTableGame = "roulette";
+    vi.mocked(getTableMeta).mockResolvedValueOnce({
+      exists: true,
+      game: "roulette",
+      participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+      joiningOpen: true,
+    });
+    loadPlayerToken.mockReturnValue("token-roulette");
+    renderPlayPage("/play/K7X2PQ");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("player-shell")).toBeTruthy();
+    });
+    expect(screen.getByTestId("roulette-player-view")).toBeTruthy();
+    expect(screen.queryByTestId("felt-zone-banker")).toBeNull();
   });
 });

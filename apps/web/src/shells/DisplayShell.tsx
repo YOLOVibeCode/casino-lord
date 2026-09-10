@@ -28,9 +28,25 @@ import { useAnimationRuntime } from "../animation/useAnimationRuntime.js";
 import { useStore } from "../hooks/use-store.js";
 import { currentSeriesCommit } from "../table/meta.js";
 import { formatBoardLabel } from "../i18n/board-labels.js";
+import { formatPlural } from "../i18n/plural.js";
 import { BettingStrip } from "./BettingStrip.js";
 import { LeaderboardInterstitial } from "./LeaderboardInterstitial.js";
+import { describeResultLine } from "./PlayerShell.js";
 import "./display-shell.css";
+
+const HINT_DISMISS_MS = 8000;
+const HINT_DISMISS_REDUCED_MS = 2000;
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function hintDismissMs(): number {
+  return prefersReducedMotion() ? HINT_DISMISS_REDUCED_MS : HINT_DISMISS_MS;
+}
 
 function settlementsByBetId(settlements: PlatformState["settlements"]): Map<string, Settlement> {
   const map = new Map<string, Settlement>();
@@ -126,8 +142,10 @@ export function DisplayShell({
   const settlementTicker = settledRound
     ? getSettlementTicker(composed.platform, settledRound.id)
     : "";
+  const latestEventSeq = store.events.at(-1)?.seq ?? 0;
 
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardPersistent, setLeaderboardPersistent] = useState(false);
   const [historyToast, setHistoryToast] = useState<string | null>(null);
   const [idleAttractActive, setIdleAttractActive] = useState(false);
   const lastLeaderboardSeq = useRef(0);
@@ -135,6 +153,14 @@ export function DisplayShell({
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevSettlementsRef = useRef(composed.platform.settlements);
   const historyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [, setCountdownTick] = useState(0);
+  const [liveAnnouncement, setLiveAnnouncement] = useState("");
+  const lastAnnouncedResultId = useRef<string | null>(null);
+  const countdownAnnouncedRef = useRef<{ roundId: string; at10: boolean; at5: boolean }>({
+    roundId: "",
+    at10: false,
+    at5: false,
+  });
 
   useEffect(() => {
     const triggerEvents = store.events.filter(
@@ -144,8 +170,16 @@ export function DisplayShell({
     );
     if (triggerEvents.length === 0) return;
     lastLeaderboardSeq.current = Math.max(...triggerEvents.map((e) => e.seq));
+    const lastTrigger = triggerEvents.at(-1);
+    setLeaderboardPersistent(lastTrigger?.type === "SESSION_ENDED");
     setShowLeaderboard(true);
-  }, [store.events]);
+  }, [latestEventSeq, store]);
+
+  useEffect(() => {
+    if (!showLeaderboard || leaderboardPersistent) return;
+    const id = setTimeout(() => setShowLeaderboard(false), 15_000);
+    return () => clearTimeout(id);
+  }, [showLeaderboard, leaderboardPersistent]);
 
   useEffect(() => {
     const last = store.events.at(-1);
@@ -155,13 +189,14 @@ export function DisplayShell({
         composed.platform.settlements,
       );
       if (affected > 0) {
-        setHistoryToast(`History re-evaluated — ${affected} bet(s) affected`);
+        const betWord = formatPlural(affected, "bet", "bets");
+        setHistoryToast(`History re-evaluated — ${affected} ${betWord} affected`);
         if (historyToastTimer.current) clearTimeout(historyToastTimer.current);
         historyToastTimer.current = setTimeout(() => setHistoryToast(null), 4000);
       }
     }
     prevSettlementsRef.current = composed.platform.settlements;
-  }, [store.events, composed.platform.settlements]);
+  }, [latestEventSeq, composed.platform.settlements]);
 
   useEffect(
     () => () => {
@@ -169,8 +204,6 @@ export function DisplayShell({
     },
     [],
   );
-
-  const latestEventSeq = store.events.at(-1)?.seq ?? 0;
 
   useEffect(() => {
     if (latestEventSeq !== lastEventSeq.current) {
@@ -194,12 +227,17 @@ export function DisplayShell({
 
   const [fsHint, setFsHint] = useState(!deviceSettings.fullScreen);
   const [soundUnlocked, setSoundUnlocked] = useState(() => animationSound.isUnlocked());
+  const [soundHintVisible, setSoundHintVisible] = useState(
+    () => deviceSettings.soundEnabled && !animationSound.isUnlocked(),
+  );
   const [infoOpen, setInfoOpen] = useState(false);
   const [logoTaps, setLogoTaps] = useState(0);
   const [cursorHidden, setCursorHidden] = useState(false);
   const [version, setVersion] = useState("0.0.0");
   const cursorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fsHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const soundHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
@@ -234,9 +272,67 @@ export function DisplayShell({
   }, [deviceSettings.cursorHide]);
 
   useEffect(() => {
+    const last = store.events.at(-1);
+    if (last?.type !== "RESULT_RECORDED") return;
+    const resultId = last.result.id;
+    if (resultId === lastAnnouncedResultId.current) return;
+    lastAnnouncedResultId.current = resultId;
+    const resultNumber = store.events.filter((e) => e.type === "RESULT_RECORDED").length;
+    const description =
+      module.describeResult !== undefined
+        ? module.describeResult(last.result.data, rules)
+        : describeResultLine(module, rules, composed.module, resultId);
+    setLiveAnnouncement(`${module.resultLabel} ${resultNumber}: ${description}`);
+  }, [latestEventSeq, composed.module, module, rules, store]);
+
+  useEffect(() => {
+    if (round?.status !== "open" || !round.closesAt) return;
+    const id = setInterval(() => setCountdownTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [round?.id, round?.status, round?.closesAt]);
+
+  useEffect(() => {
+    if (round?.status !== "open" || betting.countdownSec === null) return;
+    if (countdownAnnouncedRef.current.roundId !== round.id) {
+      countdownAnnouncedRef.current = { roundId: round.id, at10: false, at5: false };
+    }
+    const state = countdownAnnouncedRef.current;
+    if (betting.countdownSec <= 10 && !state.at10) {
+      state.at10 = true;
+      setLiveAnnouncement("Bets close in 10 seconds");
+    }
+    if (betting.countdownSec <= 5 && !state.at5) {
+      state.at5 = true;
+      setLiveAnnouncement("Bets close in 5 seconds");
+    }
+  }, [round?.id, round?.status, betting.countdownSec]);
+
+  useEffect(() => {
     if (!syncBaseUrl) return;
     void fetchVersion(syncBaseUrl).then(setVersion);
   }, [syncBaseUrl]);
+
+  useEffect(() => {
+    if (!fsHint) {
+      if (fsHintTimer.current) clearTimeout(fsHintTimer.current);
+      return;
+    }
+    fsHintTimer.current = setTimeout(() => setFsHint(false), hintDismissMs());
+    return () => {
+      if (fsHintTimer.current) clearTimeout(fsHintTimer.current);
+    };
+  }, [fsHint]);
+
+  useEffect(() => {
+    if (!deviceSettings.soundEnabled || soundUnlocked || !soundHintVisible) {
+      if (soundHintTimer.current) clearTimeout(soundHintTimer.current);
+      return;
+    }
+    soundHintTimer.current = setTimeout(() => setSoundHintVisible(false), hintDismissMs());
+    return () => {
+      if (soundHintTimer.current) clearTimeout(soundHintTimer.current);
+    };
+  }, [deviceSettings.soundEnabled, soundUnlocked, soundHintVisible]);
 
   const requestFullScreen = async () => {
     const el = rootRef.current;
@@ -261,6 +357,20 @@ export function DisplayShell({
   };
 
   const syncStore = isSyncStore(store) ? store : null;
+  const [connectionState, setConnectionState] = useState(
+    () => syncStore?.getConnectionState() ?? "connected",
+  );
+
+  useEffect(() => {
+    if (!syncStore) {
+      setConnectionState("connected");
+      return;
+    }
+    setConnectionState(syncStore.getConnectionState());
+    return syncStore.subscribe(() => {
+      setConnectionState(syncStore.getConnectionState());
+    });
+  }, [syncStore]);
 
   const buyInByPlayer: Record<string, number> = {};
   for (const e of store.events) {
@@ -277,18 +387,17 @@ export function DisplayShell({
     settings.players.playersSort,
   );
 
-  const connectionLabel = syncStore
-    ? syncStore.getConnectionState() === "connected"
-      ? "Connected"
-      : syncStore.getConnectionState() === "reconnecting"
+  const connectionLabel =
+    connectionState === "connected"
+      ? syncStore
+        ? "Connected"
+        : "Local / Solo"
+      : connectionState === "reconnecting"
         ? "Reconnecting"
-        : "Offline"
-    : "Local / Solo";
+        : "Offline";
 
   const dealerHint =
-    syncStore &&
-    syncStore.getPresence().dealers === 0 &&
-    syncStore.getConnectionState() === "connected"
+    syncStore && syncStore.getPresence().dealers === 0 && connectionState === "connected"
       ? "Dealer disconnected"
       : null;
 
@@ -300,19 +409,22 @@ export function DisplayShell({
       onClick={() => {
         unlockSound();
         setSoundUnlocked(true);
+        setSoundHintVisible(false);
         if (fsHint) void requestFullScreen();
       }}
     >
       <header class="display-shell__header">
-        <span
+        <button
+          type="button"
           class="display-shell__logo"
+          aria-label="Table info"
           onClick={(e) => {
             e.stopPropagation();
             handleLogoTap();
           }}
         >
           ♠ CASINO LORD
-        </span>
+        </button>
         <span>{module.name}</span>
         <span>Table {store.code}</span>
         <span>
@@ -335,9 +447,20 @@ export function DisplayShell({
             </span>
           ))}
         </div>
-        {displayQrUrl && <QrBadge url={displayQrUrl} />}
-        {playUrl && <QrBadge url={playUrl} title="Join QR" />}
+        {displayQrUrl && <QrBadge url={displayQrUrl} tableCode={store.code} />}
+        {playUrl && <QrBadge url={playUrl} title="Join QR" tableCode={store.code} />}
+        {syncStore && connectionState === "reconnecting" && (
+          <span class="display-shell__connection-pill" data-testid="connection-pill">
+            Reconnecting…
+          </span>
+        )}
       </header>
+
+      {syncStore && connectionState === "offline" && (
+        <div class="display-shell__connection-banner" data-testid="connection-banner" role="status">
+          Reconnecting to dealer — board may be behind
+        </div>
+      )}
 
       {dealerHint && (
         <div class="display-shell__dealer-hint" data-testid="dealer-disconnected">
@@ -411,10 +534,14 @@ export function DisplayShell({
         </aside>
       )}
 
-      {fsHint && <div class="display-shell__fs-hint">Tap for full screen</div>}
+      {fsHint && (
+        <div class="display-shell__hint-toast" data-testid="fs-hint" role="status">
+          Tap for full screen
+        </div>
+      )}
 
-      {deviceSettings.soundEnabled && !soundUnlocked && (
-        <div class="display-shell__fs-hint" data-testid="sound-unlock-hint">
+      {deviceSettings.soundEnabled && !soundUnlocked && soundHintVisible && (
+        <div class="display-shell__hint-toast" data-testid="sound-unlock-hint" role="status">
           Tap to enable sound
         </div>
       )}
@@ -432,6 +559,7 @@ export function DisplayShell({
         <LeaderboardInterstitial
           byBankroll={topByBankroll}
           byNet={topByNet}
+          persistent={leaderboardPersistent}
           onDismiss={() => setShowLeaderboard(false)}
         />
       )}
@@ -453,6 +581,15 @@ export function DisplayShell({
 
       <div ref={overlayRef} class="display-shell__animation-overlay" aria-hidden="true">
         <AnimationLayer segments={activeSegments} />
+      </div>
+
+      <div
+        class="display-shell__sr-live"
+        data-testid="display-live-region"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {liveAnnouncement}
       </div>
     </div>
   );

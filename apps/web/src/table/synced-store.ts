@@ -13,6 +13,7 @@ import { io, type Socket } from "socket.io-client";
 import { newClientId } from "../sync/client-id.js";
 import { saveDealerToken } from "../sync/dealer-token.js";
 import { savePlayerToken } from "../sync/player-token.js";
+import { SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
 import { getGame } from "./games.js";
 import { buildTableMeta } from "./meta.js";
 import type { UntypedGameModule } from "./module-types.js";
@@ -40,13 +41,21 @@ export interface CreateSyncedStoreOptions {
   role: "dealer" | "display" | "player";
   token?: string;
   syncUrl: string;
-  module: UntypedGameModule;
-  rules: unknown;
+  resolveModule?: (game: GameId) => UntypedGameModule;
+  rules?: unknown;
   takeover?: boolean;
   now?: () => string;
   id?: () => string;
   onJoinError?: (code: string) => void;
   onReject?: (reason: string) => void;
+}
+
+function defaultResolveModule(game: GameId): UntypedGameModule {
+  const entry = getGame(game);
+  if (!entry?.module) {
+    throw new Error(`Unsupported game: ${game}`);
+  }
+  return entry.module;
 }
 
 function defaultNow(): string {
@@ -99,6 +108,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     code,
     role,
     syncUrl,
+    resolveModule = defaultResolveModule,
     takeover = false,
     now = defaultNow,
     id = defaultId,
@@ -106,21 +116,10 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     onReject,
   } = options;
   const token = options.token;
-  let activeModule = options.module;
-  let activeRules = options.rules;
-  let game: GameId = activeModule.id;
-
-  const resolveModule = (gameId: GameId): void => {
-    if (activeModule.id === gameId) {
-      game = gameId;
-      return;
-    }
-    const entry = getGame(gameId);
-    if (!entry?.module) return;
-    activeModule = entry.module;
-    activeRules = entry.module.defaultRules;
-    game = gameId;
-  };
+  const rulesExplicit = options.rules !== undefined;
+  let game: GameId = "baccarat";
+  let module = resolveModule(game);
+  let rules: unknown = rulesExplicit ? options.rules : module.defaultRules;
 
   const listeners = new Set<Listener>();
   const events: TableEvent[] = [];
@@ -139,8 +138,31 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   let virtualStatus: VirtualStatus | null = null;
   let virtualPending: VirtualPendingState | null = null;
 
+  let cachedComposed: ComposedState<unknown> | null = null;
+  let composedCacheKey = "";
+
+  const invalidateComposedCache = (): void => {
+    cachedComposed = null;
+    composedCacheKey = "";
+  };
+
+  const applyModuleForGame = (next: GameId): void => {
+    game = next;
+    module = resolveModule(next);
+    if (!rulesExplicit) {
+      rules = module.defaultRules;
+    }
+    invalidateComposedCache();
+  };
+
   const notify = (): void => {
     for (const l of listeners) l();
+  };
+
+  const setReject = (reason: string): void => {
+    rejectReason = reason;
+    onReject?.(reason);
+    notify();
   };
 
   const setConnectionState = (state: ConnectionState): void => {
@@ -169,6 +191,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   };
 
   const applyServerEvents = (incoming: TableEvent[], replace = false): void => {
+    invalidateComposedCache();
     if (replace) {
       events.length = 0;
       latestSeq = 0;
@@ -192,6 +215,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       socket.emit("message", { op: "resync", sinceSeq: latestSeq });
       return;
     }
+    invalidateComposedCache();
     events.push(event);
     latestSeq = event.seq;
     persist();
@@ -199,6 +223,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   };
 
   const rollbackPending = (clientId: string): void => {
+    invalidateComposedCache();
     const p = pending.get(clientId);
     if (!p) return;
     events.splice(p.eventIndex, 1);
@@ -213,6 +238,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   };
 
   const applyOptimistic = (body: TableEventInput, clientId: string): void => {
+    invalidateComposedCache();
     const event = { seq: latestSeq + 1, at: now(), ...body } as TableEvent;
     events.push(event);
     latestSeq = event.seq;
@@ -221,6 +247,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   };
 
   const confirmPending = (clientId: string, seq: number): void => {
+    invalidateComposedCache();
     const p = pending.get(clientId);
     if (!p) return;
     const event = events[p.eventIndex];
@@ -255,6 +282,11 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     applyOptimistic(body, clientId);
 
     if (!isOnline()) {
+      if (role === "player") {
+        rollbackPending(clientId);
+        setReject("OFFLINE");
+        return;
+      }
       await enqueueOfflineEvent(code, { clientId, event: body });
       persist();
       return;
@@ -318,7 +350,9 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     clearOfflineTimer();
     setConnectionState("connected");
 
-    if (typeof msg.game === "string") resolveModule(msg.game as GameId);
+    if (typeof msg.game === "string") {
+      applyModuleForGame(msg.game as GameId);
+    }
 
     if (Array.isArray(msg.snapshot)) {
       applyServerEvents(msg.snapshot as TableEvent[], true);
@@ -343,6 +377,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     }
 
     if (msg.live && typeof msg.live === "object") {
+      invalidateComposedCache();
       liveInput = { seq: latestSeq + 1, at: now(), ...(msg.live as object) } as TableEvent;
     }
 
@@ -408,6 +443,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
         return;
       }
       if (event.type === "LIVE_INPUT") {
+        invalidateComposedCache();
         liveInput = event;
       }
       if (event.seq <= 0) {
@@ -437,7 +473,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       if (typeof msg.clientId === "string") {
         rollbackPending(msg.clientId);
       }
-      reportReject(String(msg.reason ?? "rejected"));
+      setReject(String(msg.reason ?? "rejected"));
       return;
     }
 
@@ -482,8 +518,9 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   void loadTable(code)
     .then((stored) => {
       if (stored && stored.events.length > 0 && events.length === 0) {
+        invalidateComposedCache();
         events.push(...stored.events);
-        resolveModule(stored.game);
+        applyModuleForGame(stored.game);
         recomputeLatestSeq();
         notify();
       }
@@ -502,8 +539,18 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     return list;
   };
 
-  const getComposed = (): ComposedState<unknown> =>
-    replay(getEventsForReplay(), activeModule, activeRules, { code, includeEphemeral: true });
+  const composedCacheKeyFor = (): string =>
+    `${game}:${events.length}:${latestSeq}:${liveInput?.seq ?? 0}`;
+
+  const getComposed = (): ComposedState<unknown> => {
+    const key = composedCacheKeyFor();
+    if (cachedComposed && composedCacheKey === key) {
+      return cachedComposed;
+    }
+    cachedComposed = replay(getEventsForReplay(), module, rules, { code, includeEphemeral: true });
+    composedCacheKey = key;
+    return cachedComposed;
+  };
 
   const getRules = (): unknown => {
     const composed = getComposed();
@@ -518,6 +565,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   const emitLive = (body: TableEventInput): void => {
     if (role === "display" || readOnly) return;
     if (body.type === "LIVE_INPUT") {
+      invalidateComposedCache();
       liveInput = { seq: latestSeq + 1, at: now(), ...body } as TableEvent;
       notify();
       if (joined && connectionState === "connected") {
@@ -565,6 +613,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     getComposed,
     getRules,
     getTableMeta,
+    getModule: () => module,
     emit: emitLive,
     record,
     canUndoLastResult,
@@ -648,7 +697,7 @@ export function waitForSyncReady(store: SyncStore, timeoutMs = 8000): Promise<vo
     }
     const timer = setTimeout(() => {
       unsub();
-      reject(new Error("sync join timeout"));
+      reject(new Error(SYNC_JOIN_TIMEOUT));
     }, timeoutMs);
     const unsub = store.subscribe(() => {
       const err = store.getRejectReason();

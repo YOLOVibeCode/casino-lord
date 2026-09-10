@@ -58,8 +58,25 @@
 }
 
 .play-page__field label,
-.play-page__field span {
+.play-page__field > span {
   font-size: max(1.125rem, 18px);
+}
+
+.play-page__field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.play-page__name-counter {
+  font-size: max(0.875rem, 14px);
+  opacity: 0.75;
+}
+
+.play-page__name-helper {
+  font-size: max(0.875rem, 14px);
+  opacity: 0.75;
 }
 
 .play-page__field input {
@@ -114,6 +131,15 @@
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5);
 }
 
+.play-page__swatch--taken {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.play-page__swatch:disabled {
+  cursor: not-allowed;
+}
+
 .play-page__swatch-label {
   font-size: max(0.75rem, 12px);
   opacity: 0.85;
@@ -142,6 +168,21 @@
 
 .play-page__join:active {
   transform: scale(0.98);
+}
+
+.play-page__join:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.play-page__join:disabled:active {
+  transform: none;
+}
+
+.play-page__join-hint {
+  margin: 0 0 0.5rem;
+  font-size: max(0.875rem, 14px);
+  opacity: 0.85;
 }
 
 .play-page__error {
@@ -176,19 +217,23 @@
 
 .play-page__error-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.75rem;
   margin-top: 1.25rem;
 }
 
-.play-page__error-action {
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
-  border: 1px solid currentColor;
-  background: transparent;
-  color: inherit;
+.play-page__error-btn {
+  padding: 0.75rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  background: #1b5e20;
+  color: #fff;
+  font-size: 1rem;
   cursor: pointer;
-  font: inherit;
+}
+
+.play-page__error-btn:first-child {
+  background: #2e7d32;
 }
 
 @media (prefers-reduced-motion: reduce) {

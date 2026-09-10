@@ -10,14 +10,22 @@ import { useLocation, useRoute } from "preact-iso";
 import { PlayerShell } from "../shells/PlayerShell.js";
 import { getTableMeta, joinTablePlayer } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
-import { describeSyncError } from "../sync/error-copy.js";
+import { describeSyncError, type SyncErrorAction } from "../sync/error-copy.js";
 import { clearPlayerToken, loadPlayerToken, savePlayerToken } from "../sync/player-token.js";
 import { getGame } from "../table/games.js";
+import type { UntypedGameModule } from "../table/module-types.js";
 import { createSyncedTableStore, waitForSyncReady } from "../table/synced-store.js";
 import type { SyncStore } from "../table/sync-store-types.js";
 import "./play-page.css";
 
 type Phase = "loading" | "join" | "pending" | "playing" | "error";
+
+const NAME_HELPER = "Display name must be 2–16 characters.";
+const NAME_MAX_LENGTH = 16;
+
+function firstAvailableColor(takenColors: string[]): string {
+  return PLAYER_COLORS.find((c) => !takenColors.includes(c)) ?? PLAYER_COLORS[0]!;
+}
 
 const COLOR_LABELS = [
   "Red",
@@ -34,29 +42,40 @@ const COLOR_LABELS = [
   "Rose",
 ];
 
+const ACTION_LABELS: Record<SyncErrorAction, string> = {
+  retry: "Try again",
+  home: "Home",
+  display: "Open as Display",
+  takeover: "Take over",
+};
+
+function setErrorPhase(setPhase: (p: Phase) => void, setError: (c: string) => void, code: string) {
+  setPhase("error");
+  setError(code);
+}
+
 export function PlayPage(_props: { path?: string }) {
   const { route } = useLocation();
   const { params, query } = useRoute();
   const rawCode = params.code ?? "";
   const code = normalizeTableCode(rawCode);
   const [phase, setPhase] = useState<Phase>("loading");
-  const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState("");
+  const [joinError, setJoinError] = useState("");
   const [name, setName] = useState("");
   const [color, setColor] = useState<string>(PLAYER_COLORS[0]!);
   const [store, setStore] = useState<SyncStore | null>(null);
   const [playerName, setPlayerName] = useState("");
-  const [tableGame, setTableGame] = useState<GameId>("baccarat");
   const [takenColors, setTakenColors] = useState<string[]>([]);
+  const [bootstrapKey, setBootstrapKey] = useState(0);
 
   useEffect(() => {
     if (!isSyncConfigured()) {
-      setPhase("error");
-      setError("NOT_CONFIGURED");
+      setErrorPhase(setPhase, setErrorCode, "NOT_CONFIGURED");
       return;
     }
     if (!isValidTableCode(code)) {
-      setPhase("error");
-      setError("INVALID_CODE");
+      setErrorPhase(setPhase, setErrorCode, "INVALID_TABLE_CODE");
       return;
     }
 
@@ -66,40 +85,41 @@ export function PlayPage(_props: { path?: string }) {
         const meta = await getTableMeta(getSyncBaseUrl(), code);
         if (!meta.exists) {
           if (!cancelled) {
-            setPhase("error");
-            setError("NOT_FOUND");
+            setErrorPhase(setPhase, setErrorCode, "NOT_FOUND");
           }
           return;
         }
         if (meta.participation?.playerMode !== "on") {
           if (!cancelled) {
-            setPhase("error");
-            setError("PLAYERS_DISABLED");
+            setErrorPhase(setPhase, setErrorCode, "PLAYERS_DISABLED");
           }
           return;
         }
 
-        const resolvedGame = meta.game ?? "baccarat";
+        const taken = meta.takenColors ?? [];
         if (!cancelled) {
-          setTableGame(resolvedGame);
-          setTakenColors(meta.playerColors ?? []);
+          setTakenColors(taken);
+          setColor((current) => (taken.includes(current) ? firstAvailableColor(taken) : current));
         }
 
         const queryToken = query.t;
-        if (queryToken) savePlayerToken(code, queryToken);
+        if (queryToken) {
+          savePlayerToken(code, queryToken);
+          stripTokenFromUrl();
+          await connectPlayer(queryToken, "", false);
+          if (!cancelled) return;
+        }
+
         const storedToken = loadPlayerToken(code);
-        const token = queryToken || storedToken;
-        if (token) {
-          await connectPlayer(token, "", false, resolvedGame);
-          if (!cancelled) setPhase("playing");
-          return;
+        if (storedToken) {
+          await connectPlayer(storedToken, "", false);
+          if (!cancelled) return;
         }
 
         if (!cancelled) setPhase("join");
       } catch {
         if (!cancelled) {
-          setPhase("error");
-          setError("LOAD_FAILED");
+          setErrorPhase(setPhase, setErrorCode, "TABLE_LOOKUP_FAILED");
         }
       }
     })();
@@ -107,20 +127,21 @@ export function PlayPage(_props: { path?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [code, query.t]);
+  }, [code, query.t, bootstrapKey]);
 
-  const connectPlayer = async (
-    token: string,
-    displayName: string,
-    pending: boolean,
-    gameId: GameId = tableGame,
-  ) => {
-    const entry = getGame(gameId);
-    if (!entry?.module) {
-      setPhase("error");
-      setError("UNSUPPORTED_GAME");
-      return;
-    }
+  const stripTokenFromUrl = (): void => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete("t");
+    const qs = params.toString();
+    history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+  };
+
+  const connectPlayer = async (token: string, displayName: string, pending: boolean) => {
+    const resolveModule = (g: import("@casino-lord/core").GameId): UntypedGameModule => {
+      const entry = getGame(g);
+      if (!entry?.module) throw new Error("UNSUPPORTED_GAME");
+      return entry.module;
+    };
 
     let syncStore: SyncStore | null = null;
     syncStore = createSyncedTableStore({
@@ -128,19 +149,25 @@ export function PlayPage(_props: { path?: string }) {
       role: "player",
       token,
       syncUrl: getSyncBaseUrl(),
-      module: entry.module,
-      rules: entry.module.defaultRules,
+      resolveModule,
       onJoinError: (errCode) => {
         if (errCode === "BAD_TOKEN") {
           clearStoredAndJoin();
         } else {
-          setPhase("error");
-          setError(errCode);
+          setErrorPhase(setPhase, setErrorCode, errCode);
         }
       },
     });
 
-    await waitForSyncReady(syncStore);
+    try {
+      await waitForSyncReady(syncStore);
+    } catch {
+      syncStore.destroy();
+      if (syncStore.getRejectReason() === "BAD_TOKEN") {
+        return;
+      }
+      throw new Error(syncStore.getRejectReason() ?? "Could not connect");
+    }
     savePlayerToken(code, token);
     setStore(syncStore);
     const pid = syncStore.getPlayerId();
@@ -159,6 +186,7 @@ export function PlayPage(_props: { path?: string }) {
   const clearStoredAndJoin = () => {
     clearPlayerToken(code);
     setStore(null);
+    setJoinError("PLAYER_BAD_TOKEN");
     setPhase("join");
   };
 
@@ -188,20 +216,23 @@ export function PlayPage(_props: { path?: string }) {
       if (reason === "DECLINED") {
         store.destroy();
         setStore(null);
-        setPhase("error");
-        setError("DECLINED");
+        setErrorPhase(setPhase, setErrorCode, "DECLINED");
       }
     });
     return unsub;
   }, [store]);
 
+  const trimmedNameLength = name.trim().length;
+  const nameValidation = validatePlayerName(name);
+  const joinDisabledReason = nameValidation.ok ? "" : nameValidation.error;
+
   const handleJoin = async () => {
     const validated = validatePlayerName(name);
     if (!validated.ok) {
-      setError(validated.error);
+      setJoinError("INVALID_NAME");
       return;
     }
-    setError("");
+    setJoinError("");
     try {
       const result = await joinTablePlayer(getSyncBaseUrl(), code, {
         name: validated.name,
@@ -211,9 +242,43 @@ export function PlayPage(_props: { path?: string }) {
       setPlayerName(validated.name);
       await connectPlayer(result.playerToken, validated.name, result.pending, tableGame);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Join failed");
+      setJoinError(e instanceof Error ? e.message : "Join failed");
     }
   };
+
+  const runErrorAction = (action: SyncErrorAction): void => {
+    switch (action) {
+      case "home":
+        route("/");
+        return;
+      case "display":
+        route(`/display/${code}`);
+        return;
+      case "retry":
+        setErrorCode("");
+        setPhase("loading");
+        setBootstrapKey((n) => n + 1);
+        return;
+      case "takeover":
+        return;
+    }
+  };
+
+  const renderErrorActions = (actions: SyncErrorAction[]) => (
+    <div class="play-page__error-actions">
+      {actions.map((action) => (
+        <button
+          key={action}
+          type="button"
+          class="play-page__error-btn"
+          data-testid={`play-error-action-${action}`}
+          onClick={() => runErrorAction(action)}
+        >
+          {ACTION_LABELS[action]}
+        </button>
+      ))}
+    </div>
+  );
 
   if (phase === "loading") {
     return (
@@ -224,93 +289,76 @@ export function PlayPage(_props: { path?: string }) {
   }
 
   if (phase === "error") {
-    const { title, body, actions } = describeSyncError(error);
+    const copy = describeSyncError(errorCode);
     return (
       <main class="play-page play-page--error" data-testid="play-page">
-        <h1 class="play-page__error-title">{title}</h1>
-        <p class="play-page__error">{body}</p>
-        <div class="play-page__error-actions">
-          {actions.map((action) =>
-            action.onRetry ? (
-              <button
-                key={action.label}
-                type="button"
-                class="play-page__error-action"
-                onClick={() => window.location.reload()}
-              >
-                {action.label}
-              </button>
-            ) : (
-              <button
-                key={action.label}
-                type="button"
-                class="play-page__error-action"
-                onClick={() => route(action.href ?? "/")}
-              >
-                {action.label}
-              </button>
-            ),
-          )}
-        </div>
+        <h1 class="play-page__error-title">{copy.title}</h1>
+        <p class="play-page__error">{copy.body}</p>
+        {renderErrorActions(copy.actions)}
       </main>
     );
   }
 
   if (phase === "join") {
+    const joinCopy = joinError ? describeSyncError(joinError) : null;
     return (
       <main class="play-page play-page--join" data-testid="play-page">
         <h1>Join table {code}</h1>
         <p class="play-page__disclaimer">Play chips — no cash value</p>
         <label class="play-page__field">
-          <span>
-            Display name <span class="play-page__hint">(2–16 characters)</span>
+          <span class="play-page__field-header">
+            <span>Display name</span>
+            <span class="play-page__name-counter" data-testid="name-counter">
+              {trimmedNameLength}/{NAME_MAX_LENGTH}
+            </span>
           </span>
           <input
             type="text"
             name="nickname"
             autocomplete="nickname"
             value={name}
-            maxLength={16}
+            maxLength={NAME_MAX_LENGTH}
             onInput={(e) => setName((e.target as HTMLInputElement).value)}
             data-testid="player-name-input"
           />
-          <span class="play-page__counter" data-testid="name-counter">
-            {name.trim().length}/16
-          </span>
+          <span class="play-page__name-helper">{NAME_HELPER}</span>
         </label>
         <fieldset class="play-page__colors">
           <legend>Colour</legend>
           <div class="play-page__swatch-row">
             {PLAYER_COLORS.map((c, i) => {
-              const taken = takenColors.includes(c);
+              const isTaken = takenColors.includes(c);
               return (
                 <div key={c} class="play-page__swatch-wrap">
                   <button
                     type="button"
-                    class={`play-page__swatch${color === c ? " play-page__swatch--selected" : ""}${taken ? " play-page__swatch--taken" : ""}`}
+                    class={`play-page__swatch${color === c ? " play-page__swatch--selected" : ""}${isTaken ? " play-page__swatch--taken" : ""}`}
                     style={{ background: c }}
-                    aria-label={COLOR_LABELS[i] ?? c}
+                    aria-label={isTaken ? `${COLOR_LABELS[i] ?? c} taken` : (COLOR_LABELS[i] ?? c)}
                     aria-pressed={color === c}
-                    aria-disabled={taken}
-                    disabled={taken}
-                    onClick={() => {
-                      if (!taken) setColor(c);
-                    }}
+                    disabled={isTaken}
+                    onClick={() => setColor(c)}
                     data-testid={`color-${c}`}
                   />
                   <span class="play-page__swatch-label">
-                    {taken ? "Taken" : (COLOR_LABELS[i] ?? c)}
+                    {isTaken ? "taken" : (COLOR_LABELS[i] ?? c)}
                   </span>
                 </div>
               );
             })}
           </div>
         </fieldset>
-        {error && <p class="play-page__error">{error}</p>}
+        {joinCopy && <p class="play-page__error">{joinCopy.body}</p>}
         <div class="play-page__join-wrap">
+          {joinDisabledReason && (
+            <p class="play-page__join-hint" data-testid="join-disabled-reason">
+              {joinDisabledReason}
+            </p>
+          )}
           <button
             type="button"
             class="play-page__join"
+            disabled={!nameValidation.ok}
             onClick={() => void handleJoin()}
             data-testid="join-btn"
           >

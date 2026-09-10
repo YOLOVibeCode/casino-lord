@@ -14,12 +14,21 @@ vi.mock("../sync/qr.js", () => ({
   qrDataUrl: async (url: string) => `data:image/png;base64,${btoa(url)}`,
 }));
 
+vi.mock("../sync/api.js", () => ({
+  getTableMeta: vi.fn(async () => ({
+    exists: true,
+    participation: { playerMode: "on", bank: "house", outcomeSource: "physical" },
+  })),
+}));
+
 const saveDealerTokenMock = vi.fn();
 vi.mock("../sync/dealer-token.js", () => ({
   saveDealerToken: (...args: unknown[]) => saveDealerTokenMock(...args),
 }));
 
 const writeTextMock = vi.fn(async () => undefined);
+
+import { getTableMeta } from "../sync/api.js";
 
 function renderPage(path: string) {
   window.history.replaceState({}, "", path);
@@ -36,6 +45,10 @@ describe("TableCreatedPage", () => {
   beforeEach(() => {
     saveDealerTokenMock.mockReset();
     writeTextMock.mockReset();
+    vi.mocked(getTableMeta).mockResolvedValue({
+      exists: true,
+      participation: { playerMode: "on", bank: "house", outcomeSource: "physical" },
+    });
     Object.assign(navigator, {
       clipboard: { writeText: writeTextMock },
     });
@@ -51,6 +64,7 @@ describe("TableCreatedPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("display-qr")).toBeTruthy();
       expect(screen.getByTestId("dealer-qr")).toBeTruthy();
+      expect(screen.getByTestId("play-qr")).toBeTruthy();
     });
 
     const displayLink = screen.getByTestId("open-display") as HTMLAnchorElement;
@@ -67,14 +81,57 @@ describe("TableCreatedPage", () => {
     });
   });
 
-  it("shows next steps", () => {
+  it("strips dealer token from the URL after saving", async () => {
+    renderPage("/created/ABCD23?t=secret-token&game=baccarat");
+    await waitFor(() => {
+      expect(window.location.search).toBe("?game=baccarat");
+    });
+  });
+
+  it("shows next steps including player join when player mode is on", async () => {
     renderPage("/created/ABCD23?t=secret-token");
-    expect(screen.getByTestId("table-created-next-steps")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByText("Players scan Join")).toBeTruthy();
+    });
     expect(screen.getByText("Open Display on the TV")).toBeTruthy();
+  });
+
+  it("hides player QR and join step when player mode is off", async () => {
+    vi.mocked(getTableMeta).mockResolvedValueOnce({
+      exists: true,
+      participation: { playerMode: "off", bank: "none", outcomeSource: "physical" },
+    });
+    renderPage("/created/ABCD23?t=secret-token");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("display-qr")).toBeTruthy();
+      expect(screen.getByTestId("dealer-qr")).toBeTruthy();
+    });
+
+    expect(screen.queryByTestId("play-qr")).toBeNull();
+    expect(screen.queryByText("Players scan Join")).toBeNull();
+  });
+
+  it("shows QR headings and dealer private warning", async () => {
+    renderPage("/created/ABCD23?t=secret-token");
+
+    await waitFor(() => {
+      expect(screen.getByText("Display QR")).toBeTruthy();
+      expect(screen.getByText("Dealer QR")).toBeTruthy();
+      expect(screen.getByText("Player QR")).toBeTruthy();
+    });
+
+    expect(screen.getByTestId("dealer-private-warning").textContent).toBe(
+      "Anyone with this link can control the table.",
+    );
   });
 
   it("copies code and URLs with feedback", async () => {
     renderPage("/created/ABCD23?t=secret-token");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("play-qr")).toBeTruthy();
+    });
 
     fireEvent.click(screen.getByTestId("copy-table-code"));
     await waitFor(() => {

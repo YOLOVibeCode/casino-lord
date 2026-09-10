@@ -1,15 +1,14 @@
 import "fake-indexeddb/auto";
-import { afterEach, describe, expect, it } from "vitest";
-import { baccaratModule } from "@casino-lord/game-baccarat";
-import { blackjackModule } from "@casino-lord/game-blackjack";
-import { rouletteModule } from "@casino-lord/game-roulette";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { PLAYER_COLORS } from "@casino-lord/core";
 import {
   createTableViaRest,
   joinPlayerViaRest,
+  PLAYER_MODE_PARTICIPATION,
   startTestServer,
 } from "../../../sync/src/test-helpers/server.js";
-import { peekOfflineQueue } from "./offline-queue.js";
 import { minimalBaccaratResult } from "../../../sync/src/test-helpers/baccarat-result.js";
+import { getGame } from "./games.js";
 import { asUntypedModule } from "./module-types.js";
 import { composedStateFingerprint } from "./store.js";
 import {
@@ -21,9 +20,13 @@ import {
   waitForSyncReady,
 } from "./synced-store.js";
 import type { SyncStore } from "./sync-store-types.js";
+import type { GameId } from "@casino-lord/core";
 
-const module = asUntypedModule(baccaratModule);
-const rules = baccaratModule.defaultRules;
+const resolveModule = (game: GameId) => {
+  const entry = getGame(game);
+  if (!entry?.module) throw new Error(`Unsupported game: ${game}`);
+  return entry.module;
+};
 
 const servers: Array<Awaited<ReturnType<typeof startTestServer>>> = [];
 
@@ -46,8 +49,7 @@ async function openDealer(url: string, code: string, token: string): Promise<Syn
     role: "dealer",
     token,
     syncUrl: url,
-    module,
-    rules,
+    resolveModule,
   });
   await waitForSyncReady(store);
   return store;
@@ -58,8 +60,7 @@ async function openDisplay(url: string, code: string): Promise<SyncStore> {
     code,
     role: "display",
     syncUrl: url,
-    module,
-    rules,
+    resolveModule,
   });
   await waitForSyncReady(store);
   return store;
@@ -94,6 +95,67 @@ describe("synced store", () => {
 
     dealer.destroy();
     display.destroy();
+  });
+
+  it("replays a roulette table log with the roulette module", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url, {
+      game: "roulette",
+      participation: PLAYER_MODE_PARTICIPATION,
+    });
+
+    const dealer = await openDealer(server.url, code, dealerToken);
+    const display = await openDisplay(server.url, code);
+
+    expect(dealer.game).toBe("roulette");
+    expect(dealer.getModule().id).toBe("roulette");
+
+    dealer.record({ pocket: 17 }, { quick: false });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const moduleState = dealer.getComposed().module as {
+      spins?: { data: { pocket: number } }[];
+    };
+    expect(moduleState.spins?.[0]?.data).toEqual({ pocket: 17 });
+    expect(moduleState).not.toHaveProperty("playerTotal");
+    expect(moduleState).not.toHaveProperty("bankerTotal");
+
+    await waitForFingerprint(display, composedStateFingerprint(dealer));
+    expect(display.getModule().id).toBe("roulette");
+
+    dealer.destroy();
+    display.destroy();
+  });
+
+  it("replays a blackjack table log with the blackjack module", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url, {
+      game: "blackjack",
+      participation: PLAYER_MODE_PARTICIPATION,
+    });
+
+    const dealer = await openDealer(server.url, code, dealerToken);
+    const quickResult = {
+      dealer: { cards: [], total: 21, bust: false, blackjack: true },
+      seats: {},
+      depth: "quick" as const,
+      dealerError: false,
+    };
+
+    expect(dealer.game).toBe("blackjack");
+    expect(dealer.getModule().id).toBe("blackjack");
+
+    dealer.record(quickResult, { quick: true });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const moduleState = dealer.getComposed().module as {
+      rounds?: { data: { depth?: string } }[];
+    };
+    expect(moduleState.rounds?.length).toBe(1);
+    expect(moduleState.rounds?.[0]?.data.depth).toBe("quick");
+    expect(moduleState).not.toHaveProperty("playerTotal");
+
+    dealer.destroy();
   });
 
   it("reject rolls back optimistic event", async () => {
@@ -140,6 +202,56 @@ describe("synced store", () => {
 
     dealer.destroy();
     display.destroy();
+  });
+
+  it("player rejects bets locally when offline", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url, {
+      game: "baccarat",
+      participation: PLAYER_MODE_PARTICIPATION,
+    });
+    const dealer = await openDealer(server.url, code, dealerToken);
+    const joined = await joinPlayerViaRest(server.url, code, {
+      name: "Ana",
+      color: PLAYER_COLORS[0]!,
+    });
+
+    const onReject = vi.fn();
+    const player = createSyncedTableStore({
+      code,
+      role: "player",
+      token: joined.playerToken,
+      syncUrl: server.url,
+      resolveModule,
+      onReject,
+    });
+    await waitForSyncReady(player);
+
+    disconnectSyncStoreForTest(player);
+    await new Promise((r) => setTimeout(r, 150));
+
+    player.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b-offline",
+        playerId: joined.playerId,
+        roundId: "r1",
+        type: "banker",
+        amount: 5,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:00.000Z",
+        originRoundId: "r1",
+      },
+    });
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(player.getRejectReason()).toBe("OFFLINE");
+    expect(onReject).toHaveBeenCalledWith("OFFLINE");
+    expect(player.events.some((e) => e.type === "BET_PLACED")).toBe(false);
+
+    dealer.destroy();
+    player.destroy();
   });
 
   it("resyncs on seq gap", async () => {
@@ -213,8 +325,7 @@ describe("synced store", () => {
       code,
       role: "display",
       syncUrl: server.url,
-      module,
-      rules,
+      resolveModule,
     });
     const socket = getSyncSocketForTest(reopened)!;
     const joins: Array<{ sinceSeq?: number }> = [];
@@ -395,8 +506,7 @@ describe("synced store", () => {
       role: "dealer",
       token: dealerToken,
       syncUrl: server.url,
-      module,
-      rules,
+      resolveModule,
       takeover: true,
     });
     await waitForSyncReady(dealer2);

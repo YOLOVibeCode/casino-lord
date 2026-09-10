@@ -5,9 +5,10 @@ import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { DisplayShell } from "../shells/DisplayShell.js";
 import { getTableMeta } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
-import { isDefinitiveSyncError } from "../sync/error-copy.js";
+import { SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
 import { tableUrl } from "../sync/urls.js";
 import { getGame } from "../table/games.js";
+import type { UntypedGameModule } from "../table/module-types.js";
 import { createSyncedTableStore, waitForSyncReady } from "../table/synced-store.js";
 import type { SyncStore } from "../table/sync-store-types.js";
 import "./display-page.css";
@@ -19,7 +20,7 @@ export function DisplayPage(_props: { path?: string }) {
   const [store, setStore] = useState<SyncStore | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [reconnecting, setReconnecting] = useState(false);
+  const [offlineJoin, setOfflineJoin] = useState(false);
   const [connectAttempt, setConnectAttempt] = useState(0);
   const [deviceSettings, setDeviceSettings] = useDeviceSettings();
 
@@ -30,6 +31,12 @@ export function DisplayPage(_props: { path?: string }) {
       return;
     }
 
+    const resolveModule = (g: import("@casino-lord/core").GameId): UntypedGameModule => {
+      const entry = getGame(g);
+      if (!entry?.module) throw new Error("UNSUPPORTED_GAME");
+      return entry.module;
+    };
+
     let destroyed = false;
     let syncStore: SyncStore | null = null;
     setReconnecting(false);
@@ -37,12 +44,18 @@ export function DisplayPage(_props: { path?: string }) {
     setStore(null);
     setLoading(true);
 
-    void (async () => {
-      try {
-        const meta = await getTableMeta(getSyncBaseUrl(), code);
-        if (destroyed) return;
-        if (!meta.exists) {
-          setError("NOT_FOUND");
+    setOfflineJoin(false);
+    setError(null);
+    setLoading(true);
+
+    syncStore = createSyncedTableStore({
+      code,
+      role: "display",
+      syncUrl: getSyncBaseUrl(),
+      resolveModule,
+      onJoinError: (errCode) => {
+        if (!destroyed) {
+          setError(errCode);
           setLoading(false);
           return;
         }
@@ -70,21 +83,21 @@ export function DisplayPage(_props: { path?: string }) {
         await waitForSyncReady(syncStore);
         if (!destroyed) {
           setStore(syncStore);
+          setOfflineJoin(false);
           setLoading(false);
         }
-      } catch (err) {
+      })
+      .catch((err: Error) => {
         if (destroyed) return;
-        const message = err instanceof Error ? err.message : "Could not load table";
-        if (message === "sync join timeout" && syncStore && syncStore.events.length > 0) {
+        if (err.message === SYNC_JOIN_TIMEOUT && syncStore && syncStore.events.length > 0) {
           setStore(syncStore);
-          setReconnecting(true);
+          setOfflineJoin(true);
           setLoading(false);
           return;
         }
-        setError(message);
+        setError(err.message);
         setLoading(false);
-      }
-    })();
+      });
 
     return () => {
       destroyed = true;
@@ -93,18 +106,22 @@ export function DisplayPage(_props: { path?: string }) {
   }, [code, connectAttempt]);
 
   useEffect(() => {
-    if (!loading && !reconnecting && error && isDefinitiveSyncError(error)) {
-      route(`/sync-error?reason=${encodeURIComponent(error)}`);
+    if (loading || offlineJoin) return;
+    if (store && !error) return;
+    if (error) {
+      route(
+        `/sync-error?reason=${encodeURIComponent(error)}&code=${encodeURIComponent(code)}&role=display`,
+      );
     }
-  }, [error, loading, reconnecting, route]);
+  }, [error, loading, store, route, code, offlineJoin]);
 
   const [, setTick] = useState(0);
   useEffect(() => store?.subscribe(() => setTick((n) => n + 1)), [store]);
 
-  const handleRetry = (): void => {
+  const handleRetryConnect = (): void => {
     store?.destroy();
     setStore(null);
-    setReconnecting(false);
+    setOfflineJoin(false);
     setConnectAttempt((n) => n + 1);
   };
 
@@ -133,24 +150,21 @@ export function DisplayPage(_props: { path?: string }) {
     );
   }
 
-  const entry = getGame(store.game);
-  if (!entry?.module) return null;
-
   const displayQrUrl = tableUrl(`/display/${code}`);
 
   return (
     <main class="display-page">
-      {reconnecting && (
-        <div class="display-page__reconnect" data-testid="reconnect-banner">
-          Reconnecting…
-          <button type="button" onClick={handleRetry}>
+      {offlineJoin && (
+        <div class="display-page__waiting" data-testid="reconnect-bar">
+          Reconnecting… ·{" "}
+          <button type="button" onClick={handleRetryConnect}>
             Retry
           </button>
         </div>
       )}
       <DisplayShell
         store={store}
-        module={entry.module}
+        module={store.getModule()}
         rules={store.getRules()}
         deviceSettings={deviceSettings}
         displayQrUrl={displayQrUrl}

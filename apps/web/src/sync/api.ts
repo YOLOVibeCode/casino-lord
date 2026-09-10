@@ -22,6 +22,7 @@ export interface TableLookupResponse {
   playerColors?: string[];
   dealerConnected?: boolean;
   joiningOpen?: boolean;
+  takenColors?: string[];
 }
 
 export interface JoinPlayerBody {
