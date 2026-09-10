@@ -97,6 +97,44 @@
   padding: 0.5rem 0.75rem;
 }
 
+.dealer-shell__virtual-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.dealer-shell__virtual-reveal {
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-align: center;
+  animation: dealer-reveal-pulse 1.5s ease-in-out infinite;
+}
+
+.dealer-shell__virtual-headline {
+  margin: 0 0 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.dealer-shell__virtual-empty {
+  margin: 0;
+  font-size: 1rem;
+  opacity: 0.75;
+  text-align: center;
+}
+
+@keyframes dealer-reveal-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
 .dealer-shell__bottom {
   flex-shrink: 0;
   border-top: 1px solid var(--gold-hairline);

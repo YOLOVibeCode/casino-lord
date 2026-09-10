@@ -23,6 +23,7 @@ import { SettingsDialog } from "./SettingsDialog.js";
 import { HistoryDialog } from "./HistoryDialog.js";
 import { CalculatorDialog } from "./CalculatorDialog.js";
 import { PlayersDialog } from "./PlayersDialog.js";
+import { VirtualPanel } from "./VirtualPanel.js";
 import { useConfirm } from "../ui/ConfirmSheet.js";
 import { usePrompt } from "../ui/PromptSheet.js";
 import { useToast } from "../ui/Toast.js";
@@ -541,6 +542,18 @@ export function DealerShell({
             editMode,
           })}
         </div>
+      )}
+
+      {virtualTable && (
+        <VirtualPanel
+          virtualPending={virtualPending}
+          events={store.events}
+          currentSeriesResults={composed.platform.currentSeriesResults}
+          module={module}
+          rules={rules}
+          composed={composed}
+          game={store.game}
+        />
       )}
 
       <div class="dealer-shell__bottom" data-testid="dealer-bottom-bar">
