@@ -9,6 +9,7 @@ import { DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
 import { PLATFORM_ANIMATION_EVENTS } from "../animation/platform-events.js";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
+import { renderWithUiProviders } from "../ui/test-providers.js";
 import { AnimationEditorTab } from "./AnimationEditorTab.js";
 
 const baccarat = asUntypedModule(baccaratModule);
@@ -31,7 +32,7 @@ describe("AnimationEditorTab", () => {
       id: () => "s1",
     });
 
-    render(<AnimationEditorTab store={store} module={baccarat} />);
+    renderWithUiProviders(<AnimationEditorTab store={store} module={baccarat} />);
 
     const expectedCount = baccarat.animationEvents.length + PLATFORM_ANIMATION_EVENTS.length;
     expect(screen.getAllByTestId(/^animation-row-/).length).toBe(expectedCount);
@@ -47,7 +48,7 @@ describe("AnimationEditorTab", () => {
       id: () => "s1",
     });
 
-    render(<AnimationEditorTab store={store} module={baccarat} />);
+    renderWithUiProviders(<AnimationEditorTab store={store} module={baccarat} />);
     expandEventRow("banker_win");
 
     fireEvent.change(screen.getByTestId("banker_win-style"), { target: { value: "banner" } });
@@ -70,7 +71,7 @@ describe("AnimationEditorTab", () => {
       id: () => "s1",
     });
 
-    render(<AnimationEditorTab store={store} module={baccarat} />);
+    renderWithUiProviders(<AnimationEditorTab store={store} module={baccarat} />);
     expandEventRow("banker_win");
 
     fireEvent.click(screen.getByTestId("banker_win-preview"));
@@ -88,7 +89,7 @@ describe("AnimationEditorTab", () => {
       id: () => "s1",
     });
 
-    render(<AnimationEditorTab store={store} module={baccarat} />);
+    renderWithUiProviders(<AnimationEditorTab store={store} module={baccarat} />);
     expandEventRow("banker_win");
 
     const select = screen.getByTestId("banker_win-style") as HTMLSelectElement;
@@ -130,7 +131,7 @@ describe("AnimationEditorTab", () => {
       },
     });
 
-    render(<AnimationEditorTab store={store} module={baccarat} />);
+    renderWithUiProviders(<AnimationEditorTab store={store} module={baccarat} />);
     expandEventRow("banker_win");
 
     fireEvent.click(screen.getByTestId("banker_win-reset"));
@@ -141,5 +142,23 @@ describe("AnimationEditorTab", () => {
         (e) => e.type === "SETTINGS_CHANGED" && e.patch.animations?.["game.banker_win"] === null,
       );
     expect(changed).toBeTruthy();
+  });
+
+  it("opens prompt sheet to save bundle and rejects empty name", async () => {
+    const store = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    renderWithUiProviders(<AnimationEditorTab store={store} module={baccarat} />);
+    fireEvent.click(screen.getByTestId("bundle-save"));
+
+    expect(screen.getByTestId("prompt-sheet")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("prompt-sheet-confirm"));
+    expect(screen.getByTestId("prompt-sheet-error").textContent).toContain("required");
   });
 });

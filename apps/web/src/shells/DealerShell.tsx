@@ -23,6 +23,9 @@ import { SettingsDialog } from "./SettingsDialog.js";
 import { HistoryDialog } from "./HistoryDialog.js";
 import { CalculatorDialog } from "./CalculatorDialog.js";
 import { PlayersDialog } from "./PlayersDialog.js";
+import { useConfirm } from "../ui/ConfirmSheet.js";
+import { usePrompt } from "../ui/PromptSheet.js";
+import { useToast } from "../ui/Toast.js";
 import "./dealer-shell.css";
 
 export interface DealerShellProps {
@@ -66,8 +69,9 @@ export function DealerShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
   const [editingEnvelope, setEditingEnvelope] = useState<ResultEnvelope<unknown> | null>(null);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [toastKind, setToastKind] = useState<"error" | "info">("error");
+  const toast = useToast();
+  const { confirm } = useConfirm();
+  const { prompt } = usePrompt();
   const [rotateHintDismissed, setRotateHintDismissed] = useState(
     () => sessionStorage.getItem(ROTATE_HINT_KEY) === "1",
   );
@@ -87,19 +91,6 @@ export function DealerShell({
   const [confirming, setConfirming] = useState(false);
   const [confirmProgress, setConfirmProgress] = useState(0);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showToast = useCallback((message: string, kind: "error" | "info" = "error") => {
-    setToastMsg(message);
-    setToastKind(kind);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastMsg(null), 4000);
-  }, []);
-
-  const dismissToast = useCallback(() => {
-    setToastMsg(null);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-  }, []);
   const confirmTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const confirmStarted = useRef(0);
 
@@ -175,7 +166,7 @@ export function DealerShell({
 
     const check = store.canUndoLastResult();
     if (!check.ok) {
-      showToast(check.reason ?? "Undo blocked.");
+      toast.error(check.reason ?? "Undo blocked.", { testId: "dealer-toast" });
       return;
     }
 
@@ -215,7 +206,6 @@ export function DealerShell({
   useEffect(
     () => () => {
       if (undoTimer.current) clearTimeout(undoTimer.current);
-      if (toastTimer.current) clearTimeout(toastTimer.current);
       clearConfirmTimer();
     },
     [clearConfirmTimer],
@@ -241,7 +231,7 @@ export function DealerShell({
       } else {
         const series = buildSeriesFromStoreEvents(store.events, table.seriesNumber);
         if (!series) {
-          showToast("No series to export", "error");
+          toast.error("No series to export", { testId: "dealer-toast" });
           return;
         }
         const outcomeSource = composed.platform.participation.outcomeSource;
@@ -261,23 +251,44 @@ export function DealerShell({
       await navigator.clipboard.writeText(text);
       setMenuOpen(false);
     } catch {
-      showToast("Export failed", "error");
+      toast.error("Export failed", { testId: "dealer-toast" });
     }
   };
 
-  const handleImport = () => {
-    const text = window.prompt("Paste series import text:");
+  const importPreview = (text: string): string | null => {
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+    const envelope = parseExportForImport(trimmed);
+    if ("error" in envelope) return null;
+    return `${envelope.players.length} players, ${envelope.bets.length} bets — not imported`;
+  };
+
+  const handleImport = async () => {
+    const text = await prompt({
+      title: "Import series",
+      label: "Paste series import text",
+      multiline: true,
+      confirmLabel: "Import",
+      pasteFromClipboard: true,
+      preview: importPreview,
+    });
     if (!text) return;
     const envelope = parseExportForImport(text);
     const body = "error" in envelope ? text : envelope.body;
     const imported = module.importSeries(body, rules);
     if ("error" in imported) {
-      window.alert(imported.error);
+      toast.error(imported.error, { testId: "dealer-toast" });
       return;
     }
     store.importResults(imported.results);
-    if (imported.warnings.length > 0) {
-      window.alert(imported.warnings.join("\n"));
+    if (!("error" in envelope) && (envelope.players.length > 0 || envelope.bets.length > 0)) {
+      toast.info(
+        `${envelope.players.length} players, ${envelope.bets.length} bets in this export — not imported`,
+        { testId: "dealer-toast" },
+      );
+    }
+    for (const warning of imported.warnings) {
+      toast.info(warning, { testId: "dealer-toast" });
     }
     setMenuOpen(false);
   };
@@ -311,11 +322,11 @@ export function DealerShell({
   const handleConfirmClick = useCallback(() => {
     if (readOnly) return;
     if (!confirmState?.enabled || !confirmState.result) {
-      showToast("Complete the hand before confirming.", "info");
+      toast.info("Complete the hand before confirming.", { testId: "dealer-toast" });
       return;
     }
     startConfirmDelay();
-  }, [confirmState, readOnly, showToast, startConfirmDelay]);
+  }, [confirmState, readOnly, startConfirmDelay, toast]);
 
   const dotClass =
     connectionState === "offline"
@@ -409,24 +420,6 @@ export function DealerShell({
       )}
 
       <div class="dealer-shell__bottom" data-testid="dealer-bottom-bar">
-        {toastMsg && (
-          <div
-            class={`dealer-shell__toast${toastKind === "info" ? " dealer-shell__toast--info" : ""}`}
-            data-testid="dealer-toast"
-            role="alert"
-          >
-            <span>{toastMsg}</span>
-            <button
-              type="button"
-              class="dealer-shell__toast-dismiss"
-              aria-label="Dismiss"
-              onClick={dismissToast}
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
         <div class="dealer-shell__toolbar">
           {playerModeOn && (
             <>
@@ -467,11 +460,18 @@ export function DealerShell({
                 {onNewTable && (
                   <button
                     type="button"
+                    data-testid="menu-new-table"
                     onClick={() => {
-                      if (window.confirm("Start a new table?")) {
-                        onNewTable();
-                        setMenuOpen(false);
-                      }
+                      void (async () => {
+                        const ok = await confirm({
+                          title: "Start a new table?",
+                          confirmLabel: "New table",
+                        });
+                        if (ok) {
+                          onNewTable();
+                          setMenuOpen(false);
+                        }
+                      })();
                     }}
                   >
                     New Table
@@ -479,22 +479,41 @@ export function DealerShell({
                 )}
                 <button
                   type="button"
+                  data-testid="menu-new-series"
                   onClick={() => {
-                    if (window.confirm(`Start new ${module.seriesLabel}?`)) {
-                      store.startNewSeries();
-                      setMenuOpen(false);
-                    }
+                    void (async () => {
+                      const ok = await confirm({
+                        title: `Start new ${module.seriesLabel}?`,
+                        confirmLabel: `New ${module.seriesLabel}`,
+                      });
+                      if (ok) {
+                        store.startNewSeries();
+                        setMenuOpen(false);
+                      }
+                    })();
                   }}
                 >
                   New {module.seriesLabel}
                 </button>
                 <button
                   type="button"
+                  data-testid="menu-end-session"
                   onClick={() => {
-                    if (window.confirm("End session?")) {
-                      store.endSession();
-                      setMenuOpen(false);
-                    }
+                    void (async () => {
+                      const endBody = virtualTable
+                        ? "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results. The virtual seed will be revealed."
+                        : "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results.";
+                      const ok = await confirm({
+                        title: "End session?",
+                        body: endBody,
+                        destructive: true,
+                        confirmLabel: "Hold to end session",
+                      });
+                      if (ok) {
+                        store.endSession();
+                        setMenuOpen(false);
+                      }
+                    })();
                   }}
                 >
                   End Session
@@ -507,7 +526,7 @@ export function DealerShell({
                     Verify export
                   </a>
                 )}
-                <button type="button" onClick={handleImport}>
+                <button type="button" data-testid="menu-import" onClick={() => void handleImport()}>
                   Import
                 </button>
                 <a href={tableUrl(`/verify?code=${store.code}`)} data-testid="menu-verify">

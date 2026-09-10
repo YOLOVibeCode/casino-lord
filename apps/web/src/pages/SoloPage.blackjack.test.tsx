@@ -9,10 +9,15 @@ import { blackjackModule } from "@casino-lord/game-blackjack";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
+import { UiProviders } from "../ui/test-providers.js";
 import { SoloPage } from "./SoloPage.js";
 
 vi.mock("../hooks/use-device-settings.js", () => ({
   useDeviceSettings: () => [DEFAULT_DEVICE_SETTINGS, vi.fn()],
+}));
+
+vi.mock("../sync/urls.js", () => ({
+  tableUrl: (path: string) => `http://127.0.0.1:3000${path}`,
 }));
 
 const blackjack = asUntypedModule(blackjackModule);
@@ -35,11 +40,13 @@ vi.mock("../table/solo-table.js", () => ({
 function renderSoloPage(path: string) {
   window.history.replaceState({}, "", path);
   return render(
-    <LocationProvider>
-      <Router>
-        <SoloPage path="/solo/:game" />
-      </Router>
-    </LocationProvider>,
+    <UiProviders>
+      <LocationProvider>
+        <Router>
+          <SoloPage path="/solo/:game" />
+        </Router>
+      </LocationProvider>
+    </UiProviders>,
   );
 }
 
