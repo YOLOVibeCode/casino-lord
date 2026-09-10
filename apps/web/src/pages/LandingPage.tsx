@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { useLocation } from "preact-iso";
-import { isValidTableCode, normalizeTableCode, type Participation } from "@casino-lord/core";
+import { isValidTableCode, normalizeTableCode, DEFAULT_TABLE_SETTINGS, type Participation } from "@casino-lord/core";
 import { createTable, fetchServerFeatures, getTableMeta } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
 import {
@@ -30,6 +30,7 @@ export function LandingPage(_props: { path?: string }) {
   } | null>(null);
   const [withPlayers, setWithPlayers] = useState(false);
   const [houseBank, setHouseBank] = useState(true);
+  const [defaultBuyIn, setDefaultBuyIn] = useState(DEFAULT_TABLE_SETTINGS.bank.defaultBuyIn);
   const [outcomeVirtual, setOutcomeVirtual] = useState(false);
   const [enableVirtual, setEnableVirtual] = useState(false);
   const [recentTables, setRecentTables] = useState<DealerTokenRecord[]>([]);
@@ -71,6 +72,9 @@ export function LandingPage(_props: { path?: string }) {
       const result = await createTable(getSyncBaseUrl(), {
         game: selectedGame as "baccarat" | "roulette" | "craps" | "blackjack",
         participation,
+        ...(withPlayers && houseBank
+          ? { settings: { bank: { defaultBuyIn } } }
+          : {}),
       });
       route(
         `/created/${result.code}?t=${encodeURIComponent(result.dealerToken)}&game=${encodeURIComponent(selectedGame)}`,
@@ -315,6 +319,20 @@ export function LandingPage(_props: { path?: string }) {
                           ? "House bank: you issue play chips; the app tracks bankrolls and settles automatically."
                           : "No house bank: players track chips themselves; bets are declared for display and the app shows what each bet would pay."}
                       </p>
+                      {houseBank && (
+                        <label class="landing__option landing__option--nested">
+                          Buy-in chips
+                          <input
+                            type="number"
+                            min={1}
+                            data-testid="buy-in-input"
+                            value={defaultBuyIn}
+                            onInput={(e) =>
+                              setDefaultBuyIn(Number((e.target as HTMLInputElement).value))
+                            }
+                          />
+                        </label>
+                      )}
                     </>
                   )}
                 </fieldset>

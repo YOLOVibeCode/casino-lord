@@ -96,6 +96,43 @@ describe("LandingPage create sheet", () => {
     expect(screen.getByTestId("house-bank-help")).toBeTruthy();
     fireEvent.click(screen.getByTestId("house-bank-checkbox"));
     expect(screen.getByTestId("house-bank-help").textContent).toMatch(/track chips themselves/i);
+    expect(screen.queryByTestId("buy-in-input")).toBeNull();
+  });
+
+  it("shows buy-in input with house bank and passes defaultBuyIn to createTable", async () => {
+    renderLanding();
+    fireEvent.click(screen.getByText("Create Table"));
+    fireEvent.click(screen.getByLabelText(/With players/i));
+
+    const buyInInput = screen.getByTestId("buy-in-input") as HTMLInputElement;
+    expect(buyInInput.value).toBe("500");
+
+    fireEvent.input(buyInInput, { target: { value: "1000" } });
+    fireEvent.click(screen.getByText("Create"));
+
+    await waitFor(() => {
+      expect(createTable).toHaveBeenCalledWith(
+        "http://localhost:3000",
+        expect.objectContaining({
+          settings: { bank: { defaultBuyIn: 1000 } },
+        }),
+      );
+    });
+  });
+
+  it("omits buy-in settings when house bank is unchecked", async () => {
+    renderLanding();
+    fireEvent.click(screen.getByText("Create Table"));
+    fireEvent.click(screen.getByLabelText(/With players/i));
+    fireEvent.click(screen.getByTestId("house-bank-checkbox"));
+    fireEvent.click(screen.getByText("Create"));
+
+    await waitFor(() => {
+      expect(createTable).toHaveBeenCalledWith(
+        "http://localhost:3000",
+        expect.not.objectContaining({ settings: expect.anything() }),
+      );
+    });
   });
 
   it("lists recent tables and supports forget and reopen", () => {
