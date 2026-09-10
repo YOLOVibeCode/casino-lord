@@ -18,6 +18,7 @@ import { type AdmitPlayerResult, type JoinPlayerResult, PlayerService } from "./
 import { generateDealerToken, hashToken } from "./token.js";
 import { TableInstance } from "./table-instance.js";
 import { VirtualActionTimer } from "./action-timer.js";
+import type { VirtualExecutorTimingDeps } from "./virtual-executor.js";
 import { VirtualDealer } from "./virtual-dealer.js";
 
 export interface CreateTableResult {
@@ -33,6 +34,7 @@ export interface TableRegistryDeps {
   rng?: () => number;
   setIntervalFn?: typeof setInterval;
   clearIntervalFn?: typeof clearInterval;
+  virtualExecutorTiming?: VirtualExecutorTimingDeps;
 }
 
 export class TableRegistry {
@@ -41,6 +43,7 @@ export class TableRegistry {
   private readonly playerService: PlayerService;
   private readonly now: () => string;
   private readonly rng: () => number;
+  private readonly virtualExecutorTiming: VirtualExecutorTimingDeps;
   private readonly tables = new Map<string, TableInstance>();
   private readonly virtualDealers = new Map<string, VirtualDealer>();
   private readonly actionTimers = new Map<string, VirtualActionTimer>();
@@ -53,6 +56,7 @@ export class TableRegistry {
     this.playerService = new PlayerService(this.config, this.repository);
     this.now = deps.now ?? (() => new Date().toISOString());
     this.rng = deps.rng ?? (() => randomBytes(4).readUInt32BE(0));
+    this.virtualExecutorTiming = deps.virtualExecutorTiming ?? {};
 
     for (const row of this.repository.listTables()) {
       const module = getModule(row.game);
@@ -169,6 +173,10 @@ export class TableRegistry {
 
   getVirtualDealer(code: string): VirtualDealer | null {
     return this.virtualDealers.get(code) ?? null;
+  }
+
+  getVirtualExecutorTiming(): VirtualExecutorTimingDeps {
+    return this.virtualExecutorTiming;
   }
 
   persistVirtualDealer(code: string): void {

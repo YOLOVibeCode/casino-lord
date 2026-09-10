@@ -226,6 +226,34 @@ describe("platform round state machine", () => {
     expect(state.platform.settlements.r1).toBeUndefined();
   });
 
+  it("returns stake on BET_REMOVED with by: dealer same as without by", () => {
+    const placed = {
+      id: "b1",
+      playerId: "p1",
+      roundId: "r1",
+      type: "high",
+      amount: 100,
+      declared: false,
+      working: false,
+      placedAt: "2026-01-01T00:00:06.000Z",
+      originRoundId: "r1",
+    };
+    const events = [
+      ...baseEvents(),
+      ev(5, "2026-01-01T00:00:05.000Z", { type: "BETS_OPENED", roundId: "r1" }),
+      ev(6, "2026-01-01T00:00:06.000Z", { type: "BET_PLACED", bet: placed }),
+      ev(7, "2026-01-01T00:00:07.000Z", {
+        type: "BET_REMOVED",
+        betId: "b1",
+        by: "dealer",
+      }),
+    ];
+
+    const state = replay(events, module, STUB_RULES, { code: "K7X2PQ" });
+    expect(getBankroll(state.platform, "p1")).toBe(500);
+    expect(state.platform.bets).toHaveLength(0);
+  });
+
   it("reconciles chips in play", () => {
     const events = [
       ...baseEvents(),
