@@ -260,6 +260,88 @@ describe("DealerView", () => {
     expect(screen.queryByTestId("seat-intent-3")).toBeNull();
   });
 
+  it("does not record quick dealer entry when seat detail is present", () => {
+    const emit = vi.fn();
+    const record = vi.fn();
+    const rules = DEFAULT_BLACKJACK_RULES;
+    const live = {
+      dealer: [],
+      seats: {
+        1: [
+          {
+            cards: [],
+            doubled: false,
+            fromSplit: false,
+            surrendered: false,
+            outcome: "win" as const,
+          },
+        ],
+      },
+    };
+    const state = reduce(
+      initialState(rules),
+      {
+        seq: 1,
+        at: "2026-01-01T00:00:01.000Z",
+        type: "LIVE_INPUT",
+        payload: live,
+        source: "dealer",
+      },
+      rules,
+    );
+
+    render(<DealerView state={state} rules={rules} table={TABLE} emit={emit} record={record} />);
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("outcome-chip-BUST"));
+    });
+
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("highlights dealer hole slot as next after up card is entered", () => {
+    const emit = vi.fn();
+    const rules = DEFAULT_BLACKJACK_RULES;
+    const live = { dealer: [c("7")], seats: {} };
+    const state = reduce(
+      initialState(rules),
+      {
+        seq: 1,
+        at: "2026-01-01T00:00:01.000Z",
+        type: "LIVE_INPUT",
+        payload: live,
+        source: "dealer",
+      },
+      rules,
+    );
+
+    renderDealer(emit, rules, state);
+
+    const holeSlot = screen.getByTestId("dealer-slot-1");
+    expect(holeSlot.className).toContain("dealer-view__slot--next");
+    expect(holeSlot.getAttribute("aria-label")).toContain("next");
+    expect(screen.getByTestId("round-hint").textContent).toContain("hole card");
+  });
+
+  it("renders spec seat outcome chip labels and keyboard hints", () => {
+    const emit = vi.fn();
+    renderDealer(emit);
+
+    expect(screen.getByTestId("outcome-chip-win").textContent).toBe("WIN");
+    expect(screen.getByTestId("outcome-chip-lose").textContent).toBe("LOSE");
+    expect(screen.getByTestId("outcome-chip-push").textContent).toBe("PUSH");
+    expect(screen.getByTestId("outcome-chip-blackjack").textContent).toBe("BJ");
+    expect(screen.getByTestId("outcome-chip-bust").textContent).toBe("BUST");
+    expect(screen.getByTestId("outcome-chip-surrender").textContent).toBe("SURR");
+
+    expect(screen.getByTestId("outcome-chip-win").getAttribute("title")).toBe("W");
+    expect(screen.getByTestId("outcome-chip-lose").getAttribute("title")).toBe("L");
+    expect(screen.getByTestId("outcome-chip-push").getAttribute("title")).toBe("P");
+    expect(screen.getByTestId("outcome-chip-blackjack").getAttribute("title")).toBe("J");
+    expect(screen.getByTestId("outcome-chip-bust").getAttribute("title")).toBe("B");
+    expect(screen.getByTestId("outcome-chip-surrender").getAttribute("title")).toBe("R");
+  });
+
   it("does not show intent badges on virtual tables", () => {
     const emit = vi.fn();
     const rules = DEFAULT_BLACKJACK_RULES;

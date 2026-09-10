@@ -31,6 +31,22 @@
   position: relative;
 }
 
+.dealer-view__slot--empty {
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+.dealer-view__slot-plus {
+  opacity: 0.35;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.dealer-view__slot--next {
+  animation: dealer-slot-pulse 1.2s ease-in-out infinite;
+  border-color: var(--bj-slot-next, #6ab0ff);
+}
+
 .dealer-view__slot--hole {
   background: #1a2744;
   color: transparent;
@@ -93,6 +109,19 @@
   padding: 0.75rem;
   background: var(--bj-panel, rgba(255, 255, 255, 0.06));
   border-radius: 6px;
+}
+
+.dealer-view__seat-panel .outcome-chips {
+  gap: 8px;
+}
+
+.dealer-view__seat-panel .outcome-chips__chip {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 6px 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .dealer-view__hand-row {
@@ -161,4 +190,28 @@
 
 .dealer-view__quick-entry {
   margin-top: 0.25rem;
+}
+
+.dealer-view__quick-entry--disabled .outcome-chips__chip {
+  pointer-events: none;
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+@keyframes dealer-slot-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(106, 176, 255, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(106, 176, 255, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dealer-view__slot--next {
+    animation: none;
+    border-color: var(--bj-slot-next, #6ab0ff);
+    box-shadow: 0 0 0 2px rgba(106, 176, 255, 0.5);
+  }
 }
