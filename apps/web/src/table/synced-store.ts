@@ -13,6 +13,7 @@ import { io, type Socket } from "socket.io-client";
 import { newClientId } from "../sync/client-id.js";
 import { saveDealerToken } from "../sync/dealer-token.js";
 import { savePlayerToken } from "../sync/player-token.js";
+import { SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
 import { getGame } from "./games.js";
 import { buildTableMeta } from "./meta.js";
 import type { UntypedGameModule } from "./module-types.js";
@@ -686,7 +687,7 @@ export function waitForSyncReady(store: SyncStore, timeoutMs = 8000): Promise<vo
     }
     const timer = setTimeout(() => {
       unsub();
-      reject(new Error("sync join timeout"));
+      reject(new Error(SYNC_JOIN_TIMEOUT));
     }, timeoutMs);
     const unsub = store.subscribe(() => {
       const err = store.getRejectReason();

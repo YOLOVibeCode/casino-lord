@@ -2,11 +2,12 @@
  * @vitest-environment jsdom
  */
 import "fake-indexeddb/auto";
-import { cleanup, render, screen } from "@testing-library/preact";
+import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createStubModule, STUB_RULES } from "@casino-lord/core/testing";
+import { createStubModule, houseSettings, STUB_RULES } from "@casino-lord/core/testing";
 import { rouletteModule } from "@casino-lord/game-roulette";
 import { LocationProvider, Router } from "preact-iso";
+import { SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
 import type { SyncStore } from "../table/sync-store-types.js";
@@ -25,8 +26,20 @@ vi.mock("../sync/config.js", () => ({
   getSyncBaseUrl: () => "http://127.0.0.1:3000",
 }));
 
+const route = vi.fn();
+vi.mock("preact-iso", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("preact-iso")>();
+  return {
+    ...orig,
+    useLocation: () => ({ route }),
+  };
+});
+
 let readOnly = false;
+let waitForResult: Error | null = null;
+let withLocalLog = false;
 const listeners = new Set<() => void>();
+const takeover = vi.fn();
 
 function setReadOnly(next: boolean): void {
   readOnly = next;
@@ -44,6 +57,15 @@ function mockSyncStore(game: "baccarat" | "roulette" = "baccarat"): SyncStore {
     now: () => "2026-01-01T00:00:00.000Z",
     id: () => "s1",
   });
+  if (withLocalLog) {
+    const settings = houseSettings();
+    store.emit({
+      type: "TABLE_CREATED",
+      game: "baccarat",
+      participation: settings.participation,
+      settings,
+    });
+  }
   return Object.assign(store, {
     subscribe: (listener: () => void) => {
       listeners.add(listener);
@@ -53,8 +75,8 @@ function mockSyncStore(game: "baccarat" | "roulette" = "baccarat"): SyncStore {
     getPresence: () => ({ dealers: 1, displays: 0, players: [] }),
     isReadOnly: () => readOnly,
     getRejectReason: () => null,
-    takeover: () => undefined,
-    destroy: () => undefined,
+    takeover,
+    destroy: vi.fn(),
     getDealerToken: () => "test-token",
     getModule: () => module,
   });
@@ -63,11 +85,12 @@ function mockSyncStore(game: "baccarat" | "roulette" = "baccarat"): SyncStore {
 let mockGame: "baccarat" | "roulette" = "baccarat";
 vi.mock("../table/synced-store.js", () => ({
   createSyncedTableStore: () => mockSyncStore(mockGame),
-  waitForSyncReady: () => Promise.resolve(),
+  waitForSyncReady: () => (waitForResult ? Promise.reject(waitForResult) : Promise.resolve()),
 }));
 
 function renderPage(path: string) {
   window.history.replaceState({}, "", path);
+  route.mockClear();
   return render(
     <LocationProvider>
       <Router>
@@ -79,9 +102,13 @@ function renderPage(path: string) {
 
 describe("DealerPage", () => {
   afterEach(() => {
+    cleanup();
+    readOnly = false;
+    waitForResult = null;
+    withLocalLog = false;
     mockGame = "baccarat";
     capturedModuleId = "";
-    cleanup();
+    takeover.mockClear();
   });
 
   it("renders dealer shell when sync store connects", async () => {
@@ -102,6 +129,51 @@ describe("DealerPage", () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId("demoted-banner")).toBeTruthy();
     });
+  });
+
+  it("shows dealer-active card when another dealer is connected", async () => {
+    waitForResult = new Error("DEALER_ACTIVE");
+    renderPage("/dealer/ABCD23?t=test-token");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("dealer-active-card")).toBeTruthy();
+    });
+    expect(screen.getByTestId("dealer-takeover-btn")).toBeTruthy();
+    expect(screen.getByTestId("dealer-open-display-btn")).toBeTruthy();
+    expect(route).not.toHaveBeenCalledWith(expect.stringContaining("/sync-error"));
+  });
+
+  it("calls takeover when Take over is clicked", async () => {
+    waitForResult = new Error("DEALER_ACTIVE");
+    renderPage("/dealer/ABCD23?t=test-token");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("dealer-takeover-btn")).toBeTruthy();
+    });
+    waitForResult = null;
+    fireEvent.click(screen.getByTestId("dealer-takeover-btn"));
+    await vi.waitFor(() => {
+      expect(takeover).toHaveBeenCalled();
+    });
+  });
+
+  it("navigates to display when Open as Display is clicked", async () => {
+    waitForResult = new Error("DEALER_ACTIVE");
+    renderPage("/dealer/ABCD23?t=test-token");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("dealer-open-display-btn")).toBeTruthy();
+    });
+    fireEvent.click(screen.getByTestId("dealer-open-display-btn"));
+    expect(route).toHaveBeenCalledWith("/display/ABCD23");
+  });
+
+  it("renders shell with reconnect bar on join timeout when local log exists", async () => {
+    waitForResult = new Error(SYNC_JOIN_TIMEOUT);
+    withLocalLog = true;
+    renderPage("/dealer/ABCD23?t=test-token");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("dealer-shell")).toBeTruthy();
+      expect(screen.getByTestId("reconnect-bar")).toBeTruthy();
+    });
+    expect(route).not.toHaveBeenCalledWith(expect.stringContaining("/sync-error"));
   });
 
   it("passes the roulette module for a roulette table", async () => {

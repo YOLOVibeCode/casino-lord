@@ -55,6 +55,7 @@ import { houseSettings } from "@casino-lord/core/testing";
 import { baccaratModule, DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
 import { rouletteModule, DEFAULT_ROULETTE_RULES } from "@casino-lord/game-roulette";
 import { getTableMeta } from "../sync/api.js";
+import { describeSyncError } from "../sync/error-copy.js";
 import { PlayPage } from "./PlayPage.js";
 import { createTableStore } from "../table/store.js";
 import { asUntypedModule } from "../table/module-types.js";
@@ -177,7 +178,7 @@ describe("PlayPage", () => {
       expect(screen.getByTestId("player-name-input")).toBeTruthy();
     });
     expect(clearPlayerToken).toHaveBeenCalledWith("K7X2PQ");
-    expect(screen.getByText(/join link is no longer valid/i)).toBeTruthy();
+    expect(screen.getByText(describeSyncError("PLAYER_BAD_TOKEN").body)).toBeTruthy();
   });
 
   it("shows name counter and disables join for short names", async () => {
