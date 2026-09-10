@@ -207,6 +207,9 @@
   bottom: 100%;
   margin-bottom: 0.25rem;
   min-width: 12rem;
+  max-height: calc(100dvh - 5.5rem - env(safe-area-inset-top, 0px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--panel-bg);
   border: 1px solid var(--gold-hairline);
   border-radius: 8px;

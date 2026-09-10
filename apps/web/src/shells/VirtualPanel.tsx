@@ -42,8 +42,7 @@ export function VirtualPanel({
   const last = currentSeriesResults.at(-1);
   if (last) {
     const headline =
-      module.describeResult?.(last.data, rules) ??
-      `${module.resultLabel} ${last.index}`;
+      module.describeResult?.(last.data, rules) ?? `${module.resultLabel} ${last.index}`;
     return (
       <div class="dealer-shell__module dealer-shell__virtual-panel">
         <div class="dealer-shell__virtual-last-result" data-testid="virtual-last-result">

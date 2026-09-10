@@ -3,7 +3,7 @@
  */
 import "fake-indexeddb/auto";
 import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LocationProvider } from "preact-iso";
 import { DEFAULT_TABLE_SETTINGS, type ResultEnvelope, type TableEvent } from "@casino-lord/core";
 import { createStubModule, STUB_RULES } from "@casino-lord/core/testing";
@@ -44,6 +44,19 @@ function renderDealerShell(props: Parameters<typeof DealerShell>[0]) {
       </LocationProvider>
     </UiProviders>,
   );
+}
+
+function setViewport(width: number, height: number): void {
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: width, writable: true });
+  Object.defineProperty(window, "innerHeight", {
+    configurable: true,
+    value: height,
+    writable: true,
+  });
+}
+
+function openDealerMenu(): void {
+  fireEvent.click(screen.getByTestId("menu-btn"));
 }
 
 function virtualBaseEvents(): TableEvent[] {
@@ -275,5 +288,41 @@ describe("DealerShell virtual Force", () => {
     });
 
     expect(screen.getByTestId("force-btn").textContent).toBe("Force deal");
+  });
+});
+
+describe("DealerShell menu scroll", () => {
+  beforeAll(() => {
+    const style = document.createElement("style");
+    style.textContent = `
+      .dealer-shell__menu-panel {
+        max-height: calc(100dvh - 5.5rem - env(safe-area-inset-top, 0px));
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+    `;
+    document.head.appendChild(style);
+  });
+
+  afterEach(() => cleanup());
+
+  it("exposes scrollable dealer menu panel at small viewport", () => {
+    setViewport(375, 667);
+    const store = makeVirtualStore();
+
+    renderDealerShell({
+      store,
+      module: asUntypedModule(createStubModule()),
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    openDealerMenu();
+    const panel = screen.getByTestId("dealer-menu-panel");
+    const style = window.getComputedStyle(panel);
+    expect(style.overflowY).toBe("auto");
+    expect(style.maxHeight).not.toBe("");
+    expect(panel.contains(screen.getByTestId("menu-disconnect"))).toBe(true);
   });
 });

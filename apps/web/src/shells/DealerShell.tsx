@@ -615,7 +615,12 @@ export function DealerShell({
                   data-testid="menu-backdrop"
                   onClick={() => setMenuOpen(false)}
                 />
-                <div ref={menuPanelRef} class="dealer-shell__menu-panel" role="menu">
+                <div
+                  ref={menuPanelRef}
+                  class="dealer-shell__menu-panel"
+                  role="menu"
+                  data-testid="dealer-menu-panel"
+                >
                   {onNewTable && (
                     <button
                       type="button"
@@ -769,18 +774,19 @@ export function DealerShell({
               >
                 {virtualTriggerLabel}
               </button>
-              {showDealNow && (
+              {showForceBtn && (
                 <button
                   type="button"
                   class="dealer-shell__btn"
-                  disabled={dealNowDisabled}
+                  disabled={forceDisabled}
                   data-testid="force-btn"
+                  title="Deals now even though it is a player's turn"
                   onClick={() => {
                     setForceTapped(true);
                     store.sendVirtual("force");
                   }}
                 >
-                  Deal now
+                  {forceLabel}
                 </button>
               )}
             </>

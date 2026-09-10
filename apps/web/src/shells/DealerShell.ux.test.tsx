@@ -317,5 +317,4 @@ describe("DealerShell UX-2b", () => {
     fireEvent.keyDown(input, { key: "z" });
     expect(store.events.filter((e) => e.type === "RESULT_UNDONE").length).toBe(before);
   });
-
 });
