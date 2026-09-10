@@ -6,6 +6,9 @@ import {
   getRoundSettlements,
   type BetCatalogue,
   type BetDef,
+  type PlacedBet,
+  type PlatformState,
+  type Settlement,
   type TableEvent,
 } from "@casino-lord/core";
 import {
@@ -73,6 +76,70 @@ function buildBuyInMap(events: readonly TableEvent[]): Record<string, number> {
     }
   }
   return map;
+}
+
+interface HistoryRow {
+  id: string;
+  label: string;
+  amount: number;
+  roundId: string;
+  outcome: Settlement["outcome"] | null;
+  profit: number | null;
+  profitLabel: string | null;
+  runningNet: number | null;
+}
+
+function formatProfitLabel(profit: number, declared: boolean): string {
+  const sign = profit >= 0 ? "+" : "";
+  if (declared) {
+    return `would pay ${sign}${profit}`;
+  }
+  return `${sign}${profit}`;
+}
+
+export function buildHistoryRows(
+  platform: PlatformState,
+  playerId: string,
+  catalogue: BetCatalogue<unknown, unknown, unknown, unknown>,
+  declaredMode: boolean,
+): HistoryRow[] {
+  const bets = platform.bets
+    .filter((b) => b.playerId === playerId)
+    .sort(
+      (a, b) => new Date(a.placedAt).getTime() - new Date(b.placedAt).getTime(),
+    );
+
+  let runningNet = 0;
+  return bets.map((bet: PlacedBet) => {
+    const round = platform.rounds.find((r) => r.id === bet.roundId);
+    const settlements = platform.settlements[bet.roundId] ?? [];
+    const settlement = settlements.find((s) => s.betId === bet.id);
+
+    if (settlement && round?.status === "settled") {
+      runningNet += settlement.profit;
+      return {
+        id: bet.id,
+        label: betLabel(catalogue, bet.type),
+        amount: bet.amount,
+        roundId: bet.roundId,
+        outcome: settlement.outcome,
+        profit: settlement.profit,
+        profitLabel: formatProfitLabel(settlement.profit, declaredMode),
+        runningNet,
+      };
+    }
+
+    return {
+      id: bet.id,
+      label: betLabel(catalogue, bet.type),
+      amount: bet.amount,
+      roundId: bet.roundId,
+      outcome: null,
+      profit: null,
+      profitLabel: null,
+      runningNet: null,
+    };
+  });
 }
 
 function buildSettlementSummary(
@@ -518,16 +585,13 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const buyInByPlayer = buildBuyInMap(store.events);
   const leaderboard = buildLeaderboard(composed.platform, buyInByPlayer);
 
-  const historyRows = playerId
-    ? composed.platform.bets
-        .filter((b) => b.playerId === playerId)
-        .map((b) => ({
-          id: b.id,
-          type: b.type,
-          amount: b.amount,
-          roundId: b.roundId,
-        }))
-    : [];
+  const historyRows = useMemo(
+    () =>
+      playerId && module
+        ? buildHistoryRows(composed.platform, playerId, module.bets, !houseBank)
+        : [],
+    [composed.platform, playerId, module, houseBank],
+  );
 
   const connection = isSyncStore(store) ? store.getConnectionState() : "offline";
   const dotClass =
@@ -655,16 +719,48 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           <div class="player-shell__panel" data-testid="player-history">
             <h2>History</h2>
             {historyRows.length === 0 && <p>No bets this session</p>}
-            <ul>
+            <ul class="player-shell__history-list">
               {historyRows.map((row) => (
-                <li key={row.id}>
-                  {row.type} — {row.amount} (round {row.roundId})
+                <li
+                  key={row.id}
+                  class="player-shell__history-row"
+                  data-testid={`player-history-row-${row.id}`}
+                >
+                  <span class="player-shell__history-label">
+                    {row.label} — {row.amount}
+                  </span>
+                  {row.outcome !== null && (
+                    <span
+                      class={`player-shell__history-outcome player-shell__history-outcome--${row.outcome}`}
+                      data-testid={`player-history-outcome-${row.id}`}
+                    >
+                      {row.outcome}
+                    </span>
+                  )}
+                  {row.profitLabel !== null && (
+                    <span
+                      class="player-shell__history-profit"
+                      data-testid={`player-history-profit-${row.id}`}
+                    >
+                      {row.profitLabel}
+                    </span>
+                  )}
+                  {row.runningNet !== null && (
+                    <span
+                      class="player-shell__history-net"
+                      data-testid={`player-history-running-net-${row.id}`}
+                    >
+                      net {row.runningNet >= 0 ? "+" : ""}
+                      {row.runningNet}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
-            {playerId && (
-              <p>
-                Net: {getBankroll(composed.platform, playerId) - (buyInByPlayer[playerId] ?? 0)}
+            {playerId && historyRows.some((r) => r.runningNet !== null) && (
+              <p class="player-shell__history-total" data-testid="player-history-total-net">
+                Session net:{" "}
+                {historyRows.findLast((r) => r.runningNet !== null)?.runningNet ?? 0}
               </p>
             )}
           </div>

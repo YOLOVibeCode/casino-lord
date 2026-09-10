@@ -299,6 +299,42 @@ describe("PlayerShell", () => {
     expect(screen.getByTestId("player-rebuy-hint")).toBeTruthy();
   });
 
+  it("history tab shows outcome and profit after settlement", () => {
+    const { store } = setupStore();
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "banker",
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        cards: null,
+        outcome: "B",
+        playerTotal: 4,
+        bankerTotal: 9,
+        playerPair: false,
+        bankerPair: false,
+        natural: false,
+      },
+      { quick: true },
+    );
+    render(<PlayerShell store={store} playerName="Ana" />);
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.getByTestId("player-history-outcome-b1").textContent).toBe("win");
+    expect(screen.getByTestId("player-history-profit-b1").textContent).toBe("+95");
+    expect(screen.getByTestId("player-history-running-net-b1").textContent).toContain("+95");
+  });
+
   it("shows fairness commitment on virtual table info tab", () => {
     const { store } = setupStore();
     store.emit({
