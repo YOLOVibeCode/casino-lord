@@ -12,16 +12,34 @@ import { createTableStore } from "../table/store.js";
 import type { SyncStore } from "../table/sync-store-types.js";
 import { DisplayShell } from "./DisplayShell.js";
 
+vi.mock("../sync/config.js", () => ({
+  isSyncConfigured: () => true,
+  getSyncBaseUrl: () => "http://127.0.0.1:3000",
+}));
+
+vi.mock("../sync/urls.js", () => ({
+  tableUrl: (path: string) => `http://127.0.0.1:3000${path}`,
+}));
+
+vi.mock("../sync/qr.js", () => ({
+  qrSvg: vi.fn(async () => "<svg></svg>"),
+}));
+
 const baccarat = asUntypedModule(baccaratModule);
 
 function asSyncStore(
   store: ReturnType<typeof createTableStore>,
   getConnectionState: () => "connected" | "reconnecting" | "offline",
+  getPresence: () => SyncStore["getPresence"] extends () => infer R ? R : never = () => ({
+    dealers: 1,
+    displays: 0,
+    players: [],
+  }),
 ): SyncStore {
   return {
     ...store,
     getConnectionState,
-    getPresence: () => ({ dealers: 1, displays: 0, players: [] }),
+    getPresence,
     isReadOnly: () => false,
     takeover: () => {},
     destroy: () => {},
@@ -375,5 +393,188 @@ describe("DisplayShell", () => {
     expect(screen.getByTestId("display-shell").className).not.toContain(
       "display-shell--idle-attract",
     );
+  });
+
+  it("shows join QR with caption when players on and joining open", async () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: { playerMode: "on", bank: "house", outcomeSource: "physical" },
+    });
+    store.emit({
+      type: "SETTINGS_CHANGED",
+      patch: { players: { joiningOpen: true } },
+    });
+
+    render(
+      <DisplayShell
+        store={store}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByText(`Scan to join · ${store.code}`)).toBeTruthy();
+    });
+    expect(screen.getAllByTestId("display-qr-badge")).toHaveLength(1);
+  });
+
+  it("hides join QR when joining is closed or session ended", async () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: { playerMode: "on", bank: "house", outcomeSource: "physical" },
+    });
+    store.emit({
+      type: "SETTINGS_CHANGED",
+      patch: { players: { joiningOpen: false } },
+    });
+
+    const { unmount } = render(
+      <DisplayShell
+        store={store}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+    expect(screen.queryByTestId("display-qr-badge")).toBeNull();
+    unmount();
+
+    store.emit({
+      type: "SETTINGS_CHANGED",
+      patch: { players: { joiningOpen: true } },
+    });
+    store.emit({ type: "SESSION_ENDED" });
+
+    render(
+      <DisplayShell
+        store={store}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+    expect(screen.queryByTestId("display-qr-badge")).toBeNull();
+  });
+
+  it("shows waiting banner before any dealer has connected", () => {
+    const module = asUntypedModule(createStubModule());
+    const baseStore = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    render(
+      <DisplayShell
+        store={asSyncStore(
+          baseStore,
+          () => "connected",
+          () => ({
+            dealers: 0,
+            displays: 1,
+            players: [],
+          }),
+        )}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+
+    expect(screen.getByTestId("dealer-waiting").textContent).toContain(
+      "Waiting for the dealer to connect",
+    );
+    expect(screen.queryByTestId("dealer-disconnected")).toBeNull();
+  });
+
+  it("shows disconnected banner after dealer was present and left", () => {
+    const module = asUntypedModule(createStubModule());
+    const baseStore = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    let dealers = 1;
+    const syncStore = asSyncStore(
+      baseStore,
+      () => "connected",
+      () => ({ dealers, displays: 1, players: [] }),
+    );
+
+    render(
+      <DisplayShell
+        store={syncStore}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+    expect(screen.queryByTestId("dealer-waiting")).toBeNull();
+    expect(screen.queryByTestId("dealer-disconnected")).toBeNull();
+
+    dealers = 0;
+    act(() => {
+      baseStore.emit({ type: "SETTINGS_CHANGED", patch: {} });
+    });
+    expect(screen.getByTestId("dealer-disconnected").textContent).toContain("Dealer disconnected");
+  });
+
+  it("shows disconnected banner when log has dealer events but presence is empty", () => {
+    const module = asUntypedModule(createStubModule());
+    const baseStore = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    baseStore.record({ winner: "player" }, { quick: true });
+
+    render(
+      <DisplayShell
+        store={asSyncStore(
+          baseStore,
+          () => "connected",
+          () => ({
+            dealers: 0,
+            displays: 1,
+            players: [],
+          }),
+        )}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+
+    expect(screen.getByTestId("dealer-disconnected").textContent).toContain("Dealer disconnected");
+    expect(screen.queryByTestId("dealer-waiting")).toBeNull();
   });
 });

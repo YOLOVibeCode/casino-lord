@@ -74,6 +74,11 @@
   font-weight: 600;
 }
 
+.display-shell__dealer-hint--waiting {
+  background: rgba(144, 164, 174, 0.25);
+  color: var(--text-muted, #90a4ae);
+}
+
 .display-shell__toast {
   text-align: center;
   padding: 0.5rem 0.75rem;
