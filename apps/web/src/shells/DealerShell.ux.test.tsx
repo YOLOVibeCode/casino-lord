@@ -285,6 +285,105 @@ describe("DealerShell UX-2b", () => {
     });
   });
 
+  it("shows session-ended panel and hides live controls after SESSION_ENDED", async () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    store.emit({ type: "PARTICIPATION_CHANGED", participation: houseSettings().participation });
+    store.record({ value: 15 }, { quick: false });
+
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    expect(screen.getByTestId("betting-bar")).toBeTruthy();
+    expect(screen.getByTestId("confirm-btn")).toBeTruthy();
+
+    act(() => {
+      store.emit({ type: "SESSION_ENDED" });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("session-ended-panel")).toBeTruthy();
+      expect(screen.getByTestId("dealer-session-ended-status").textContent).toBe("Session ended");
+      expect(screen.getByTestId("session-ended-results").textContent).toBe("1");
+    });
+    expect(screen.queryByTestId("confirm-btn")).toBeNull();
+    expect(screen.queryByTestId("undo-btn")).toBeNull();
+    expect(screen.queryByTestId("betting-bar")).toBeNull();
+  });
+
+  it("session-ended copy export copies to clipboard", async () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    store.record({ value: 15 }, { quick: false });
+    store.emit({ type: "SESSION_ENDED" });
+
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    fireEvent.click(screen.getByTestId("session-ended-copy-export"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dealer-toast").textContent).toContain("Export copied — 1 results");
+    });
+  });
+
+  it("session-ended menu keeps export and history only among live actions", () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    store.emit({ type: "SESSION_ENDED" });
+
+    renderDealerShell({
+      store,
+      module,
+      rules: STUB_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    openDealerMenu();
+    expect(screen.queryByTestId("menu-end-session")).toBeNull();
+    expect(screen.queryByTestId("menu-new-series")).toBeNull();
+    expect(screen.queryByTestId("menu-import")).toBeNull();
+    expect(screen.getByText("Export")).toBeTruthy();
+    expect(screen.getByTestId("menu-history")).toBeTruthy();
+    expect(screen.getByTestId("menu-disconnect")).toBeTruthy();
+  });
+
   it("closes menu on Escape and ignores Z in text inputs", () => {
     const module = asUntypedModule(createStubModule());
     const store = createTableStore({

@@ -2,7 +2,13 @@ import { createElement } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { useLocation } from "preact-iso";
 import type { ComponentType } from "preact";
-import { buildBetsView, getCurrentSeriesResults, type ResultEnvelope } from "@casino-lord/core";
+import {
+  buildBetsView,
+  buildLeaderboard,
+  buyInByPlayerFromEvents,
+  getCurrentSeriesResults,
+  type ResultEnvelope,
+} from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { DeviceSettings } from "../settings/device-settings.js";
 import { tapHaptic } from "../settings/haptics.js";
@@ -23,6 +29,7 @@ import { SettingsDialog } from "./SettingsDialog.js";
 import { HistoryDialog } from "./HistoryDialog.js";
 import { CalculatorDialog } from "./CalculatorDialog.js";
 import { PlayersDialog } from "./PlayersDialog.js";
+import { SessionEndedPanel } from "./SessionEndedPanel.js";
 import { VirtualPanel } from "./VirtualPanel.js";
 import { useConfirm } from "../ui/ConfirmSheet.js";
 import { usePrompt } from "../ui/PromptSheet.js";
@@ -87,6 +94,19 @@ export function DealerShell({
   const table = store.getTableMeta();
   const playerModeOn = composed.platform.participation.playerMode === "on";
   const virtualTable = composed.platform.participation.outcomeSource === "virtual";
+  const sessionEnded = store.events.some((e) => e.type === "SESSION_ENDED");
+  const buyInByPlayer = buyInByPlayerFromEvents(store.events);
+  const chipsIssuedTotal = Object.values(buyInByPlayer).reduce((sum, n) => sum + n, 0);
+  const activePlayerCount = composed.platform.players.filter((p) => p.status !== "removed").length;
+  const topBankrolls = buildLeaderboard(composed.platform, buyInByPlayer)
+    .sort((a, b) => b.bankroll - a.bankroll)
+    .slice(0, 3);
+  const latestSeriesEnded = [...store.events].reverse().find((e) => e.type === "SERIES_ENDED");
+  const revealedSeed =
+    latestSeriesEnded?.type === "SERIES_ENDED" && "seed" in latestSeriesEnded
+      ? latestSeriesEnded.seed
+      : undefined;
+  const resultCount = countSeriesResults(store.events);
   const bankHouse = playerModeOn && composed.platform.participation.bank === "house";
   const seriesCommit = virtualTable ? currentSeriesCommit(store.events) : null;
   const virtualStatus = store.getVirtualStatus?.() ?? null;
@@ -483,7 +503,12 @@ export function DealerShell({
       )}
 
       <header class="dealer-shell__header">
-        {editingEnvelope ? (
+        {sessionEnded ? (
+          <>
+            <span class={dotClass} title={dotTitle} data-testid="connection-dot" />
+            <span data-testid="dealer-session-ended-status">Session ended</span>
+          </>
+        ) : editingEnvelope ? (
           <button
             type="button"
             class="dealer-shell__edit-banner"
@@ -514,7 +539,21 @@ export function DealerShell({
         )}
       </header>
 
-      {playerModeOn && (
+      {sessionEnded ? (
+        <SessionEndedPanel
+          resultCount={resultCount}
+          playerCount={activePlayerCount}
+          chipsIssuedTotal={chipsIssuedTotal}
+          topBankrolls={topBankrolls}
+          virtualTable={virtualTable}
+          {...(revealedSeed !== undefined ? { seedHex: revealedSeed } : {})}
+          onCopyExport={() => void handleExport()}
+          {...(onNewTable ? { onNewTable } : {})}
+          onHome={() => route("/")}
+        />
+      ) : null}
+
+      {!sessionEnded && playerModeOn && (
         <BettingBar
           round={betting.round}
           betsView={betsView}
@@ -526,7 +565,7 @@ export function DealerShell({
         />
       )}
 
-      {!virtualTable && (
+      {!sessionEnded && !virtualTable && (
         <div class="dealer-shell__module">
           {createElement(module.DealerView as unknown as ComponentType<Record<string, unknown>>, {
             state: composed.module,
@@ -547,7 +586,7 @@ export function DealerShell({
         </div>
       )}
 
-      {virtualTable && (
+      {!sessionEnded && virtualTable && (
         <VirtualPanel
           virtualPending={virtualPending}
           events={store.events}
@@ -562,7 +601,7 @@ export function DealerShell({
 
       <div class="dealer-shell__bottom" data-testid="dealer-bottom-bar">
         <div class="dealer-shell__toolbar">
-          {playerModeOn && (
+          {!sessionEnded && playerModeOn && (
             <>
               <button
                 type="button"
@@ -622,7 +661,7 @@ export function DealerShell({
                   role="menu"
                   data-testid="dealer-menu-panel"
                 >
-                  {onNewTable && (
+                  {!sessionEnded && onNewTable && (
                     <button
                       type="button"
                       data-testid="menu-new-table"
@@ -642,67 +681,87 @@ export function DealerShell({
                       New Table
                     </button>
                   )}
-                  <button
-                    type="button"
-                    data-testid="menu-new-series"
-                    onClick={() => void handleNewSeries()}
-                  >
-                    New {module.seriesLabel}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="menu-void-bets"
-                    disabled={betsView.openBets.length === 0}
-                    onClick={() => void handleVoidOpenBets()}
-                  >
-                    Void open bets
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="menu-end-session"
-                    onClick={() => {
-                      void (async () => {
-                        const endBody = virtualTable
-                          ? "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results. The virtual seed will be revealed."
-                          : "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results.";
-                        const ok = await confirm({
-                          title: "End session?",
-                          body: endBody,
-                          destructive: true,
-                          confirmLabel: "Hold to end session",
-                        });
-                        if (ok) {
-                          store.endSession();
-                          setMenuOpen(false);
-                        }
-                      })();
-                    }}
-                  >
-                    End Session
-                  </button>
+                  {!sessionEnded && (
+                    <>
+                      <button
+                        type="button"
+                        data-testid="menu-new-series"
+                        onClick={() => void handleNewSeries()}
+                      >
+                        New {module.seriesLabel}
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="menu-void-bets"
+                        disabled={betsView.openBets.length === 0}
+                        onClick={() => void handleVoidOpenBets()}
+                      >
+                        Void open bets
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="menu-end-session"
+                        onClick={() => {
+                          void (async () => {
+                            const endBody = virtualTable
+                              ? "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results. The virtual seed will be revealed."
+                              : "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results.";
+                            const ok = await confirm({
+                              title: "End session?",
+                              body: endBody,
+                              destructive: true,
+                              confirmLabel: "Hold to end session",
+                            });
+                            if (ok) {
+                              store.endSession();
+                              setMenuOpen(false);
+                            }
+                          })();
+                        }}
+                      >
+                        End Session
+                      </button>
+                    </>
+                  )}
                   <button type="button" onClick={() => void handleExport()}>
                     Export
                   </button>
-                  <button
-                    type="button"
-                    data-testid="menu-import"
-                    onClick={() => void handleImport()}
-                  >
-                    Import
-                  </button>
+                  {!sessionEnded && (
+                    <button
+                      type="button"
+                      data-testid="menu-import"
+                      onClick={() => void handleImport()}
+                    >
+                      Import
+                    </button>
+                  )}
                   <a href={tableUrl(`/verify?code=${store.code}`)} data-testid="menu-verify">
                     Verify fairness / export
                   </a>
-                  <button
-                    type="button"
-                    data-testid="menu-settings"
-                    onClick={() => {
-                      setActiveDialog("settings");
-                      setMenuOpen(false);
-                    }}
-                  >
-                    Settings
-                  </button>
+                  {!sessionEnded && (
+                    <>
+                      <button
+                        type="button"
+                        data-testid="menu-settings"
+                        onClick={() => {
+                          setActiveDialog("settings");
+                          setMenuOpen(false);
+                        }}
+                      >
+                        Settings
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="menu-calculator"
+                        onClick={() => {
+                          setActiveDialog("calculator");
+                          setMenuOpen(false);
+                        }}
+                      >
+                        Calculator
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
                     data-testid="menu-history"
@@ -712,16 +771,6 @@ export function DealerShell({
                     }}
                   >
                     History
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="menu-calculator"
-                    onClick={() => {
-                      setActiveDialog("calculator");
-                      setMenuOpen(false);
-                    }}
-                  >
-                    Calculator
                   </button>
                   <button
                     type="button"
@@ -754,6 +803,7 @@ export function DealerShell({
           </div>
         </div>
 
+        {!sessionEnded && (
         <div class="dealer-shell__actions">
           {virtualTable ? (
             <>
@@ -834,6 +884,7 @@ export function DealerShell({
             </>
           )}
         </div>
+        )}
       </div>
 
       {activeDialog === "bank" && bankHouse && (
