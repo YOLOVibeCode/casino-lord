@@ -66,4 +66,58 @@ describe("DealerShell undo blocking", () => {
     fireEvent.click(screen.getByTestId("undo-btn"));
     expect(screen.getByTestId("dealer-toast").textContent).toMatch(/next round/i);
   });
+
+  it("voids open bets after inline confirm", () => {
+    const module = asUntypedModule(createStubModule());
+    const store = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "id-1",
+    });
+    store.emit({ type: "PARTICIPATION_CHANGED", participation: houseSettings().participation });
+    store.emit({
+      type: "PLAYER_JOINED",
+      player: {
+        id: "p1",
+        name: "Ana",
+        color: "#f00",
+        status: "active",
+        joinedAt: "2026-01-01T00:00:01.000Z",
+      },
+    });
+    store.emit({ type: "BETS_OPENED", roundId: "r1" });
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "high",
+        amount: 50,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+
+    render(
+      <DealerShell
+        store={store}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+        onDeviceSettingsChange={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("betting-void-btn"));
+    expect(screen.getByTestId("inline-confirm")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("inline-confirm-yes"));
+
+    expect(store.events.some((e) => e.type === "BET_REMOVED" && e.betId === "b1")).toBe(true);
+  });
 });
