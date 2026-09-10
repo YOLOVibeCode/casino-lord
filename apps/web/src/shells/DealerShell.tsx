@@ -1,5 +1,6 @@
 import { createElement } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { useLocation } from "preact-iso";
 import type { ComponentType } from "preact";
 import { buildBetsView, type ResultEnvelope } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
@@ -30,6 +31,7 @@ export interface DealerShellProps {
   deviceSettings: DeviceSettings;
   onDeviceSettingsChange: (settings: DeviceSettings) => void;
   onNewTable?: () => void;
+  onDisconnect?: () => void;
 }
 
 type ActiveDialog = "settings" | "history" | "calculator" | "qr" | "players" | "bank" | null;
@@ -43,7 +45,9 @@ export function DealerShell({
   deviceSettings,
   onDeviceSettingsChange,
   onNewTable,
+  onDisconnect,
 }: DealerShellProps) {
+  const { route } = useLocation();
   useStore(store);
   const composed = store.getComposed();
   const table = store.getTableMeta();
@@ -385,6 +389,8 @@ export function DealerShell({
             state: composed.module,
             rules,
             table,
+            events: store.events,
+            players: composed.platform.players,
             emit: (body: Parameters<typeof store.emit>[0]) => {
               if (body.type === "LIVE_INPUT") betting.onDealerEntry();
               store.emit(body);
@@ -544,6 +550,20 @@ export function DealerShell({
                 >
                   Show QR
                 </button>
+                <button
+                  type="button"
+                  data-testid="menu-disconnect"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    if (onDisconnect) {
+                      onDisconnect();
+                    } else {
+                      route("/");
+                    }
+                  }}
+                >
+                  Disconnect
+                </button>
               </div>
             )}
           </div>
@@ -662,7 +682,11 @@ export function DealerShell({
         />
       )}
       {activeDialog === "players" && syncStore && (
-        <PlayersDialog store={syncStore} onClose={() => setActiveDialog(null)} />
+        <PlayersDialog
+          store={syncStore}
+          {...(module.seats !== undefined ? { seatsConfig: module.seats } : {})}
+          onClose={() => setActiveDialog(null)}
+        />
       )}
       {activeDialog === "qr" && syncStore && (
         <QrDialog

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import type { BettingRound, PlayerState } from "@casino-lord/core";
+import type { BettingRound, Player, PlayerState } from "@casino-lord/core";
 import { PlayerBettingContext } from "@casino-lord/ui";
 import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -63,9 +63,15 @@ function renderView(
   live: Parameters<typeof stateWithLiveInput>[0],
   round: BettingRound = ROUND,
   me: PlayerState = ME,
+  extra: {
+    seatAssign?: "dealer" | "player" | "auto";
+    players?: Player[];
+    selectSeat?: (seat: number) => void;
+  } = {},
 ) {
   const act = vi.fn();
   const place = vi.fn();
+  const selectSeat = extra.selectSeat ?? vi.fn();
   render(
     <PlayerBettingContext.Provider value={CONTEXT}>
       <PlayerView
@@ -76,10 +82,13 @@ function renderView(
         place={place}
         remove={vi.fn()}
         act={act}
+        seatAssign={extra.seatAssign}
+        players={extra.players}
+        selectSeat={selectSeat}
       />
     </PlayerBettingContext.Provider>,
   );
-  return { act, place };
+  return { act, place, selectSeat };
 }
 
 describe("PlayerView", () => {
@@ -100,6 +109,47 @@ describe("PlayerView", () => {
     expect(screen.getByTestId("no-seat-message").textContent).toContain(
       "Ask the dealer for a seat",
     );
+  });
+
+  it("shows seat picker when assign is player and disables occupied seats", () => {
+    const selectSeat = vi.fn();
+    renderView(
+      { dealer: [], seats: {} },
+      ROUND,
+      { ...ME, player: { ...ME.player, seat: undefined } },
+      {
+        seatAssign: "player",
+        selectSeat,
+        players: [
+          {
+            id: "p2",
+            name: "Ben",
+            color: "#0f0",
+            status: "active",
+            joinedAt: "2026-01-01T00:00:00.000Z",
+            seat: 2,
+          },
+        ],
+      },
+    );
+
+    expect(screen.getByTestId("seat-picker")).toBeTruthy();
+    expect((screen.getByTestId("seat-pick-2") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByTestId("seat-pick-4"));
+    expect(selectSeat).toHaveBeenCalledWith(4);
+  });
+
+  it("shows ask-dealer message when assign is dealer", () => {
+    renderView(
+      { dealer: [], seats: {} },
+      ROUND,
+      { ...ME, player: { ...ME.player, seat: undefined } },
+      { seatAssign: "dealer" },
+    );
+    expect(screen.getByTestId("no-seat-message").textContent).toContain(
+      "Ask the dealer for a seat",
+    );
+    expect(screen.queryByTestId("seat-picker")).toBeNull();
   });
 
   it("renders dealer strip and my hand total", () => {

@@ -36,6 +36,7 @@ import { getGame } from "../table/games.js";
 import { currentSeriesCommit } from "../table/meta.js";
 import type { TableStore } from "../table/store.js";
 import { isSyncStore } from "../table/sync-store-types.js";
+import { routePlayerAct } from "./player-act.js";
 import "./player-shell.css";
 import "./player-settings-sheet.css";
 
@@ -49,6 +50,18 @@ interface PendingBet {
   type: string;
   label: string;
   amount: number;
+  target?: unknown;
+}
+
+interface PlaceBetPayload {
+  playerId: string;
+  roundId: string;
+  type: string;
+  amount: number;
+  declared: boolean;
+  working: boolean;
+  originRoundId: string;
+  target?: unknown;
 }
 
 type FooterTab = "play" | "history" | "leaderboard" | "rules" | "info";
@@ -494,6 +507,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           working: false,
           placedAt: now,
           originRoundId: openRound.id,
+          ...(item.pending.target !== undefined ? { target: item.pending.target } : {}),
         },
       });
     }
@@ -524,11 +538,105 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     [store],
   );
 
+  const handlePlaceBet = useCallback(
+    (payload: PlaceBetPayload) => {
+      hapticTap();
+      if (!module || !playerId || !openRound || !me) return;
+      if (payload.playerId !== playerId) return;
+
+      const betDef = findBetDef(module.bets, payload.type);
+      if (!betDef) return;
+
+      const result = validateBet({
+        betDef,
+        settings,
+        rules,
+        round: openRound,
+        bankroll,
+        amount: payload.amount,
+        pendingTotal: placedTotal,
+        moduleState: composed.module,
+        me: { id: playerId, bankroll },
+        houseBank,
+      });
+
+      if (!result.ok) {
+        showToast(result.reason ?? "Bet rejected");
+        return;
+      }
+
+      void store.emit({
+        type: "BET_PLACED",
+        bet: {
+          id: crypto.randomUUID(),
+          playerId,
+          roundId: openRound.id,
+          type: payload.type,
+          amount: payload.amount,
+          declared: payload.declared,
+          working: payload.working,
+          placedAt: new Date().toISOString(),
+          originRoundId: payload.originRoundId,
+          ...(payload.target !== undefined ? { target: payload.target } : {}),
+        },
+      });
+    },
+    [
+      module,
+      playerId,
+      openRound,
+      me,
+      settings,
+      rules,
+      bankroll,
+      placedTotal,
+      composed.module,
+      houseBank,
+      store,
+      showToast,
+      hapticTap,
+    ],
+  );
+
+  const handleRemoveBet = useCallback(
+    (betId: string) => {
+      hapticTap();
+      if (pendingBets.some((b) => b.clientId === betId)) {
+        setPendingBets((prev) => prev.filter((b) => b.clientId !== betId));
+        return;
+      }
+      void store.emit({ type: "BET_REMOVED", betId });
+    },
+    [pendingBets, store, hapticTap],
+  );
+
   const handleAct = useCallback(
     (action: unknown) => {
       if (!playerId) return;
       hapticTap();
-      void store.emit({ type: "PLAYER_ACTION", playerId, action });
+      routePlayerAct({
+        game: store.game,
+        action,
+        playerId,
+        virtualTable,
+        isMyTurn,
+        store,
+        composed,
+        emit: store.emit,
+      });
+    },
+    [playerId, store, virtualTable, isMyTurn, composed, hapticTap],
+  );
+
+  const handleSelectSeat = useCallback(
+    (seat: number) => {
+      if (!playerId) return;
+      hapticTap();
+      void store.emit({
+        type: "PLAYER_UPDATED",
+        playerId,
+        patch: { seat },
+      });
     },
     [playerId, store, hapticTap],
   );
@@ -635,9 +743,6 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       ? "player-shell__dot player-shell__dot--on"
       : "player-shell__dot player-shell__dot--off";
 
-  const noopPlace = useCallback(() => {}, []);
-  const noopRemove = useCallback(() => {}, []);
-
   if (!module || !me || !bettingContext) {
     return (
       <div class="player-shell" data-testid="player-shell">
@@ -743,10 +848,13 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
                     status: "settled",
                     openedAt: new Date().toISOString(),
                   } as const),
-                place: noopPlace,
-                remove: noopRemove,
+                place: handlePlaceBet,
+                remove: handleRemoveBet,
                 act: handleAct,
                 shakeThreshold,
+                selectSeat: handleSelectSeat,
+                seatAssign: module.seats?.assign,
+                players: composed.platform.players,
               })}
             </main>
 

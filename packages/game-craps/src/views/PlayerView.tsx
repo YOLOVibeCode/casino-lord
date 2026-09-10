@@ -44,8 +44,6 @@ function useStake(defaultAmount = 25): number {
 }
 
 function fireRoll(act: (action: CrapsAction) => void): void {
-  // ROLL maps to virtual.trigger at shell level; not yet in CrapsAction union.
-  // @ts-expect-error roll action pending shell wiring
   act({ kind: "roll" });
 }
 
@@ -516,7 +514,7 @@ export function PlayerView({
             type="button"
             data-testid="working-take-down"
             disabled={!canTakeDown(selectedBet, state)}
-            onClick={() => remove(selectedBet.id)}
+            onClick={() => act({ kind: "take_down", betId: selectedBet.id })}
           >
             {actionLabels.take_down}
           </button>

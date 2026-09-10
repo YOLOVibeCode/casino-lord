@@ -84,6 +84,40 @@
   color: #9aa0a6;
 }
 
+.blackjack-player-view__seat-picker {
+  padding: 1rem;
+}
+
+.blackjack-player-view__seat-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.blackjack-player-view__seat-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  min-width: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  cursor: pointer;
+}
+
+.blackjack-player-view__seat-pick:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.blackjack-player-view__seat-pick-taken {
+  font-size: 0.65rem;
+  color: #9aa0a6;
+}
+
 .blackjack-player-view__intent {
   text-align: center;
   padding: 0.5rem;

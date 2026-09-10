@@ -215,9 +215,12 @@ export function DealerView({
     prevResultsCountRef.current = curr;
 
     if (autoAdvance && curr > prev) {
-      setTimeout(() => openPicker("P1"), 0);
+      const lastResult = state.results[curr - 1];
+      if (lastResult?.data.cards !== null) {
+        setTimeout(() => openPicker("P1"), 0);
+      }
     }
-  }, [state.results.length, autoAdvance, openPicker, editMode]);
+  }, [state.results.length, state.results, autoAdvance, openPicker, editMode]);
 
   const submitQuickResult = useCallback(
     (outcome: Outcome, playerPair: boolean, bankerPair: boolean) => {

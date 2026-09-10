@@ -33,6 +33,7 @@ export interface DeviceSettings {
   boardLanguage: BoardLanguage;
   phoneAnimations: PhoneAnimations;
   shakeSensitivity: ShakeSensitivity;
+  idleAttract: boolean;
 }
 
 const STORAGE_KEY = "casino-lord:device-settings";
@@ -53,6 +54,7 @@ export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
   boardLanguage: "EN",
   phoneAnimations: "reduced",
   shakeSensitivity: "medium",
+  idleAttract: true,
 };
 
 export function applyDevicePresentation(settings: DeviceSettings): void {
