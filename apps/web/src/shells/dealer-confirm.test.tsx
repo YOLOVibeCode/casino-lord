@@ -12,6 +12,7 @@ import { asUntypedModule } from "../table/module-types.js";
 const baccarat = asUntypedModule(baccaratModule);
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { createTableStore } from "../table/store.js";
+import { renderWithUiProviders } from "../ui/test-providers.js";
 import { DealerShell } from "./DealerShell.js";
 
 describe("DealerShell confirm", () => {
@@ -30,7 +31,7 @@ describe("DealerShell confirm", () => {
       id: () => `id-${n}`,
     });
 
-    render(
+    renderWithUiProviders(
       <DealerShell
         store={store}
         module={baccarat}
@@ -86,7 +87,7 @@ describe("DealerShell confirm", () => {
       source: "dealer",
     });
 
-    render(
+    renderWithUiProviders(
       <DealerShell
         store={store}
         module={baccarat}
