@@ -1,6 +1,8 @@
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it } from "vitest";
 import { baccaratModule } from "@casino-lord/game-baccarat";
+import { blackjackModule } from "@casino-lord/game-blackjack";
+import { rouletteModule } from "@casino-lord/game-roulette";
 import { createTableViaRest, startTestServer } from "../../../sync/src/test-helpers/server.js";
 import { minimalBaccaratResult } from "../../../sync/src/test-helpers/baccarat-result.js";
 import { asUntypedModule } from "./module-types.js";
@@ -229,6 +231,107 @@ describe("synced store", () => {
 
     dealer.destroy();
     reopened.destroy();
+  });
+
+  it("replays roulette tables with the roulette module", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url, {
+      game: "roulette",
+      participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+    });
+
+    const roulette = asUntypedModule(rouletteModule);
+    const dealer = createSyncedTableStore({
+      code,
+      role: "dealer",
+      token: dealerToken,
+      syncUrl: server.url,
+      module: roulette,
+      rules: rouletteModule.defaultRules,
+    });
+    await waitForSyncReady(dealer);
+
+    dealer.record({ pocket: 17 }, { quick: true });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const moduleState = dealer.getComposed().module as { spins?: unknown[] };
+    expect(Array.isArray(moduleState.spins)).toBe(true);
+    expect(moduleState.spins?.length).toBe(1);
+    expect(dealer.game).toBe("roulette");
+
+    dealer.destroy();
+  });
+
+  it("replays blackjack tables with the blackjack module", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url, {
+      game: "blackjack",
+      participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+    });
+
+    const blackjack = asUntypedModule(blackjackModule);
+    const dealer = createSyncedTableStore({
+      code,
+      role: "dealer",
+      token: dealerToken,
+      syncUrl: server.url,
+      module: blackjack,
+      rules: blackjackModule.defaultRules,
+    });
+    await waitForSyncReady(dealer);
+
+    dealer.record(
+      {
+        dealer: { cards: [], total: 20, bust: false, blackjack: false },
+        seats: {
+          1: [
+            {
+              cards: [],
+              doubled: false,
+              fromSplit: false,
+              surrendered: false,
+              outcome: "lose",
+            },
+          ],
+        },
+        depth: "outcomes",
+        dealerError: false,
+      },
+      { quick: true },
+    );
+    await new Promise((r) => setTimeout(r, 200));
+
+    const moduleState = dealer.getComposed().module as { rounds?: unknown[] };
+    expect(Array.isArray(moduleState.rounds)).toBe(true);
+    expect(moduleState.rounds?.length).toBe(1);
+    expect(dealer.game).toBe("blackjack");
+
+    dealer.destroy();
+  });
+
+  it("resolveModule on joined fixes a mismatched initial module", async () => {
+    const server = await boot();
+    const { code, dealerToken } = await createTableViaRest(server.url, {
+      game: "roulette",
+      participation: { playerMode: "off", bank: "none", outcomeSource: "physical" },
+    });
+
+    const store = createSyncedTableStore({
+      code,
+      role: "dealer",
+      token: dealerToken,
+      syncUrl: server.url,
+      module,
+      rules,
+    });
+    await waitForSyncReady(store);
+
+    expect(store.game).toBe("roulette");
+    const moduleState = store.getComposed().module as { spins?: unknown[]; roads?: unknown };
+    expect(moduleState.spins).toBeDefined();
+    expect(moduleState.roads).toBeUndefined();
+
+    store.destroy();
   });
 
   it("takeover demotes the first dealer", async () => {

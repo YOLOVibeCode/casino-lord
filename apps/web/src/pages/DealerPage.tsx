@@ -3,6 +3,7 @@ import { useLocation, useRoute } from "preact-iso";
 import { normalizeTableCode } from "@casino-lord/core";
 import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { DealerShell } from "../shells/DealerShell.js";
+import { getTableMeta } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
 import { loadDealerToken, saveDealerToken } from "../sync/dealer-token.js";
 import { getGame } from "../table/games.js";
@@ -38,44 +39,52 @@ export function DealerPage(_props: { path?: string }) {
       return;
     }
 
-    const entry = getGame("baccarat");
-    if (!entry?.module) {
-      setError("UNSUPPORTED_GAME");
-      setLoading(false);
-      return;
-    }
-
     let destroyed = false;
     let syncStore: SyncStore | null = null;
 
-    syncStore = createSyncedTableStore({
-      code,
-      role: "dealer",
-      token,
-      syncUrl: getSyncBaseUrl(),
-      module: entry.module,
-      rules: entry.module.defaultRules,
-      onJoinError: (errCode) => {
-        if (!destroyed) {
-          setError(errCode);
+    void (async () => {
+      try {
+        const meta = await getTableMeta(getSyncBaseUrl(), code);
+        if (destroyed) return;
+        if (!meta.exists) {
+          setError("NOT_FOUND");
           setLoading(false);
+          return;
         }
-      },
-    });
+        const entry = getGame(meta.game ?? "baccarat");
+        if (!entry?.module) {
+          setError("UNSUPPORTED_GAME");
+          setLoading(false);
+          return;
+        }
 
-    void waitForSyncReady(syncStore)
-      .then(() => {
+        syncStore = createSyncedTableStore({
+          code,
+          role: "dealer",
+          token,
+          syncUrl: getSyncBaseUrl(),
+          module: entry.module,
+          rules: entry.module.defaultRules,
+          onJoinError: (errCode) => {
+            if (!destroyed) {
+              setError(errCode);
+              setLoading(false);
+            }
+          },
+        });
+
+        await waitForSyncReady(syncStore);
         if (!destroyed) {
           setStore(syncStore);
           setLoading(false);
         }
-      })
-      .catch((err: Error) => {
+      } catch (err) {
         if (!destroyed) {
-          setError(err.message);
+          setError(err instanceof Error ? err.message : "Could not load table");
           setLoading(false);
         }
-      });
+      }
+    })();
 
     return () => {
       destroyed = true;

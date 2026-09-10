@@ -1,5 +1,6 @@
 import {
   PLAYER_COLORS,
+  type GameId,
   isValidTableCode,
   normalizeTableCode,
   validatePlayerName,
@@ -43,6 +44,7 @@ export function PlayPage(_props: { path?: string }) {
   const [color, setColor] = useState<string>(PLAYER_COLORS[0]!);
   const [store, setStore] = useState<SyncStore | null>(null);
   const [playerName, setPlayerName] = useState("");
+  const [tableGame, setTableGame] = useState<GameId>("baccarat");
 
   useEffect(() => {
     if (!isSyncConfigured()) {
@@ -75,9 +77,12 @@ export function PlayPage(_props: { path?: string }) {
           return;
         }
 
+        const resolvedGame = meta.game ?? "baccarat";
+        if (!cancelled) setTableGame(resolvedGame);
+
         const storedToken = loadPlayerToken(code);
         if (storedToken) {
-          await connectPlayer(storedToken, "", false);
+          await connectPlayer(storedToken, "", false, resolvedGame);
           if (!cancelled) setPhase("playing");
           return;
         }
@@ -96,8 +101,13 @@ export function PlayPage(_props: { path?: string }) {
     };
   }, [code]);
 
-  const connectPlayer = async (token: string, displayName: string, pending: boolean) => {
-    const entry = getGame("baccarat");
+  const connectPlayer = async (
+    token: string,
+    displayName: string,
+    pending: boolean,
+    gameId: GameId = tableGame,
+  ) => {
+    const entry = getGame(gameId);
     if (!entry?.module) {
       setPhase("error");
       setError("Unsupported game");
@@ -191,7 +201,7 @@ export function PlayPage(_props: { path?: string }) {
       });
       savePlayerToken(code, result.playerToken);
       setPlayerName(validated.name);
-      await connectPlayer(result.playerToken, validated.name, result.pending);
+      await connectPlayer(result.playerToken, validated.name, result.pending, tableGame);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Join failed");
     }

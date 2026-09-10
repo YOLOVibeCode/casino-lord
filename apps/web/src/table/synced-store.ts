@@ -13,6 +13,7 @@ import { io, type Socket } from "socket.io-client";
 import { newClientId } from "../sync/client-id.js";
 import { saveDealerToken } from "../sync/dealer-token.js";
 import { savePlayerToken } from "../sync/player-token.js";
+import { getGame } from "./games.js";
 import { buildTableMeta } from "./meta.js";
 import type { UntypedGameModule } from "./module-types.js";
 import { enqueueOfflineEvent, peekOfflineQueue, shiftOfflineQueue } from "./offline-queue.js";
@@ -97,15 +98,27 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     code,
     role,
     syncUrl,
-    module,
-    rules,
     takeover = false,
     now = defaultNow,
     id = defaultId,
     onJoinError,
   } = options;
   const token = options.token;
-  let game: GameId = "baccarat";
+  let activeModule = options.module;
+  let activeRules = options.rules;
+  let game: GameId = activeModule.id;
+
+  const resolveModule = (gameId: GameId): void => {
+    if (activeModule.id === gameId) {
+      game = gameId;
+      return;
+    }
+    const entry = getGame(gameId);
+    if (!entry?.module) return;
+    activeModule = entry.module;
+    activeRules = entry.module.defaultRules;
+    game = gameId;
+  };
 
   const listeners = new Set<Listener>();
   const events: TableEvent[] = [];
@@ -292,7 +305,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     clearOfflineTimer();
     setConnectionState("connected");
 
-    if (typeof msg.game === "string") game = msg.game as GameId;
+    if (typeof msg.game === "string") resolveModule(msg.game as GameId);
 
     if (Array.isArray(msg.snapshot)) {
       applyServerEvents(msg.snapshot as TableEvent[], true);
@@ -459,7 +472,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     .then((stored) => {
       if (stored && stored.events.length > 0 && events.length === 0) {
         events.push(...stored.events);
-        game = stored.game;
+        resolveModule(stored.game);
         recomputeLatestSeq();
         notify();
       }
@@ -479,7 +492,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   };
 
   const getComposed = (): ComposedState<unknown> =>
-    replay(getEventsForReplay(), module, rules, { code, includeEphemeral: true });
+    replay(getEventsForReplay(), activeModule, activeRules, { code, includeEphemeral: true });
 
   const getRules = (): unknown => {
     const composed = getComposed();
@@ -488,7 +501,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
 
   const getTableMeta = () => {
     const composed = getComposed();
-    return buildTableMeta(composed, events, module, composed.module);
+    return buildTableMeta(composed, events, activeModule, composed.module);
   };
 
   const emitLive = (body: TableEventInput): void => {

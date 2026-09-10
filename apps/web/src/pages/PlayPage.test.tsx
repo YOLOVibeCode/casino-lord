@@ -11,13 +11,15 @@ vi.mock("../sync/config.js", () => ({
   getSyncBaseUrl: () => "http://test",
 }));
 
+const getTableMetaMock = vi.fn(async () => ({
+  exists: true,
+  game: "roulette" as const,
+  participation: { playerMode: "on" as const, bank: "none" as const, outcomeSource: "physical" as const },
+  joiningOpen: true,
+}));
+
 vi.mock("../sync/api.js", () => ({
-  getTableMeta: vi.fn(async () => ({
-    exists: true,
-    game: "baccarat",
-    participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
-    joiningOpen: true,
-  })),
+  getTableMeta: (...args: unknown[]) => getTableMetaMock(...args),
   joinTablePlayer: vi.fn(),
 }));
 
@@ -90,6 +92,26 @@ describe("PlayPage", () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId("player-shell")).toBeTruthy();
     });
+    loadPlayerToken.mockReturnValue(null);
+  });
+
+  it("passes the roulette module from table meta to the synced store", async () => {
+    const { createSyncedTableStore } = await import("../table/synced-store.js");
+    const { rouletteModule } = await import("@casino-lord/game-roulette");
+    loadPlayerToken.mockReturnValue("token-abc");
+    window.history.replaceState({}, "", "/play/K7X2PQ");
+    render(
+      <LocationProvider>
+        <Router>
+          <PlayPage path="/play/:code" />
+        </Router>
+      </LocationProvider>,
+    );
+    await vi.waitFor(() => {
+      expect(vi.mocked(createSyncedTableStore)).toHaveBeenCalled();
+    });
+    const call = vi.mocked(createSyncedTableStore).mock.calls[0]?.[0] as { module: { id: string } };
+    expect(call.module.id).toBe(rouletteModule.id);
     loadPlayerToken.mockReturnValue(null);
   });
 

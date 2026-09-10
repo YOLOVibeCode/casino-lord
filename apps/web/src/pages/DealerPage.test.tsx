@@ -20,6 +20,21 @@ vi.mock("../sync/config.js", () => ({
   getSyncBaseUrl: () => "http://127.0.0.1:3000",
 }));
 
+vi.mock("../sync/api.js", () => ({
+  getTableMeta: vi.fn(async () => ({
+    exists: true,
+    game: "roulette",
+    participation: { playerMode: "off", bank: "none", outcomeSource: "physical" },
+  })),
+}));
+
+const createSyncedTableStoreMock = vi.fn(() => mockSyncStore());
+
+vi.mock("../table/synced-store.js", () => ({
+  createSyncedTableStore: (...args: unknown[]) => createSyncedTableStoreMock(...args),
+  waitForSyncReady: () => Promise.resolve(),
+}));
+
 let readOnly = false;
 const listeners = new Set<() => void>();
 
@@ -53,11 +68,6 @@ function mockSyncStore(): SyncStore {
   });
 }
 
-vi.mock("../table/synced-store.js", () => ({
-  createSyncedTableStore: () => mockSyncStore(),
-  waitForSyncReady: () => Promise.resolve(),
-}));
-
 function renderPage(path: string) {
   window.history.replaceState({}, "", path);
   return render(
@@ -77,6 +87,16 @@ describe("DealerPage", () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId("dealer-shell")).toBeTruthy();
     });
+  });
+
+  it("passes the roulette module from table meta to the synced store", async () => {
+    const { rouletteModule } = await import("@casino-lord/game-roulette");
+    renderPage("/dealer/ABCD23?t=test-token");
+    await vi.waitFor(() => {
+      expect(createSyncedTableStoreMock).toHaveBeenCalled();
+    });
+    const call = createSyncedTableStoreMock.mock.calls[0]?.[0] as { module: { id: string } };
+    expect(call.module.id).toBe(rouletteModule.id);
   });
 
   it("shows the demoted banner when the store becomes read-only", async () => {
