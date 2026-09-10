@@ -15,6 +15,23 @@
   color: #f5f5f5;
   border-radius: 12px 12px 0 0;
   padding: 1rem;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.players-dialog button,
+.players-dialog select {
+  min-height: max(3rem, 44px);
+  min-width: max(3rem, 44px);
+}
+
+.players-dialog input[type="text"],
+.players-dialog input[type="number"] {
+  min-height: max(3rem, 44px);
+  font-size: max(1rem, 16px);
+}
+
+.players-dialog select {
+  font-size: max(1rem, 16px);
 }
 
 .players-dialog__header {

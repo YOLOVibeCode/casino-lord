@@ -16,6 +16,17 @@ const baccarat = asUntypedModule(baccaratModule);
 describe("SettingsDialog", () => {
   afterEach(() => cleanup());
 
+  it("settings dialog css defines 44px touch targets and scroll-snap tabs", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const cssPath = resolve(dirname(fileURLToPath(import.meta.url)), "settings-dialog.css");
+    const css = readFileSync(cssPath, "utf8");
+    expect(css).toContain("min-height: max(3rem, 44px)");
+    expect(css).toContain("scroll-snap-type: x mandatory");
+    expect(css).toContain("env(safe-area-inset-bottom)");
+  });
+
   it("appends SETTINGS_CHANGED when prediction cells toggled", () => {
     const store = createTableStore({
       game: "baccarat",
