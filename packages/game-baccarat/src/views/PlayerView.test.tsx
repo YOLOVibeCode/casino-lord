@@ -32,6 +32,7 @@ const CONTEXT = {
   selectedDenomination: 100,
   showOthersBets: false,
   playerColor: "#f00",
+  bettingDisabled: false,
   getOwnStake: () => 0,
   getTableStake: () => 0,
   settlementFlash: null as const,

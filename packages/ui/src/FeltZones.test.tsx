@@ -10,6 +10,7 @@ const CONTEXT = {
   selectedDenomination: 25,
   showOthersBets: true,
   playerColor: "#f00",
+  bettingDisabled: false,
   getOwnStake: (id: string) => (id === "banker" ? 100 : 0),
   getTableStake: (id: string) => (id === "banker" ? 250 : 0),
   settlementFlash: null as const,
@@ -62,6 +63,37 @@ describe("FeltZones", () => {
     renderZones();
     expect(screen.getByTestId("felt-zone-stake-banker").textContent).toContain("100");
     expect(screen.getByTestId("felt-zone-table-banker").textContent).toContain("250");
+  });
+
+  it("marks zones disabled when bettingDisabled is true", () => {
+    render(
+      <PlayerBettingContext.Provider value={{ ...CONTEXT, bettingDisabled: true }}>
+        <FeltZones
+          zones={[
+            { id: "banker", label: "BANKER", sublabel: "1:1", color: "#e5322d", target: "banker" },
+          ]}
+          onTap={vi.fn()}
+          onLongPress={vi.fn()}
+        />
+      </PlayerBettingContext.Provider>,
+    );
+    expect(screen.getByTestId("felt-zone-banker").getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByTestId("felt-zones").className).toContain("felt-zones--disabled");
+  });
+
+  it("shows you label on own stake when disabled", () => {
+    render(
+      <PlayerBettingContext.Provider value={{ ...CONTEXT, bettingDisabled: true }}>
+        <FeltZones
+          zones={[
+            { id: "banker", label: "BANKER", sublabel: "1:1", color: "#e5322d", target: "banker" },
+          ]}
+          onTap={vi.fn()}
+          onLongPress={vi.fn()}
+        />
+      </PlayerBettingContext.Provider>,
+    );
+    expect(screen.getByTestId("felt-zone-you-banker").textContent).toBe("you");
   });
 
   it("shows WIN badge on winning zone", () => {

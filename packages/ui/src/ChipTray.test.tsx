@@ -25,7 +25,9 @@ describe("ChipTray", () => {
   });
 
   it("shows selected chip label", () => {
-    render(<ChipTray denominations={[5, 25, 100]} selected={25} onSelect={vi.fn()} onClear={vi.fn()} />);
+    render(
+      <ChipTray denominations={[5, 25, 100]} selected={25} onSelect={vi.fn()} onClear={vi.fn()} />,
+    );
     expect(screen.getByTestId("chip-tray-selected").textContent).toBe("Selected chip: 25");
   });
 });
