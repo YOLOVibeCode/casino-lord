@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LocationProvider } from "preact-iso";
 import { DEFAULT_TABLE_SETTINGS, type TableEvent } from "@casino-lord/core";
 import { createStubModule, STUB_RULES } from "@casino-lord/core/testing";
+import { crapsModule, DEFAULT_CRAPS_RULES } from "@casino-lord/game-craps";
 import { asUntypedModule } from "../table/module-types.js";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { createTableStore, type TableStore } from "../table/store.js";
@@ -107,6 +108,38 @@ describe("DealerShell", () => {
     expect(screen.getByTestId("virtual-commit").textContent).toContain("abcdef01");
     fireEvent.click(screen.getByTestId("deal-btn"));
     expect(sendVirtual).toHaveBeenCalledWith("trigger");
+  });
+
+  it("shows assigned shooter name for craps table", () => {
+    const module = asUntypedModule(crapsModule);
+    const store = createTableStore({
+      game: "craps",
+      module,
+      rules: DEFAULT_CRAPS_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+    store.emit({
+      type: "PLAYER_JOINED",
+      player: {
+        id: "p1",
+        name: "Ana",
+        color: "#E53935",
+        status: "active",
+        joinedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+
+    renderDealerShell({
+      store,
+      module,
+      rules: DEFAULT_CRAPS_RULES,
+      deviceSettings: DEFAULT_DEVICE_SETTINGS,
+      onDeviceSettingsChange: () => {},
+    });
+
+    expect(screen.getByTestId("dealer-shooter-name").textContent).toBe("Shooter: Ana");
   });
 
   it("disconnect navigates away without ending session", () => {
