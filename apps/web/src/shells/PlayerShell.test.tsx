@@ -414,7 +414,7 @@ describe("PlayerShell", () => {
   });
 
   it("opens player settings sheet and persists phoneAnimations", () => {
-    localStorage.clear();
+    window.localStorage.clear();
     const { store } = setupStore();
     render(<PlayerShell store={store} playerName="Ana" />);
     fireEvent.click(screen.getByTestId("player-settings-open"));
@@ -422,7 +422,7 @@ describe("PlayerShell", () => {
     fireEvent.change(screen.getByTestId("player-phone-animations"), {
       target: { value: "off" },
     });
-    const stored = JSON.parse(localStorage.getItem("casino-lord:device-settings") ?? "{}");
+    const stored = JSON.parse(window.localStorage.getItem("casino-lord:device-settings") ?? "{}");
     expect(stored.phoneAnimations).toBe("off");
     expect(stored.shakeSensitivity).toBe(DEFAULT_DEVICE_SETTINGS.shakeSensitivity);
   });

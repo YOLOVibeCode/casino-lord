@@ -77,7 +77,7 @@ describe("PlayerShell animations", () => {
   });
 
   it("does not schedule animations when phoneAnimations is off", async () => {
-    localStorage.setItem(
+    window.localStorage.setItem(
       "casino-lord:device-settings",
       JSON.stringify({ ...DEFAULT_DEVICE_SETTINGS, phoneAnimations: "off" }),
     );
@@ -91,7 +91,7 @@ describe("PlayerShell animations", () => {
     });
 
     expect(screen.queryByTestId("animation-layer")).toBeNull();
-    localStorage.removeItem("casino-lord:device-settings");
+    window.localStorage.removeItem("casino-lord:device-settings");
   });
 
   it("schedules one main animation when a new result is recorded", async () => {
