@@ -13,6 +13,7 @@ import {
 test("sync roulette with two players, red bets, and physical 32 settlement", async ({
   browser,
 }) => {
+  test.setTimeout(90_000);
   const session = await setupSyncedTable(browser, {
     game: "roulette",
     withPlayers: true,

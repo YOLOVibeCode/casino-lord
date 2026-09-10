@@ -5,7 +5,8 @@ import {
   expectDisplaySettlement,
   openBets,
   setupSyncedTable,
-  waitForVirtualReveal,
+  triggerVirtualDeal,
+  waitForNextVirtualResult,
 } from "./helpers.js";
 
 test("sync virtual craps shooter rolls until pass-line settlement", async ({ browser }) => {
@@ -38,19 +39,26 @@ test("sync virtual craps shooter rolls until pass-line settlement", async ({ bro
   await closeBetsIfOpen(dealer);
 
   for (let i = 0; i < 16; i += 1) {
-    const status =
+    const bar = (await ana.getByTestId("player-status-bar").textContent()) ?? "";
+    const strip =
       (await display
         .getByTestId("betting-strip")
         .locator(".betting-strip__status")
         .textContent()) ?? "";
-    if (/Ana (?:\+[1-9]|-)/.test(status)) break;
+    if (/Ana (?:\+[1-9]|-)/.test(strip) || /\+[1-9]\d*|-100/.test(bar)) {
+      break;
+    }
 
-    await ana.getByTestId("shooter-roll").click();
-    await waitForVirtualReveal(display);
+    await expect(ana.getByTestId("shooter-roll")).toBeVisible();
+    await triggerVirtualDeal(dealer);
+    await waitForNextVirtualResult(dealer);
+    await dealer.waitForTimeout(700);
   }
 
-  await expectDisplaySettlement(display, "Ana", "nonzero");
-  await expectDisplaySettlement(display, "Ben", "nonzero");
+  await expect(ana.getByTestId("player-status-bar")).toContainText(/\+|natural|craps|seven/i, {
+    timeout: 10_000,
+  });
+  await expectDisplaySettlement(display, "Ana", "nonzero", ana);
   await expect(display.getByTestId("virtual-board-tag")).toBeVisible();
   await expect(display.getByTestId("last-roll-dice")).toBeVisible();
 

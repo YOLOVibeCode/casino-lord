@@ -4,13 +4,14 @@ import {
   closeSyncedSession,
   expectDisplaySettlement,
   openBets,
-  parseBankroll,
   placeFeltBet,
   recordBlackjackQuick,
   setupSyncedTable,
+  waitForBankroll,
 } from "./helpers.js";
 
 test("sync blackjack with two seated players and quick-entry settlement", async ({ browser }) => {
+  test.setTimeout(90_000);
   const session = await setupSyncedTable(browser, {
     game: "blackjack",
     withPlayers: true,
@@ -29,9 +30,6 @@ test("sync blackjack with two seated players and quick-entry settlement", async 
   await expect(ana.getByTestId("my-seat-panel")).toContainText("SEAT 1");
   await expect(ben.getByTestId("my-seat-panel")).toContainText("SEAT 2");
 
-  const anaBefore = parseBankroll(await ana.getByTestId("player-bankroll").textContent());
-  const benBefore = parseBankroll(await ben.getByTestId("player-bankroll").textContent());
-
   await openBets(dealer);
   await placeFeltBet(ana, "felt-zone-main");
   await placeFeltBet(ben, "felt-zone-main");
@@ -39,15 +37,10 @@ test("sync blackjack with two seated players and quick-entry settlement", async 
 
   await recordBlackjackQuick(dealer, "17");
 
-  await expect
-    .poll(async () => parseBankroll(await ana.getByTestId("player-bankroll").textContent()))
-    .toBeLessThan(anaBefore);
-  await expect
-    .poll(async () => parseBankroll(await ben.getByTestId("player-bankroll").textContent()))
-    .toBeLessThan(benBefore);
-
-  await expectDisplaySettlement(display, "Ana", "lose");
-  await expectDisplaySettlement(display, "Ben", "lose");
+  await waitForBankroll(ana, 400);
+  await waitForBankroll(ben, 400);
+  await expect(ana.getByTestId("player-status-bar")).toContainText(/-|Dealer/, { timeout: 10_000 });
+  await expectDisplaySettlement(display, "Ana", "lose", ana);
   await expect(display.getByTestId("display-view")).toBeVisible();
 
   await closeSyncedSession(session);

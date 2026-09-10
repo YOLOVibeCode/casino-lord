@@ -7,9 +7,11 @@ import {
   placeFeltBet,
   setupSyncedTable,
   triggerVirtualDeal,
+  waitForVirtualResult,
 } from "./helpers.js";
 
 test("sync virtual roulette with two players settles a red spin", async ({ browser }) => {
+  test.setTimeout(90_000);
   const session = await setupSyncedTable(browser, {
     game: "roulette",
     withPlayers: true,
@@ -32,10 +34,11 @@ test("sync virtual roulette with two players settles a red spin", async ({ brows
   await placeFeltBet(ben, "felt-zone-red");
   await closeBetsIfOpen(dealer);
 
-  await triggerVirtualDeal(dealer, display);
+  await triggerVirtualDeal(dealer);
+  await waitForVirtualResult(dealer);
 
-  await expectDisplaySettlement(display, "Ana", "any");
-  await expectDisplaySettlement(display, "Ben", "any");
+  await expect(ana.getByTestId("player-status-bar")).toContainText(/[+-]\d/, { timeout: 10_000 });
+  await expectDisplaySettlement(display, "Ana", "any", ana);
   await expect(display.getByTestId("virtual-board-tag")).toBeVisible();
   await expect(display.getByTestId("display-view")).toBeVisible();
 

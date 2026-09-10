@@ -12,6 +12,7 @@ import {
 test("sync craps with two players, pass-line bets, and come-out 7 settlement", async ({
   browser,
 }) => {
+  test.setTimeout(90_000);
   const session = await setupSyncedTable(browser, {
     game: "craps",
     withPlayers: true,

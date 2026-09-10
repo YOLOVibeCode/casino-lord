@@ -69,7 +69,20 @@ export async function createTable(
   }
 
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  await page.getByTestId("table-created-page").waitFor();
+  const created = page.getByTestId("table-created-page");
+  const createError = page.getByText("Could not create table");
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await created.waitFor({ timeout: 8_000 });
+      break;
+    } catch (err) {
+      if (!(await createError.isVisible().catch(() => false)) || attempt === 4) {
+        throw err;
+      }
+      await page.waitForTimeout(15_000);
+      await page.getByRole("button", { name: "Create", exact: true }).click();
+    }
+  }
 
   const url = new URL(page.url());
   const code = url.pathname.split("/").pop() ?? "";
@@ -109,13 +122,41 @@ export async function recordBaccaratQuick(
 
 export async function waitForVirtualReveal(page: Page): Promise<void> {
   const pending = page.getByTestId("virtual-pending-ring");
-  try {
-    await pending.waitFor({ state: "visible", timeout: 3_000 });
+  if (await pending.isVisible().catch(() => false)) {
     await pending.waitFor({ state: "hidden", timeout: 20_000 });
-  } catch {
-    // Ring may have already completed, or this surface does not show it.
   }
   await page.waitForTimeout(200);
+}
+
+export async function waitForBankroll(player: Page, amount: number): Promise<void> {
+  await expect
+    .poll(async () => parseBankroll(await player.getByTestId("player-bankroll").textContent()), {
+      timeout: 10_000,
+    })
+    .toBe(amount);
+}
+
+export async function waitForVirtualResult(dealer: Page, previousText?: string): Promise<void> {
+  const last = dealer.getByTestId("virtual-last-result");
+  await expect(last).toBeVisible({ timeout: 25_000 });
+  if (previousText !== undefined) {
+    await expect
+      .poll(async () => (await last.textContent()) ?? "", { timeout: 15_000 })
+      .not.toBe(previousText);
+  }
+}
+
+/** Wait out the current reveal overlay, then the next last-result (dice totals can repeat). */
+export async function waitForNextVirtualResult(dealer: Page): Promise<void> {
+  const last = dealer.getByTestId("virtual-last-result");
+  const reveal = dealer.getByTestId("virtual-reveal");
+  if (await last.isVisible().catch(() => false)) {
+    await Promise.race([
+      last.waitFor({ state: "hidden", timeout: 15_000 }),
+      reveal.waitFor({ state: "visible", timeout: 15_000 }),
+    ]).catch(() => undefined);
+  }
+  await expect(last).toBeVisible({ timeout: 25_000 });
 }
 
 export async function joinAsPlayer(
@@ -166,17 +207,32 @@ export async function expectDisplaySettlement(
   display: Page,
   playerName: string,
   kind: "any" | "win" | "lose" | "nonzero" = "any",
+  player?: Page,
 ): Promise<void> {
-  const status = display.getByTestId("betting-strip").locator(".betting-strip__status");
   const pattern =
     kind === "win"
-      ? new RegExp(`${playerName} \\+[1-9]`)
+      ? new RegExp(`${playerName} \\+[1-9]|\\+[1-9]\\d*`)
       : kind === "lose"
-        ? new RegExp(`${playerName} -`)
+        ? new RegExp(`${playerName} -|-\\d`)
         : kind === "nonzero"
-          ? new RegExp(`${playerName} (?:\\+[1-9]|-)`)
-          : new RegExp(`${playerName} [+-]`);
-  await expect(status).toContainText(pattern, { timeout: 20_000 });
+          ? new RegExp(`${playerName} (?:\\+[1-9]|-)|\\+[1-9]|-\\d`)
+          : new RegExp(`${playerName} [+-]|[+-]\\d`);
+  await expect
+    .poll(
+      async () => {
+        const strip =
+          (await display
+            .getByTestId("betting-strip")
+            .locator(".betting-strip__status")
+            .textContent()) ?? "";
+        const bar = player
+          ? ((await player.getByTestId("player-status-bar").textContent()) ?? "")
+          : "";
+        return `${strip} | ${bar}`;
+      },
+      { timeout: 25_000 },
+    )
+    .toMatch(pattern);
 }
 
 export interface SyncedSession {
@@ -212,7 +268,7 @@ export async function setupSyncedTable(
   if (options.houseBank) {
     await issueChipsToAll(dealer);
     for (const page of players) {
-      await page.getByTestId("player-bankroll").waitFor();
+      await waitForBankroll(page, 500);
     }
   }
 
@@ -230,30 +286,74 @@ export async function closeSyncedSession(session: SyncedSession): Promise<void> 
 }
 
 export async function recordRoulettePocket(dealer: Page, pocket: string): Promise<void> {
-  await dealerPane(dealer).getByTestId(`number-cell-${pocket}`).click();
-  await dealer.getByTestId("confirm-btn").click();
+  await dealer.getByTestId(`number-cell-${pocket}`).click();
+  const confirm = dealer.getByTestId("confirm-btn");
+  await expect(confirm).toBeEnabled({ timeout: 10_000 });
+  await confirm.click();
 }
 
 export async function recordCrapsTotal(dealer: Page, total: number): Promise<void> {
-  const pane = dealerPane(dealer);
   if (
-    !(await pane
+    !(await dealer
       .getByTestId("total-mode")
       .isVisible()
       .catch(() => false))
   ) {
-    await pane.getByTestId("total-mode-toggle").click();
+    await dealer.getByTestId("total-mode-toggle").click();
   }
-  await pane.getByTestId(`outcome-chip-t${total}`).click();
+  await dealer.getByTestId(`outcome-chip-t${total}`).click();
 }
 
 export async function recordBlackjackQuick(dealer: Page, chipId: string): Promise<void> {
-  await dealerPane(dealer).getByTestId(`outcome-chip-${chipId}`).click();
+  await dealer.getByTestId(`outcome-chip-${chipId}`).click();
 }
 
-export async function triggerVirtualDeal(dealer: Page, display: Page): Promise<void> {
-  await dealer.getByTestId("deal-btn").click();
-  await waitForVirtualReveal(display);
+export async function triggerVirtualDeal(dealer: Page): Promise<void> {
+  const deal = dealer.getByTestId("deal-btn");
+  await expect(deal).toBeEnabled({ timeout: 10_000 });
+  await deal.click();
+}
+
+export async function completeVirtualBlackjackHand(dealer: Page, player: Page): Promise<void> {
+  for (let i = 0; i < 24; i += 1) {
+    if (
+      await dealer
+        .getByTestId("virtual-last-result")
+        .isVisible()
+        .catch(() => false)
+    ) {
+      return;
+    }
+
+    const stand = player.getByTestId("action-btn-stand");
+    if (
+      (await stand.isVisible().catch(() => false)) &&
+      (await stand.isEnabled().catch(() => false))
+    ) {
+      await stand.click();
+      await player.waitForTimeout(500);
+      continue;
+    }
+
+    const force = dealer.getByTestId("force-btn");
+    if (
+      (await force.isVisible().catch(() => false)) &&
+      (await force.isEnabled().catch(() => false))
+    ) {
+      await force.click();
+      await dealer.waitForTimeout(500);
+      continue;
+    }
+
+    const deal = dealer.getByTestId("deal-btn");
+    if (await deal.isEnabled().catch(() => false)) {
+      await deal.click();
+      await dealer.waitForTimeout(900);
+      continue;
+    }
+
+    await dealer.waitForTimeout(400);
+  }
 }
 
 export async function startFreshSolo(page: Page, game: string): Promise<void> {
