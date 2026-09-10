@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 export interface CreatedTable {
   code: string;
@@ -22,6 +22,23 @@ export async function dismissCardPicker(page: Page): Promise<void> {
     await page.getByTestId("card-picker-close").click();
     await backdrop.waitFor({ state: "hidden", timeout: 5_000 });
   }
+}
+
+async function readDealerToken(page: Page, code: string): Promise<string> {
+  const fromStorage = await page.evaluate((tableCode) => {
+    // keep in sync with apps/web/src/sync/dealer-token.ts loadDealerToken
+    const PREFIX = "casino-lord:dealer-token:";
+    const raw = localStorage.getItem(`${PREFIX}${tableCode}`);
+    if (!raw) return "";
+    try {
+      const parsed = JSON.parse(raw) as { token?: string };
+      return typeof parsed.token === "string" ? parsed.token : raw;
+    } catch {
+      return raw;
+    }
+  }, code);
+  if (fromStorage) return fromStorage;
+  return new URL(page.url()).searchParams.get("t") ?? "";
 }
 
 export async function createTable(
@@ -57,26 +74,13 @@ export async function createTable(
   const url = new URL(page.url());
   const code = url.pathname.split("/").pop() ?? "";
 
-  let dealerToken = url.searchParams.get("t") ?? "";
-  if (!dealerToken) {
-    const dealerHref = await page.getByTestId("open-dealer").getAttribute("href");
-    if (dealerHref) {
-      dealerToken = new URL(dealerHref, page.url()).searchParams.get("t") ?? "";
-    }
-  }
-  if (!dealerToken) {
-    dealerToken = await page.evaluate((tableCode) => {
-      const key = `casino-lord:dealer-token:${tableCode}`;
-      const raw = localStorage.getItem(key);
-      if (!raw) return "";
-      try {
-        const parsed = JSON.parse(raw) as { token?: string };
-        return typeof parsed.token === "string" ? parsed.token : raw;
-      } catch {
-        return raw;
-      }
-    }, code);
-  }
+  let dealerToken = "";
+  await expect
+    .poll(async () => {
+      dealerToken = await readDealerToken(page, code);
+      return dealerToken;
+    }, { timeout: 10_000 })
+    .not.toBe("");
 
   if (!code || !dealerToken) {
     throw new Error(
