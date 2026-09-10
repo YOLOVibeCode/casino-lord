@@ -9,10 +9,7 @@ export function describeCrapsResult(result: CrapsResult, rollInfo?: RollInfo): s
   return `${base} — ${result.total}`;
 }
 
-export function findCrapsRollInfo(
-  moduleState: unknown,
-  resultId: string,
-): RollInfo | undefined {
+export function findCrapsRollInfo(moduleState: unknown, resultId: string): RollInfo | undefined {
   const shooter = (moduleState as { shooter?: { rolls?: Array<{ id: string; info: RollInfo }> } })
     .shooter;
   return shooter?.rolls?.find((r) => r.id === resultId)?.info;

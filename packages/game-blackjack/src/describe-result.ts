@@ -3,10 +3,7 @@ import type { BlackjackRules } from "./rules.js";
 import type { BlackjackResult, Seat } from "./types.js";
 import { ALL_SEATS } from "./types.js";
 
-export function describeBlackjackResult(
-  result: BlackjackResult,
-  rules: BlackjackRules,
-): string {
+export function describeBlackjackResult(result: BlackjackResult, rules: BlackjackRules): string {
   const dealerPart = result.dealer.bust
     ? "Dealer bust"
     : result.dealer.total !== null

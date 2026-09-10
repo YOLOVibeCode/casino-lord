@@ -27,8 +27,8 @@
 }
 
 .player-settings-sheet__close {
-  min-width: 3rem;
-  min-height: 3rem;
+  min-width: max(3rem, 44px);
+  min-height: max(3rem, 44px);
   border: none;
   background: transparent;
   color: inherit;

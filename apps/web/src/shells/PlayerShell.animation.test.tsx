@@ -3,6 +3,7 @@
  */
 import "fake-indexeddb/auto";
 import { act, cleanup, render, screen } from "@testing-library/preact";
+import { LocationProvider } from "preact-iso";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { houseSettings } from "@casino-lord/core/testing";
@@ -55,9 +56,18 @@ function setupJoinedStore() {
     ...store,
     getPlayerId: () => "p1",
     getConnectionState: () => "connected" as const,
+    getRejectReason: () => null,
   };
 
   return syncStore;
+}
+
+function renderPlayerShell(props: Parameters<typeof PlayerShell>[0]) {
+  return render(
+    <LocationProvider>
+      <PlayerShell {...props} />
+    </LocationProvider>,
+  );
 }
 
 describe("PlayerShell animations", () => {
@@ -71,7 +81,7 @@ describe("PlayerShell animations", () => {
     store.record(quickResult("B"), { quick: true });
     store.record(quickResult("P"), { quick: true });
 
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     expect(screen.queryByTestId("animation-layer")).toBeNull();
   });
@@ -84,7 +94,7 @@ describe("PlayerShell animations", () => {
     vi.useFakeTimers();
     const store = setupJoinedStore();
 
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     await act(async () => {
       store.record(quickResult("B"), { quick: true });
@@ -98,7 +108,7 @@ describe("PlayerShell animations", () => {
     vi.useFakeTimers();
     const store = setupJoinedStore();
 
-    render(<PlayerShell store={store} playerName="Ana" />);
+    renderPlayerShell({ store, playerName: "Ana" });
 
     await act(async () => {
       store.record(quickResult("B"), { quick: true });
