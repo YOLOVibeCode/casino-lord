@@ -26,7 +26,36 @@ import { PlayersDialog } from "./PlayersDialog.js";
 import { useConfirm } from "../ui/ConfirmSheet.js";
 import { usePrompt } from "../ui/PromptSheet.js";
 import { useToast } from "../ui/Toast.js";
+import "../ui/sheet.css";
 import "./dealer-shell.css";
+
+const REJECT_REASON_LABELS: Record<string, string> = {
+  SESSION_ENDED: "session ended",
+  DEALING: "dealing in progress",
+  demoted: "you were replaced as dealer",
+  "not authorized": "not authorized",
+  OFFLINE: "offline",
+  rejected: "rejected",
+  DECLINED: "declined",
+};
+
+function formatRejectReason(reason: string): string {
+  return REJECT_REASON_LABELS[reason] ?? reason.replace(/_/g, " ").toLowerCase();
+}
+
+function shouldIgnoreKeyboardShortcut(menuOpen: boolean): boolean {
+  if (menuOpen) return true;
+  if (document.querySelector('[data-testid="confirm-sheet"]')) return true;
+  if (document.querySelector('[data-testid="prompt-sheet"]')) return true;
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+function countSeriesResults(events: readonly { type: string }[]): number {
+  return events.filter((e) => e.type === "RESULT_RECORDED").length;
+}
 
 export interface DealerShellProps {
   store: TableStore;
@@ -93,6 +122,9 @@ export function DealerShell({
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const confirmStarted = useRef(0);
+  const lastToastedRejectRef = useRef<string | null>(null);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
+  const [forceTapped, setForceTapped] = useState(false);
 
   const clearConfirmTimer = useCallback(() => {
     if (confirmTimer.current) clearInterval(confirmTimer.current);
@@ -105,6 +137,16 @@ export function DealerShell({
     setEditingEnvelope(null);
     store.emit({ type: "LIVE_INPUT", payload: { slots: {} }, source: "dealer" });
   }, [store]);
+
+  const toastResultRecorded = useCallback(
+    (resultData: unknown, resultIndex: number) => {
+      const described = module.describeResult?.(resultData, rules) ?? String(resultData);
+      toast.success(`${described} recorded · ${module.resultLabel} ${resultIndex}`, {
+        testId: "dealer-toast",
+      });
+    },
+    [module, rules, toast],
+  );
 
   const executeConfirm = useCallback(() => {
     if (!confirmState?.enabled || !confirmState.result) return;
@@ -123,7 +165,10 @@ export function DealerShell({
       store.emit(clearLiveInput);
     } else {
       betting.onDealerEntry();
+      const results = (composed.module as { results?: unknown[] }).results;
+      const nextIndex = (Array.isArray(results) ? results.length : 0) + 1;
       store.record(confirmState.result, { quick: false });
+      toastResultRecorded(confirmState.result, nextIndex);
       if (confirmState.autoSeries) {
         store.startNewSeries(undefined, { auto: true });
       }
@@ -136,7 +181,9 @@ export function DealerShell({
     deviceSettings.haptics,
     editingEnvelope,
     module.id,
+    composed.module,
     store,
+    toastResultRecorded,
   ]);
 
   const startConfirmDelay = useCallback(() => {
@@ -183,8 +230,35 @@ export function DealerShell({
     if (undoTimer.current) clearTimeout(undoTimer.current);
   }, [composed.module, editingEnvelope, store, undoArmed]);
 
+  const handleNewSeries = useCallback(async () => {
+    const ok = await confirm({
+      title: `Start new ${module.seriesLabel}?`,
+      confirmLabel: `New ${module.seriesLabel}`,
+    });
+    if (ok) {
+      store.startNewSeries();
+      setMenuOpen(false);
+    }
+  }, [confirm, module.seriesLabel, store]);
+
+  const handleVoidOpenBets = useCallback(async () => {
+    if (betsView.openBets.length === 0) return;
+    const ok = await confirm({
+      title: "Void open bets?",
+      body: `Remove ${betsView.openBets.length} open bet(s)? Players' chips will be returned.`,
+      destructive: true,
+      confirmLabel: "Hold to void bets",
+    });
+    if (!ok) return;
+    for (const bet of betsView.openBets) {
+      store.emit({ type: "BET_REMOVED", betId: bet.id });
+    }
+    setMenuOpen(false);
+  }, [betsView.openBets, confirm, store]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (shouldIgnoreKeyboardShortcut(menuOpen)) return;
       if (e.key === "z" || e.key === "Z") {
         e.preventDefault();
         handleUndo();
@@ -193,10 +267,26 @@ export function DealerShell({
         e.preventDefault();
         startConfirmDelay();
       }
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        void handleNewSeries();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [confirmState?.enabled, handleUndo, startConfirmDelay]);
+  }, [confirmState?.enabled, handleNewSeries, handleUndo, menuOpen, startConfirmDelay]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMenuOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
 
   const dismissRotateHint = useCallback(() => {
     sessionStorage.setItem(ROTATE_HINT_KEY, "1");
@@ -248,8 +338,21 @@ export function DealerShell({
         });
       }
 
-      await navigator.clipboard.writeText(text);
-      setMenuOpen(false);
+      const resultCount = countSeriesResults(store.events);
+      try {
+        await navigator.clipboard.writeText(text);
+        toast.success(`Export copied — ${resultCount} results`, { testId: "dealer-toast" });
+        setMenuOpen(false);
+      } catch {
+        await prompt({
+          title: "Export",
+          label: "Copy this text manually",
+          defaultValue: text,
+          multiline: true,
+          confirmLabel: "Done",
+        });
+        setMenuOpen(false);
+      }
     } catch {
       toast.error("Export failed", { testId: "dealer-toast" });
     }
@@ -318,6 +421,29 @@ export function DealerShell({
   const syncStore = isSyncStore(store) ? store : null;
   const connectionState = syncStore?.getConnectionState() ?? null;
   const readOnly = syncStore?.isReadOnly() ?? false;
+  const virtualPending = store.getVirtualPending?.() ?? null;
+
+  useEffect(() => {
+    if (!virtualPending) setForceTapped(false);
+  }, [virtualPending]);
+
+  useEffect(() => {
+    if (!syncStore) return;
+    const unsub = store.subscribe(() => {
+      const reason = syncStore.getRejectReason();
+      if (!reason) {
+        lastToastedRejectRef.current = null;
+        return;
+      }
+      if (reason === lastToastedRejectRef.current) return;
+      lastToastedRejectRef.current = reason;
+      toast.error(`Action failed — ${formatRejectReason(reason)}`, { testId: "dealer-toast" });
+    });
+    return unsub;
+  }, [store, syncStore, toast]);
+
+  const showDealNow = virtualTable && virtualStatus?.awaiting === "trigger";
+  const dealNowDisabled = readOnly || !!virtualPending || forceTapped;
 
   const handleConfirmClick = useCallback(() => {
     if (readOnly) return;
@@ -362,7 +488,7 @@ export function DealerShell({
             data-testid="edit-banner"
             onClick={cancelEdit}
           >
-            Editing Hand {editingEnvelope.index + 1} · Cancel
+            Editing {module.resultLabel} {editingEnvelope.index + 1} · Cancel
           </button>
         ) : (
           <>
@@ -425,169 +551,185 @@ export function DealerShell({
             <>
               <button
                 type="button"
-                class="dealer-shell__tool-btn"
+                class="dealer-shell__tool-btn dealer-shell__tool-btn--labeled"
                 data-testid="players-btn"
                 disabled={!syncStore}
                 aria-label="Players"
+                title={syncStore ? "Players" : "Local players are managed in the Solo page"}
                 onClick={() => setActiveDialog("players")}
               >
-                👥
+                <span class="dealer-shell__tool-icon" aria-hidden="true">
+                  👥
+                </span>
+                <span class="dealer-shell__tool-label">Players</span>
               </button>
               <button
                 type="button"
-                class="dealer-shell__tool-btn"
+                class="dealer-shell__tool-btn dealer-shell__tool-btn--labeled"
                 disabled={!bankHouse}
                 title={bankHouse ? "Bank" : "House bank not enabled"}
                 data-testid="bank-btn"
                 aria-label="Bank"
                 onClick={() => setActiveDialog("bank")}
               >
-                🏦
+                <span class="dealer-shell__tool-icon" aria-hidden="true">
+                  🏦
+                </span>
+                <span class="dealer-shell__tool-label">Bank</span>
               </button>
             </>
           )}
           <div class="dealer-shell__menu">
             <button
               type="button"
-              class="dealer-shell__tool-btn"
+              class="dealer-shell__tool-btn dealer-shell__tool-btn--labeled"
+              data-testid="menu-btn"
               aria-label="Menu"
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
               onClick={() => setMenuOpen((o) => !o)}
             >
-              ⚙
+              <span class="dealer-shell__tool-icon" aria-hidden="true">
+                ⚙
+              </span>
+              <span class="dealer-shell__tool-label">Menu</span>
             </button>
             {menuOpen && (
-              <div class="dealer-shell__menu-panel">
-                {onNewTable && (
+              <>
+                <div
+                  class="dealer-shell__menu-backdrop"
+                  data-testid="menu-backdrop"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div ref={menuPanelRef} class="dealer-shell__menu-panel" role="menu">
+                  {onNewTable && (
+                    <button
+                      type="button"
+                      data-testid="menu-new-table"
+                      onClick={() => {
+                        void (async () => {
+                          const ok = await confirm({
+                            title: "Start a new table?",
+                            confirmLabel: "New table",
+                          });
+                          if (ok) {
+                            onNewTable();
+                            setMenuOpen(false);
+                          }
+                        })();
+                      }}
+                    >
+                      New Table
+                    </button>
+                  )}
                   <button
                     type="button"
-                    data-testid="menu-new-table"
+                    data-testid="menu-new-series"
+                    onClick={() => void handleNewSeries()}
+                  >
+                    New {module.seriesLabel}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="menu-void-bets"
+                    disabled={betsView.openBets.length === 0}
+                    onClick={() => void handleVoidOpenBets()}
+                  >
+                    Void open bets
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="menu-end-session"
                     onClick={() => {
                       void (async () => {
+                        const endBody = virtualTable
+                          ? "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results. The virtual seed will be revealed."
+                          : "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results.";
                         const ok = await confirm({
-                          title: "Start a new table?",
-                          confirmLabel: "New table",
+                          title: "End session?",
+                          body: endBody,
+                          destructive: true,
+                          confirmLabel: "Hold to end session",
                         });
                         if (ok) {
-                          onNewTable();
+                          store.endSession();
                           setMenuOpen(false);
                         }
                       })();
                     }}
                   >
-                    New Table
+                    End Session
                   </button>
-                )}
-                <button
-                  type="button"
-                  data-testid="menu-new-series"
-                  onClick={() => {
-                    void (async () => {
-                      const ok = await confirm({
-                        title: `Start new ${module.seriesLabel}?`,
-                        confirmLabel: `New ${module.seriesLabel}`,
-                      });
-                      if (ok) {
-                        store.startNewSeries();
-                        setMenuOpen(false);
-                      }
-                    })();
-                  }}
-                >
-                  New {module.seriesLabel}
-                </button>
-                <button
-                  type="button"
-                  data-testid="menu-end-session"
-                  onClick={() => {
-                    void (async () => {
-                      const endBody = virtualTable
-                        ? "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results. The virtual seed will be revealed."
-                        : "Displays will show the final leaderboard. You will be offered an export with chips issued, final bankrolls, and results.";
-                      const ok = await confirm({
-                        title: "End session?",
-                        body: endBody,
-                        destructive: true,
-                        confirmLabel: "Hold to end session",
-                      });
-                      if (ok) {
-                        store.endSession();
-                        setMenuOpen(false);
-                      }
-                    })();
-                  }}
-                >
-                  End Session
-                </button>
-                <button type="button" onClick={() => void handleExport()}>
-                  Export
-                </button>
-                {virtualTable && (
-                  <a href={tableUrl(`/verify?code=${store.code}`)} data-testid="menu-export-verify">
-                    Verify export
+                  <button type="button" onClick={() => void handleExport()}>
+                    Export
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="menu-import"
+                    onClick={() => void handleImport()}
+                  >
+                    Import
+                  </button>
+                  <a href={tableUrl(`/verify?code=${store.code}`)} data-testid="menu-verify">
+                    Verify fairness / export
                   </a>
-                )}
-                <button type="button" data-testid="menu-import" onClick={() => void handleImport()}>
-                  Import
-                </button>
-                <a href={tableUrl(`/verify?code=${store.code}`)} data-testid="menu-verify">
-                  Verify fairness
-                </a>
-                <button
-                  type="button"
-                  data-testid="menu-settings"
-                  onClick={() => {
-                    setActiveDialog("settings");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Settings
-                </button>
-                <button
-                  type="button"
-                  data-testid="menu-history"
-                  onClick={() => {
-                    setActiveDialog("history");
-                    setMenuOpen(false);
-                  }}
-                >
-                  History
-                </button>
-                <button
-                  type="button"
-                  data-testid="menu-calculator"
-                  onClick={() => {
-                    setActiveDialog("calculator");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Calculator
-                </button>
-                <button
-                  type="button"
-                  disabled={!syncStore}
-                  data-testid="menu-show-qr"
-                  onClick={() => {
-                    setActiveDialog("qr");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Show QR
-                </button>
-                <button
-                  type="button"
-                  data-testid="menu-disconnect"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    if (onDisconnect) {
-                      onDisconnect();
-                    } else {
-                      route("/");
-                    }
-                  }}
-                >
-                  Disconnect
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    data-testid="menu-settings"
+                    onClick={() => {
+                      setActiveDialog("settings");
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Settings
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="menu-history"
+                    onClick={() => {
+                      setActiveDialog("history");
+                      setMenuOpen(false);
+                    }}
+                  >
+                    History
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="menu-calculator"
+                    onClick={() => {
+                      setActiveDialog("calculator");
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Calculator
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!syncStore}
+                    data-testid="menu-show-qr"
+                    onClick={() => {
+                      setActiveDialog("qr");
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Show QR
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="menu-disconnect"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (onDisconnect) {
+                        onDisconnect();
+                      } else {
+                        route("/");
+                      }
+                    }}
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -613,15 +755,20 @@ export function DealerShell({
               >
                 {virtualTriggerLabel}
               </button>
-              <button
-                type="button"
-                class="dealer-shell__btn"
-                disabled={readOnly}
-                data-testid="force-btn"
-                onClick={() => store.sendVirtual("force")}
-              >
-                Force
-              </button>
+              {showDealNow && (
+                <button
+                  type="button"
+                  class="dealer-shell__btn"
+                  disabled={dealNowDisabled}
+                  data-testid="force-btn"
+                  onClick={() => {
+                    setForceTapped(true);
+                    store.sendVirtual("force");
+                  }}
+                >
+                  Deal now
+                </button>
+              )}
             </>
           ) : (
             <>
@@ -633,7 +780,9 @@ export function DealerShell({
                 data-testid="undo-btn"
                 title={undoCheck.reason}
               >
-                {undoArmed ? `Tap again to undo Hand ${undoHand}` : "UNDO"}
+                {undoArmed
+                  ? `Tap again to undo ${module.resultLabel} ${undoHand}`
+                  : `Undo last ${module.resultLabel}`}
               </button>
               <button
                 type="button"
