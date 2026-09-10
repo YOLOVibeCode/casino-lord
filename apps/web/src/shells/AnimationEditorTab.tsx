@@ -20,6 +20,7 @@ import {
 } from "../settings/animation-bundles.js";
 import type { UntypedGameModule } from "../table/module-types.js";
 import type { TableStore } from "../table/store.js";
+import { usePrompt } from "../ui/PromptSheet.js";
 
 const STYLE_OPTIONS: Array<{ value: AnimationStyle; label: string; disabled?: boolean }> = [
   { value: "none", label: "None" },
@@ -83,6 +84,7 @@ function validateAndEmit(store: TableStore, key: string, preset: AnimationPreset
 
 export function AnimationEditorTab({ store, module }: AnimationEditorTabProps) {
   useStore(store);
+  const { prompt } = usePrompt();
   const settings = store.getComposed().platform.settings;
   const events = allEditorEvents(module);
   const [expandedId, setExpandedId] = useState<string | null>(
@@ -100,10 +102,16 @@ export function AnimationEditorTab({ store, module }: AnimationEditorTabProps) {
   };
 
   const handleSaveBundle = (): void => {
-    const name = window.prompt("Bundle name");
-    if (!name?.trim()) return;
-    const overrides = collectGameOverrides(settings.animations, module);
-    saveBundle(store.game, name.trim(), overrides);
+    void (async () => {
+      const name = await prompt({
+        label: "Bundle name",
+        confirmLabel: "Save",
+        validate: (value) => (value.trim().length === 0 ? "Name is required" : null),
+      });
+      if (!name) return;
+      const overrides = collectGameOverrides(settings.animations, module);
+      saveBundle(store.game, name.trim(), overrides);
+    })();
   };
 
   const handleLoadBundle = (): void => {

@@ -8,6 +8,7 @@ import { createStubModule, houseSettings, STUB_RULES } from "@casino-lord/core/t
 import { asUntypedModule } from "../table/module-types.js";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { createTableStore } from "../table/store.js";
+import { renderWithUiProviders } from "../ui/test-providers.js";
 import { DealerShell } from "./DealerShell.js";
 
 describe("DealerShell undo blocking", () => {
@@ -53,7 +54,7 @@ describe("DealerShell undo blocking", () => {
       },
     });
 
-    render(
+    renderWithUiProviders(
       <DealerShell
         store={store}
         module={module}

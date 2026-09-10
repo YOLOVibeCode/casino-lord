@@ -17,9 +17,12 @@
     "build": "pnpm --filter web build && pnpm --filter sync build",
     "start": "node apps/sync/dist/main.js",
     "stamp": "node scripts/stamp-version.mjs",
-    "check": "pnpm typecheck && pnpm lint && pnpm test"
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "e2e": "playwright test --config e2e/playwright.config.ts",
+    "e2e:update": "playwright test --config e2e/playwright.config.ts --update-snapshots"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/node": "^22.15.0",
     "prettier": "^3.5.0",
     "typescript": "^5.8.0",
