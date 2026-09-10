@@ -1330,5 +1330,40 @@ describe("PlayerShell", () => {
       tapFeltZone(screen.getByTestId("felt-zone-banker"));
       expect(screen.getByTestId("player-toast").textContent).toContain("Bet not placed — offline");
     });
+
+    it("toasts Back online after reconnecting following a 2s+ outage", () => {
+      vi.useFakeTimers();
+      const { setConnection } = renderWithConnection("connected");
+      setConnection("reconnecting");
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      setConnection("connected");
+      expect(screen.getByTestId("player-toast").textContent).toContain("Back online");
+      expect(screen.getByTestId("player-toast").className).toContain(
+        "player-shell__toast--success",
+      );
+    });
+
+    it("does not toast Back online on initial connect", () => {
+      vi.useFakeTimers();
+      const { setConnection } = renderWithConnection("reconnecting");
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+      setConnection("connected");
+      expect(screen.queryByTestId("player-toast")).toBeNull();
+    });
+
+    it("does not toast Back online after a brief blip under 2s", () => {
+      vi.useFakeTimers();
+      const { setConnection } = renderWithConnection("connected");
+      setConnection("reconnecting");
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      setConnection("connected");
+      expect(screen.queryByTestId("player-toast")).toBeNull();
+    });
   });
 });

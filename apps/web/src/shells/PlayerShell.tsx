@@ -349,7 +349,9 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const settlementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Partial<Record<FooterTab, HTMLButtonElement | null>>>({});
+  const hasBeenConnectedRef = useRef(false);
   const wasDisconnectedLongEnoughRef = useRef(false);
+  const prevConnectionRef = useRef<ConnectionState | null>(null);
   const disconnectTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const syncStore = isSyncStore(store) ? store : null;
@@ -460,6 +462,22 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       disconnectTimersRef.current = [];
     };
   }, [connectionState]);
+
+  useEffect(() => {
+    const prev = prevConnectionRef.current;
+    if (connectionState === "connected") {
+      if (
+        (prev === "reconnecting" || prev === "offline") &&
+        hasBeenConnectedRef.current &&
+        (nonConnectedMs >= CONNECTION_PILL_DELAY_MS || wasDisconnectedLongEnoughRef.current)
+      ) {
+        showToast("Back online", "success");
+      }
+      hasBeenConnectedRef.current = true;
+      wasDisconnectedLongEnoughRef.current = false;
+    }
+    prevConnectionRef.current = connectionState;
+  }, [connectionState, nonConnectedMs, showToast]);
 
   useEffect(() => {
     if (!playerId || !module) return;
@@ -1204,11 +1222,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
       </header>
 
       {showConnectionUi && (
-        <div
-          class="player-shell__connection-pill"
-          data-testid="connection-pill"
-          role="status"
-        >
+        <div class="player-shell__connection-pill" data-testid="connection-pill" role="status">
           {connectionPillText}
         </div>
       )}
