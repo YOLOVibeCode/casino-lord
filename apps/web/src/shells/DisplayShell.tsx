@@ -302,6 +302,20 @@ export function DisplayShell({
   };
 
   const syncStore = isSyncStore(store) ? store : null;
+  const [connectionState, setConnectionState] = useState(
+    () => syncStore?.getConnectionState() ?? "connected",
+  );
+
+  useEffect(() => {
+    if (!syncStore) {
+      setConnectionState("connected");
+      return;
+    }
+    setConnectionState(syncStore.getConnectionState());
+    return syncStore.subscribe(() => {
+      setConnectionState(syncStore.getConnectionState());
+    });
+  }, [syncStore]);
 
   const buyInByPlayer: Record<string, number> = {};
   for (const e of store.events) {
@@ -318,18 +332,19 @@ export function DisplayShell({
     settings.players.playersSort,
   );
 
-  const connectionLabel = syncStore
-    ? syncStore.getConnectionState() === "connected"
-      ? "Connected"
-      : syncStore.getConnectionState() === "reconnecting"
+  const connectionLabel =
+    connectionState === "connected"
+      ? syncStore
+        ? "Connected"
+        : "Local / Solo"
+      : connectionState === "reconnecting"
         ? "Reconnecting"
-        : "Offline"
-    : "Local / Solo";
+        : "Offline";
 
   const dealerHint =
     syncStore &&
     syncStore.getPresence().dealers === 0 &&
-    syncStore.getConnectionState() === "connected"
+    connectionState === "connected"
       ? "Dealer disconnected"
       : null;
 
@@ -379,7 +394,18 @@ export function DisplayShell({
         </div>
         {displayQrUrl && <QrBadge url={displayQrUrl} />}
         {playUrl && <QrBadge url={playUrl} title="Join QR" />}
+        {syncStore && connectionState === "reconnecting" && (
+          <span class="display-shell__connection-pill" data-testid="connection-pill">
+            Reconnecting…
+          </span>
+        )}
       </header>
+
+      {syncStore && connectionState === "offline" && (
+        <div class="display-shell__connection-banner" data-testid="connection-banner" role="status">
+          Reconnecting to dealer — board may be behind
+        </div>
+      )}
 
       {dealerHint && (
         <div class="display-shell__dealer-hint" data-testid="dealer-disconnected">

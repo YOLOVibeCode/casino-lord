@@ -9,9 +9,31 @@ import { createStubModule, houseSettings, STUB_RULES } from "@casino-lord/core/t
 import { asUntypedModule } from "../table/module-types.js";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 import { createTableStore } from "../table/store.js";
+import type { SyncStore } from "../table/sync-store-types.js";
 import { DisplayShell } from "./DisplayShell.js";
 
 const baccarat = asUntypedModule(baccaratModule);
+
+function asSyncStore(
+  store: ReturnType<typeof createTableStore>,
+  getConnectionState: () => "connected" | "reconnecting" | "offline",
+): SyncStore {
+  return {
+    ...store,
+    getConnectionState,
+    getPresence: () => ({ dealers: 1, displays: 0, players: [] }),
+    isReadOnly: () => false,
+    takeover: () => {},
+    destroy: () => {},
+    getDealerToken: () => null,
+    getPlayerId: () => null,
+    getPendingPlayers: () => [],
+    sendAdmit: () => {},
+    getVirtualStatus: () => null,
+    getVirtualPending: () => null,
+    getRejectReason: () => null,
+  } as SyncStore;
+}
 
 describe("DisplayShell", () => {
   afterEach(() => {
@@ -198,6 +220,43 @@ describe("DisplayShell", () => {
     expect(screen.getByTestId("display-shell").className).not.toContain(
       "display-shell--idle-attract",
     );
+  });
+
+  it("shows offline banner and reconnecting pill from sync connection state", () => {
+    const module = asUntypedModule(createStubModule());
+    const baseStore = createTableStore({
+      game: "baccarat",
+      module,
+      rules: STUB_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "s1",
+    });
+
+    const offlineStore = asSyncStore(baseStore, () => "offline");
+    const { unmount } = render(
+      <DisplayShell
+        store={offlineStore}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+    expect(screen.getByTestId("connection-banner").textContent).toContain(
+      "Reconnecting to dealer — board may be behind",
+    );
+    unmount();
+
+    render(
+      <DisplayShell
+        store={asSyncStore(baseStore, () => "reconnecting")}
+        module={module}
+        rules={STUB_RULES}
+        deviceSettings={DEFAULT_DEVICE_SETTINGS}
+      />,
+    );
+    expect(screen.getByTestId("connection-pill").textContent).toContain("Reconnecting");
+    expect(screen.queryByTestId("connection-banner")).toBeNull();
   });
 
   it("shows corner hint toasts that auto-dismiss without blocking the board", () => {
