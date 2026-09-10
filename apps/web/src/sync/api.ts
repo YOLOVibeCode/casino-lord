@@ -19,6 +19,7 @@ export interface TableLookupResponse {
   resultCount?: number;
   displays?: number;
   players?: number;
+  playerColors?: string[];
   dealerConnected?: boolean;
   joiningOpen?: boolean;
 }

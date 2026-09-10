@@ -16,6 +16,7 @@ const getTableMetaMock = vi.fn(async () => ({
   game: "roulette" as const,
   participation: { playerMode: "on" as const, bank: "none" as const, outcomeSource: "physical" as const },
   joiningOpen: true,
+  playerColors: ["#E53935"],
 }));
 
 vi.mock("../sync/api.js", () => ({
@@ -128,6 +129,43 @@ describe("PlayPage", () => {
       expect(screen.getByTestId("play-page")).toBeTruthy();
       expect(screen.getByTestId("player-name-input")).toBeTruthy();
       expect(screen.getByTestId("join-btn")).toBeTruthy();
+      expect(screen.getByTestId("name-counter").textContent).toBe("0/16");
     });
+  });
+
+  it("disables taken colours on the join form", async () => {
+    window.history.replaceState({}, "", "/play/K7X2PQ");
+    render(
+      <LocationProvider>
+        <Router>
+          <PlayPage path="/play/:code" />
+        </Router>
+      </LocationProvider>,
+    );
+    await vi.waitFor(() => {
+      const taken = screen.getByTestId("color-#E53935") as HTMLButtonElement;
+      expect(taken.disabled).toBe(true);
+      expect(screen.getByText("Taken")).toBeTruthy();
+    });
+  });
+
+  it("connects with token from ?t= query param", async () => {
+    const { createSyncedTableStore } = await import("../table/synced-store.js");
+    const { savePlayerToken } = await import("../sync/player-token.js");
+    loadPlayerToken.mockReturnValue(null);
+    window.history.replaceState({}, "", "/play/K7X2PQ?t=url-token");
+    render(
+      <LocationProvider>
+        <Router>
+          <PlayPage path="/play/:code" />
+        </Router>
+      </LocationProvider>,
+    );
+    await vi.waitFor(() => {
+      expect(vi.mocked(createSyncedTableStore)).toHaveBeenCalled();
+    });
+    const call = vi.mocked(createSyncedTableStore).mock.calls.at(-1)?.[0] as { token?: string };
+    expect(call.token).toBe("url-token");
+    expect(vi.mocked(savePlayerToken)).toHaveBeenCalledWith("K7X2PQ", "url-token");
   });
 });

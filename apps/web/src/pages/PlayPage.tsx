@@ -36,7 +36,7 @@ const COLOR_LABELS = [
 
 export function PlayPage(_props: { path?: string }) {
   const { route } = useLocation();
-  const { params } = useRoute();
+  const { params, query } = useRoute();
   const rawCode = params.code ?? "";
   const code = normalizeTableCode(rawCode);
   const [phase, setPhase] = useState<Phase>("loading");
@@ -46,6 +46,7 @@ export function PlayPage(_props: { path?: string }) {
   const [store, setStore] = useState<SyncStore | null>(null);
   const [playerName, setPlayerName] = useState("");
   const [tableGame, setTableGame] = useState<GameId>("baccarat");
+  const [takenColors, setTakenColors] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isSyncConfigured()) {
@@ -79,11 +80,17 @@ export function PlayPage(_props: { path?: string }) {
         }
 
         const resolvedGame = meta.game ?? "baccarat";
-        if (!cancelled) setTableGame(resolvedGame);
+        if (!cancelled) {
+          setTableGame(resolvedGame);
+          setTakenColors(meta.playerColors ?? []);
+        }
 
+        const queryToken = query.t;
+        if (queryToken) savePlayerToken(code, queryToken);
         const storedToken = loadPlayerToken(code);
-        if (storedToken) {
-          await connectPlayer(storedToken, "", false, resolvedGame);
+        const token = queryToken || storedToken;
+        if (token) {
+          await connectPlayer(token, "", false, resolvedGame);
           if (!cancelled) setPhase("playing");
           return;
         }
@@ -100,7 +107,7 @@ export function PlayPage(_props: { path?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [code, query.t]);
 
   const connectPlayer = async (
     token: string,
@@ -255,7 +262,9 @@ export function PlayPage(_props: { path?: string }) {
         <h1>Join table {code}</h1>
         <p class="play-page__disclaimer">Play chips — no cash value</p>
         <label class="play-page__field">
-          <span>Display name</span>
+          <span>
+            Display name <span class="play-page__hint">(2–16 characters)</span>
+          </span>
           <input
             type="text"
             name="nickname"
@@ -265,24 +274,36 @@ export function PlayPage(_props: { path?: string }) {
             onInput={(e) => setName((e.target as HTMLInputElement).value)}
             data-testid="player-name-input"
           />
+          <span class="play-page__counter" data-testid="name-counter">
+            {name.trim().length}/16
+          </span>
         </label>
         <fieldset class="play-page__colors">
           <legend>Colour</legend>
           <div class="play-page__swatch-row">
-            {PLAYER_COLORS.map((c, i) => (
-              <div key={c} class="play-page__swatch-wrap">
-                <button
-                  type="button"
-                  class={`play-page__swatch${color === c ? " play-page__swatch--selected" : ""}`}
-                  style={{ background: c }}
-                  aria-label={COLOR_LABELS[i] ?? c}
-                  aria-pressed={color === c}
-                  onClick={() => setColor(c)}
-                  data-testid={`color-${c}`}
-                />
-                <span class="play-page__swatch-label">{COLOR_LABELS[i] ?? c}</span>
-              </div>
-            ))}
+            {PLAYER_COLORS.map((c, i) => {
+              const taken = takenColors.includes(c);
+              return (
+                <div key={c} class="play-page__swatch-wrap">
+                  <button
+                    type="button"
+                    class={`play-page__swatch${color === c ? " play-page__swatch--selected" : ""}${taken ? " play-page__swatch--taken" : ""}`}
+                    style={{ background: c }}
+                    aria-label={COLOR_LABELS[i] ?? c}
+                    aria-pressed={color === c}
+                    aria-disabled={taken}
+                    disabled={taken}
+                    onClick={() => {
+                      if (!taken) setColor(c);
+                    }}
+                    data-testid={`color-${c}`}
+                  />
+                  <span class="play-page__swatch-label">
+                    {taken ? "Taken" : (COLOR_LABELS[i] ?? c)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </fieldset>
         {error && <p class="play-page__error">{error}</p>}

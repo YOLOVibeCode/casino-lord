@@ -105,7 +105,7 @@ export function registerTableRoutes(
 
     const meta = buildTableMeta(composed, [...table.allEvents], module, composed.module);
     const presence = table.presence();
-    const playerCount = composed.platform.players.filter((p) => p.status === "active").length;
+    const activePlayers = composed.platform.players.filter((p) => p.status === "active");
 
     return reply.send({
       exists: true,
@@ -114,7 +114,8 @@ export function registerTableRoutes(
       seriesNumber: meta.seriesNumber,
       resultCount: meta.resultCount,
       displays: presence.displays,
-      players: playerCount,
+      players: activePlayers.length,
+      playerColors: activePlayers.map((p) => p.color),
       dealerConnected: presence.dealers > 0,
       joiningOpen: composed.platform.settings.players.joiningOpen,
     });
