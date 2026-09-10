@@ -279,7 +279,9 @@ describe("DealerShell UX-2b", () => {
     fireEvent.pointerUp(confirmBtn);
 
     await waitFor(() => {
-      expect(store.events.filter((e) => e.type === "BET_REMOVED")).toHaveLength(1);
+      const removed = store.events.filter((e) => e.type === "BET_REMOVED");
+      expect(removed).toHaveLength(1);
+      expect(removed[0]).toMatchObject({ type: "BET_REMOVED", betId: "b1", by: "dealer" });
     });
   });
 

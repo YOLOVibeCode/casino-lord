@@ -78,6 +78,14 @@ export function validateInboundEvent(
     return { ok: false, reason: `dealer cannot emit ${type}`, ownershipViolation: true };
   }
 
+  if (role === "dealer" && type === "BET_REMOVED" && raw.by !== "dealer") {
+    return {
+      ok: false,
+      reason: "dealer must void bets with by: dealer",
+      ownershipViolation: true,
+    };
+  }
+
   if (role === "player") {
     if (!playerId) {
       return { ok: false, reason: "player not identified", ownershipViolation: true };
@@ -107,6 +115,13 @@ export function validateInboundEvent(
       if (bet?.playerId !== playerId) {
         return { ok: false, reason: "bet playerId mismatch", ownershipViolation: true };
       }
+    }
+    if (type === "BET_REMOVED" && raw.by === "dealer") {
+      return {
+        ok: false,
+        reason: "player cannot void bets as dealer",
+        ownershipViolation: true,
+      };
     }
     if (type === "BET_UPDATED" || type === "BET_REMOVED") {
       // Ownership of bet updates is validated at reducer; player may emit for own bets only.
