@@ -68,6 +68,19 @@
   flex-shrink: 0;
 }
 
+.player-shell__settings {
+  flex-shrink: 0;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.125rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 .player-shell__rebuy {
   margin: 0;
   padding: 0.5rem 0.75rem;

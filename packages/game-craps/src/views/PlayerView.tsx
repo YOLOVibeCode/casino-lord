@@ -35,6 +35,7 @@ export interface PlayerViewProps {
   place: (bet: Omit<PlacedBet<CrapsBetTarget>, "id" | "placedAt">) => void;
   remove: (betId: string) => void;
   act: (action: CrapsAction) => void;
+  shakeThreshold?: number;
 }
 
 function useStake(defaultAmount = 25): number {
@@ -268,6 +269,7 @@ export function PlayerView({
   place,
   remove,
   act,
+  shakeThreshold,
 }: PlayerViewProps) {
   const state = normalizeViewState(rawState, rules);
   const amount = useStake();
@@ -292,7 +294,7 @@ export function PlayerView({
 
   const handleRoll = useCallback(() => fireRoll(act), [act]);
 
-  useShakeToRoll(handleRoll, shooter);
+  useShakeToRoll(handleRoll, shooter, shakeThreshold);
 
   const handleRollClick = useCallback(async () => {
     await requestMotionPermission();

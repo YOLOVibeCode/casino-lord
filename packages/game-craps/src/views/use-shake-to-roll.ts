@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 
-const DEFAULT_THRESHOLD = 18;
+export const DEFAULT_THRESHOLD = 18;
 const DEBOUNCE_MS = 1000;
 
 function motionMagnitude(e: DeviceMotionEvent): number {

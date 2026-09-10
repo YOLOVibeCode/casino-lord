@@ -28,13 +28,16 @@ import { validateBet, validatePlaceAll } from "../betting/validate-bet.js";
 import { useCountUp } from "../hooks/use-count-up.js";
 import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { useStore } from "../hooks/use-store.js";
+import { shakeThresholdForSensitivity } from "../settings/device-settings.js";
 import { tapHaptic } from "../settings/haptics.js";
 import { tableUrl } from "../sync/urls.js";
+import { PlayerSettingsSheet } from "./PlayerSettingsSheet.js";
 import { getGame } from "../table/games.js";
 import { currentSeriesCommit } from "../table/meta.js";
 import type { TableStore } from "../table/store.js";
 import { isSyncStore } from "../table/sync-store-types.js";
 import "./player-shell.css";
+import "./player-settings-sheet.css";
 
 export interface PlayerShellProps {
   store: TableStore;
@@ -173,7 +176,8 @@ function buildSettlementSummary(
 
 export function PlayerShell({ store, playerName }: PlayerShellProps) {
   useStore(store);
-  const [deviceSettings] = useDeviceSettings();
+  const [deviceSettings, setDeviceSettings] = useDeviceSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const composed = store.getComposed();
   const settings = composed.platform.settings;
   const rules = store.getRules();
@@ -197,14 +201,19 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
   const settlementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
+  const animationsEnabled =
+    deviceSettings.animations && deviceSettings.phoneAnimations !== "off";
+  const phoneMode = deviceSettings.phoneAnimations === "reduced";
+  const shakeThreshold = shakeThresholdForSensitivity(deviceSettings.shakeSensitivity);
+
   const { activeSegments } = useAnimationRuntime({
     store,
     module,
     rules,
     deviceSettings,
     overlayRef,
-    enabled: deviceSettings.animations,
-    phoneMode: true,
+    enabled: animationsEnabled,
+    phoneMode,
   });
 
   const round = getCurrentRound(composed.platform);
@@ -666,6 +675,15 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           ⛁ {displayBankroll.toLocaleString()}
         </span>
         <span class="player-shell__code">{store.code}</span>
+        <button
+          type="button"
+          class="player-shell__settings"
+          aria-label="Settings"
+          data-testid="player-settings-open"
+          onClick={() => setSettingsOpen(true)}
+        >
+          ⚙
+        </button>
       </header>
 
       {houseBank && bankroll === 0 && (
@@ -728,6 +746,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
                 place: noopPlace,
                 remove: noopRemove,
                 act: handleAct,
+                shakeThreshold,
               })}
             </main>
 
@@ -822,7 +841,7 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
             {playerId && historyRows.some((r) => r.runningNet !== null) && (
               <p class="player-shell__history-total" data-testid="player-history-total-net">
                 Session net:{" "}
-                {historyRows.findLast((r) => r.runningNet !== null)?.runningNet ?? 0}
+                {[...historyRows].reverse().find((r) => r.runningNet !== null)?.runningNet ?? 0}
               </p>
             )}
           </div>
@@ -902,6 +921,14 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
           </button>
         )}
       </footer>
+
+      {settingsOpen && (
+        <PlayerSettingsSheet
+          settings={deviceSettings}
+          onChange={(patch) => setDeviceSettings({ ...deviceSettings, ...patch })}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </div>
   );
 }
