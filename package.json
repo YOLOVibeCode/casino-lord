@@ -22,7 +22,7 @@
     "e2e:update": "playwright test --config e2e/playwright.config.ts --update-snapshots"
   },
   "devDependencies": {
-    "@playwright/test": "^1.51.0",
+    "@playwright/test": "1.63.0",
     "@types/node": "^22.15.0",
     "prettier": "^3.5.0",
     "typescript": "^5.8.0",

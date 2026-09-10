@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      update_snapshots:
+        description: Regenerate Playwright visual baselines (Linux)
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -34,7 +40,9 @@ jobs:
     name: playwright e2e
     needs: check
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
     steps:
       - uses: actions/checkout@v4
 
@@ -46,9 +54,24 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
       - run: VITE_SYNC_URL=/ pnpm build
-      - run: pnpm e2e
+
+      - name: Run Playwright e2e
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.update_snapshots }}" = "true" ]; then
+            pnpm e2e:update
+          else
+            pnpm e2e
+          fi
+        env:
+          CI: "1"
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch' && inputs.update_snapshots
+        with:
+          name: playwright-snapshots
+          path: e2e/**/*-snapshots/
+          retention-days: 7
 
       - uses: actions/upload-artifact@v4
         if: failure()

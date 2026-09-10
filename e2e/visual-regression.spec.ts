@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { createTable, recordBaccaratQuick, startFreshSolo } from "./helpers.js";
+import {
+  createTable,
+  prepareForScreenshot,
+  recordBaccaratQuick,
+  screenshotOptions,
+  startFreshSolo,
+} from "./helpers.js";
 
 const VISUAL_SEQUENCE = ["P", "B", "P", "B", "T", "B"] as const;
 
@@ -13,28 +19,34 @@ test.describe("visual regression", () => {
   test("display shell at 1280x720", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await seedBaccaratDisplay(page);
+    await prepareForScreenshot(page);
 
-    await expect(page.getByTestId("display-shell")).toHaveScreenshot("display-1280x720.png", {
-      animations: "disabled",
-    });
+    await expect(page.getByTestId("display-shell")).toHaveScreenshot(
+      "display-1280x720.png",
+      screenshotOptions(page),
+    );
   });
 
   test("display shell at 1920x1080", async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await seedBaccaratDisplay(page);
+    await prepareForScreenshot(page);
 
-    await expect(page.getByTestId("display-shell")).toHaveScreenshot("display-1920x1080.png", {
-      animations: "disabled",
-    });
+    await expect(page.getByTestId("display-shell")).toHaveScreenshot(
+      "display-1920x1080.png",
+      screenshotOptions(page),
+    );
   });
 
   test("dealer shell at 390x844", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await startFreshSolo(page, "baccarat");
+    await prepareForScreenshot(page);
 
-    await expect(page.getByTestId("dealer-shell")).toHaveScreenshot("dealer-390x844.png", {
-      animations: "disabled",
-    });
+    await expect(page.getByTestId("dealer-shell")).toHaveScreenshot(
+      "dealer-390x844.png",
+      screenshotOptions(page),
+    );
   });
 
   test("player shell at 360x780", async ({ browser }) => {
@@ -64,10 +76,12 @@ test.describe("visual regression", () => {
       await dealer.locator('[data-testid^="approve-"]').first().click();
     }
     await player.getByTestId("player-shell").waitFor({ timeout: 10_000 });
+    await prepareForScreenshot(player);
 
-    await expect(player.getByTestId("player-shell")).toHaveScreenshot("player-360x780.png", {
-      animations: "disabled",
-    });
+    await expect(player.getByTestId("player-shell")).toHaveScreenshot(
+      "player-360x780.png",
+      screenshotOptions(player),
+    );
 
     await player.close();
     await dealer.close();

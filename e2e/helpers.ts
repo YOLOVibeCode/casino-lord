@@ -130,3 +130,33 @@ export async function closeBetsIfOpen(dealerPage: Page): Promise<void> {
     await status.filter({ hasText: /NO MORE BETS|BETS — idle/ }).waitFor({ timeout: 5_000 });
   }
 }
+
+/** Volatile UI regions excluded from visual regression screenshots. */
+export function screenshotMaskLocators(page: Page) {
+  return [
+    page.locator(".qr-badge"),
+    page.locator('[data-testid="display-qr-badge"]'),
+    page.locator('[data-testid="solo-play-qr"]'),
+    page.locator('[data-testid="solo-display-qr"]'),
+    page.locator('[data-testid="betting-countdown"]'),
+    page.locator(".betting-strip__bar"),
+    page.locator(".display-shell--idle-attract .display-shell__module"),
+    page.locator(".display-shell__animation-overlay"),
+    page.locator(".player-shell__animation-overlay"),
+    page.locator('[data-testid="virtual-pending-ring"]'),
+    page.locator('[data-testid="connection-dot"]'),
+  ];
+}
+
+export async function prepareForScreenshot(page: Page): Promise<void> {
+  await page.waitForLoadState("networkidle");
+  await page.evaluate(() => document.fonts.ready);
+}
+
+export function screenshotOptions(page: Page) {
+  return {
+    animations: "disabled" as const,
+    caret: "hide" as const,
+    mask: screenshotMaskLocators(page),
+  };
+}
