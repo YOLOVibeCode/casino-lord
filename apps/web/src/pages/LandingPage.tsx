@@ -197,6 +197,10 @@ export function LandingPage(_props: { path?: string }) {
                 </fieldset>
                 <fieldset>
                   <legend>Participation</legend>
+                  <p class="landing__field-help" data-testid="participation-help">
+                    Dealer only: a scoreboard — you record results, no phones join. With players:
+                    phones may join as players to bet from their phones.
+                  </p>
                   <label class="landing__option">
                     <input
                       type="radio"

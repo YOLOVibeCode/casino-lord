@@ -113,6 +113,17 @@
   opacity: 0.5;
 }
 
+.landing__field-help {
+  margin: 0 0 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.landing__field-help--sheet-note {
+  margin-top: 0.5rem;
+}
+
 .landing__error {
   color: #e57373;
   font-size: 0.875rem;
