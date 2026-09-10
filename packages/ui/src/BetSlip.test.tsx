@@ -28,6 +28,33 @@ describe("BetSlip", () => {
     expect(onPlace).toHaveBeenCalled();
   });
 
+  it("shows payout detail on rows and stake-only compact total", () => {
+    render(
+      <BetSlip
+        entries={[
+          {
+            id: "p1",
+            label: "BANKER",
+            amount: 5,
+            pending: true,
+            detail: "Stake 5 · pays +4",
+          },
+        ]}
+        total={5}
+        pendingStake={5}
+        locked={false}
+        canPlace
+        placeLabel="PLACE 5 · 495 left"
+        onRemove={vi.fn()}
+        onPlace={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("bet-slip-compact-total").textContent).toBe("Stake 5");
+    fireEvent.click(screen.getByTestId("bet-slip-compact"));
+    expect(screen.getByTestId("bet-slip-row-p1").textContent).toContain("Stake 5 · pays +4");
+    expect(screen.getByTestId("bet-slip-place").textContent).toBe("PLACE 5 · 495 left");
+  });
+
   it("shows locked message when bets closed", () => {
     render(
       <BetSlip

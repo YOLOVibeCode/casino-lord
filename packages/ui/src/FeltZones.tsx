@@ -6,16 +6,19 @@ import "./felt-zones.css";
 export interface FeltZonesProps {
   zones: FeltZoneDef[];
   layout?: "default" | "baccarat";
+  disabled?: boolean;
   onTap: (zone: FeltZoneDef) => void;
   onLongPress: (zone: FeltZoneDef) => void;
 }
 
 function FeltZoneButton({
   zone,
+  disabled,
   onTap,
   onLongPress,
 }: {
   zone: FeltZoneDef;
+  disabled: boolean;
   onTap: (zone: FeltZoneDef) => void;
   onLongPress: (zone: FeltZoneDef) => void;
 }) {
@@ -32,8 +35,12 @@ function FeltZoneButton({
   const chipCount = Math.min(5, Math.ceil(ownStake / 25) || (ownStake > 0 ? 1 : 0));
 
   const press = useLongPress({
-    onTap: () => onTap(zone),
-    onLongPress: () => onLongPress(zone),
+    onTap: () => {
+      if (!disabled) onTap(zone);
+    },
+    onLongPress: () => {
+      if (!disabled) onLongPress(zone);
+    },
   });
 
   const zoneOutcome = settlementByZone[zone.id];
@@ -44,21 +51,33 @@ function FeltZoneButton({
         ? " felt-zones__zone--flash-lose"
         : "";
 
-  const ariaLabel = `${zone.label}, stake ${ownStake}${showOthersBets && tableStake > ownStake ? `, table total ${tableStake}` : ""}${zoneOutcome ? `, ${zoneOutcome}` : ""}`;
+  const ownClass = ownStake > 0 && disabled ? " felt-zones__zone--own" : "";
+  const disabledClass = disabled ? " felt-zones__zone--disabled" : "";
+
+  const ariaLabel = `${zone.label}, stake ${ownStake}${showOthersBets && tableStake > ownStake ? `, table total ${tableStake}` : ""}${zoneOutcome ? `, ${zoneOutcome}` : ""}${disabled ? ", bets closed" : ""}`;
 
   return (
     <button
       type="button"
-      class={`felt-zones__zone${zone.className ? ` ${zone.className}` : ""}${flashClass}`}
+      class={`felt-zones__zone${zone.className ? ` ${zone.className}` : ""}${flashClass}${ownClass}${disabledClass}`}
       style={{ borderColor: zone.color, "--player-color": playerColor } as Record<string, string>}
       aria-label={ariaLabel}
+      aria-disabled={disabled ? "true" : undefined}
+      disabled={disabled}
       data-testid={`felt-zone-${zone.id}`}
-      onPointerDown={(e) => press.startPress(e as unknown as PointerEvent)}
-      onPointerUp={(e) => press.endPress(e as unknown as PointerEvent)}
-      onPointerCancel={(e) => press.cancelPress(e as unknown as PointerEvent)}
-      onPointerLeave={(e) => press.cancelPress(e as unknown as PointerEvent)}
-      onKeyDown={(e) => press.handleKeyDown(e as unknown as KeyboardEvent)}
+      onPointerDown={disabled ? undefined : (e) => press.startPress(e as unknown as PointerEvent)}
+      onPointerUp={disabled ? undefined : (e) => press.endPress(e as unknown as PointerEvent)}
+      onPointerCancel={
+        disabled ? undefined : (e) => press.cancelPress(e as unknown as PointerEvent)
+      }
+      onPointerLeave={disabled ? undefined : (e) => press.cancelPress(e as unknown as PointerEvent)}
+      onKeyDown={disabled ? undefined : (e) => press.handleKeyDown(e as unknown as KeyboardEvent)}
     >
+      {ownStake > 0 && disabled && (
+        <span class="felt-zones__you" data-testid={`felt-zone-you-${zone.id}`} aria-hidden="true">
+          you
+        </span>
+      )}
       {zoneOutcome && (
         <span
           class={`felt-zones__badge felt-zones__badge--${zoneOutcome}`}
@@ -93,20 +112,44 @@ function FeltZoneButton({
   );
 }
 
-export function FeltZones({ zones, layout = "default", onTap, onLongPress }: FeltZonesProps) {
+export function FeltZones({
+  zones,
+  layout = "default",
+  disabled: disabledProp,
+  onTap,
+  onLongPress,
+}: FeltZonesProps) {
+  const { bettingDisabled } = usePlayerBetting();
+  const disabled = disabledProp ?? bettingDisabled;
+
   if (layout === "baccarat") {
     const sideZones = zones.filter((z) => z.id.includes("pair"));
     const mainZones = zones.filter((z) => !z.id.includes("pair"));
     return (
-      <div class="felt-zones felt-zones--baccarat" data-testid="felt-zones">
+      <div
+        class={`felt-zones felt-zones--baccarat${disabled ? " felt-zones--disabled" : ""}`}
+        data-testid="felt-zones"
+      >
         <div class="felt-zones__side-row">
           {sideZones.map((zone) => (
-            <FeltZoneButton key={zone.id} zone={zone} onTap={onTap} onLongPress={onLongPress} />
+            <FeltZoneButton
+              key={zone.id}
+              zone={zone}
+              disabled={disabled}
+              onTap={onTap}
+              onLongPress={onLongPress}
+            />
           ))}
         </div>
         <div class="felt-zones__main-row">
           {mainZones.map((zone) => (
-            <FeltZoneButton key={zone.id} zone={zone} onTap={onTap} onLongPress={onLongPress} />
+            <FeltZoneButton
+              key={zone.id}
+              zone={zone}
+              disabled={disabled}
+              onTap={onTap}
+              onLongPress={onLongPress}
+            />
           ))}
         </div>
       </div>
@@ -114,9 +157,15 @@ export function FeltZones({ zones, layout = "default", onTap, onLongPress }: Fel
   }
 
   return (
-    <div class="felt-zones" data-testid="felt-zones">
+    <div class={`felt-zones${disabled ? " felt-zones--disabled" : ""}`} data-testid="felt-zones">
       {zones.map((zone) => (
-        <FeltZoneButton key={zone.id} zone={zone} onTap={onTap} onLongPress={onLongPress} />
+        <FeltZoneButton
+          key={zone.id}
+          zone={zone}
+          disabled={disabled}
+          onTap={onTap}
+          onLongPress={onLongPress}
+        />
       ))}
     </div>
   );

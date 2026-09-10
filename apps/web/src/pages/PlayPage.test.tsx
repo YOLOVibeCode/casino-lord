@@ -11,10 +11,12 @@ vi.mock("../sync/config.js", () => ({
   getSyncBaseUrl: () => "http://test",
 }));
 
+let mockTableGame: "baccarat" | "roulette" = "baccarat";
+
 vi.mock("../sync/api.js", () => ({
   getTableMeta: vi.fn(async () => ({
     exists: true,
-    game: "baccarat",
+    game: mockTableGame,
     participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
     joiningOpen: true,
   })),
@@ -41,12 +43,6 @@ const waitForSyncReady = vi.fn(async (store: { getRejectReason: () => string | n
 
 vi.mock("../table/synced-store.js", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../table/synced-store.js")>();
-  const { baccaratModule } = await import("@casino-lord/game-baccarat");
-  const { DEFAULT_BACCARAT_RULES } = await import("@casino-lord/game-baccarat");
-  const { createTableStore } = await import("../table/store.js");
-  const { asUntypedModule } = await import("../table/module-types.js");
-  const { houseSettings } = await import("@casino-lord/core/testing");
-
   return {
     ...orig,
     waitForSyncReady: (...args: unknown[]) => waitForSyncReady(...args),
@@ -55,18 +51,21 @@ vi.mock("../table/synced-store.js", async (importOriginal) => {
 });
 
 import { PLAYER_COLORS } from "@casino-lord/core";
-import { baccaratModule, DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
-import { getTableMeta } from "../sync/api.js";
 import { houseSettings } from "@casino-lord/core/testing";
+import { baccaratModule, DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
+import { rouletteModule, DEFAULT_ROULETTE_RULES } from "@casino-lord/game-roulette";
+import { getTableMeta } from "../sync/api.js";
 import { PlayPage } from "./PlayPage.js";
 import { createTableStore } from "../table/store.js";
 import { asUntypedModule } from "../table/module-types.js";
 
-function buildMockStore(options?: { onJoinError?: (code: string) => void; rejectToken?: boolean }) {
+function buildMockStore(options?: { rejectToken?: boolean }) {
+  const isRoulette = mockTableGame === "roulette";
+  const module = asUntypedModule(isRoulette ? rouletteModule : baccaratModule);
   const store = createTableStore({
-    game: "baccarat",
-    module: asUntypedModule(baccaratModule),
-    rules: DEFAULT_BACCARAT_RULES,
+    game: mockTableGame,
+    module,
+    rules: isRoulette ? DEFAULT_ROULETTE_RULES : DEFAULT_BACCARAT_RULES,
     rng: () => 0,
     now: () => "2026-01-01T00:00:00.000Z",
     id: () => "id-1",
@@ -90,6 +89,7 @@ function buildMockStore(options?: { onJoinError?: (code: string) => void; reject
     getPlayerId: () => "p1",
     getConnectionState: () => (rejectReason ? "reconnecting" : "connected"),
     getRejectReason: () => rejectReason,
+    getModule: () => module,
     destroy: vi.fn(),
     subscribe: store.subscribe,
   };
@@ -108,6 +108,7 @@ function renderPlayPage(path = "/play/K7X2PQ") {
 
 describe("PlayPage", () => {
   beforeEach(() => {
+    mockTableGame = "baccarat";
     loadPlayerToken.mockReturnValue(null);
     createSyncedTableStore.mockImplementation(
       (opts: { token?: string; onJoinError?: (code: string) => void }) => {
@@ -123,6 +124,7 @@ describe("PlayPage", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    mockTableGame = "baccarat";
     loadPlayerToken.mockReturnValue(null);
   });
 
@@ -209,5 +211,22 @@ describe("PlayPage", () => {
     expect(screen.getByText("taken")).toBeTruthy();
     const availableSwatch = screen.getByTestId(`color-${PLAYER_COLORS[1]}`);
     expect(availableSwatch.className).toContain("play-page__swatch--selected");
+  });
+
+  it("renders roulette player view without baccarat felt zones", async () => {
+    mockTableGame = "roulette";
+    vi.mocked(getTableMeta).mockResolvedValueOnce({
+      exists: true,
+      game: "roulette",
+      participation: { playerMode: "on", bank: "none", outcomeSource: "physical" },
+      joiningOpen: true,
+    });
+    loadPlayerToken.mockReturnValue("token-roulette");
+    renderPlayPage("/play/K7X2PQ");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("player-shell")).toBeTruthy();
+    });
+    expect(screen.getByTestId("roulette-player-view")).toBeTruthy();
+    expect(screen.queryByTestId("felt-zone-banker")).toBeNull();
   });
 });
