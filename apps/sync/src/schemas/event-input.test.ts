@@ -73,3 +73,55 @@ describe("validateInboundEvent PLAYER_UPDATED player patch", () => {
     expect(result.ok).toBe(true);
   });
 });
+
+describe("validateInboundEvent BET_REMOVED by", () => {
+  const baccarat = getModule("baccarat")!;
+
+  function betRemoved(by?: string): Record<string, unknown> & { type: string } {
+    return by === undefined
+      ? { type: "BET_REMOVED", betId: "b1" }
+      : { type: "BET_REMOVED", betId: "b1", by };
+  }
+
+  it("accepts dealer void with by: dealer", () => {
+    const result = validateInboundEvent(betRemoved("dealer"), "dealer", baccarat);
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects dealer BET_REMOVED without by", () => {
+    const result = validateInboundEvent(betRemoved(), "dealer", baccarat);
+    expect(result).toEqual({
+      ok: false,
+      reason: "dealer must void bets with by: dealer",
+      ownershipViolation: true,
+    });
+  });
+
+  it("rejects dealer BET_REMOVED with by: player", () => {
+    const result = validateInboundEvent(betRemoved("player"), "dealer", baccarat);
+    expect(result).toEqual({
+      ok: false,
+      reason: "dealer must void bets with by: dealer",
+      ownershipViolation: true,
+    });
+  });
+
+  it("accepts player BET_REMOVED without by", () => {
+    const result = validateInboundEvent(betRemoved(), "player", baccarat, PLAYER_ID);
+    expect(result.ok).toBe(true);
+  });
+
+  it("accepts player BET_REMOVED with by: player", () => {
+    const result = validateInboundEvent(betRemoved("player"), "player", baccarat, PLAYER_ID);
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects player BET_REMOVED with by: dealer", () => {
+    const result = validateInboundEvent(betRemoved("dealer"), "player", baccarat, PLAYER_ID);
+    expect(result).toEqual({
+      ok: false,
+      reason: "player cannot void bets as dealer",
+      ownershipViolation: true,
+    });
+  });
+});
