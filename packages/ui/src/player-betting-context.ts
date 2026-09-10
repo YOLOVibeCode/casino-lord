@@ -5,6 +5,7 @@ export interface PlayerBettingContextValue {
   selectedDenomination: number;
   showOthersBets: boolean;
   playerColor: string;
+  bettingDisabled: boolean;
   getOwnStake: (zoneId: string) => number;
   getTableStake: (zoneId: string) => number;
   settlementFlash: "win" | "lose" | null;

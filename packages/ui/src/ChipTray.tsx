@@ -7,11 +7,29 @@ export interface ChipTrayProps {
   selected: number;
   onSelect: (denomination: number) => void;
   onClear: () => void;
+  showSelectedLabel?: boolean;
+  disabled?: boolean;
 }
 
-export function ChipTray({ denominations, selected, onSelect, onClear }: ChipTrayProps) {
+export function ChipTray({
+  denominations,
+  selected,
+  onSelect,
+  onClear,
+  showSelectedLabel = true,
+  disabled = false,
+}: ChipTrayProps) {
   return (
-    <div class="chip-tray" data-testid="chip-tray">
+    <div
+      class={`chip-tray${disabled ? " chip-tray--disabled" : ""}`}
+      data-testid="chip-tray"
+      aria-disabled={disabled ? "true" : undefined}
+    >
+      {showSelectedLabel && (
+        <span class="chip-tray__selected" data-testid="chip-tray-selected">
+          Selected chip: {selected}
+        </span>
+      )}
       {denominations.map((denom, i) => (
         <button
           key={denom}
@@ -20,6 +38,8 @@ export function ChipTray({ denominations, selected, onSelect, onClear }: ChipTra
           style={{ background: CHIP_COLORS[i % CHIP_COLORS.length] }}
           aria-label={`Select ${denom} chip`}
           aria-pressed={selected === denom}
+          aria-disabled={disabled ? "true" : undefined}
+          disabled={disabled}
           data-testid={`chip-denom-${denom}`}
           onClick={() => onSelect(denom)}
         >
@@ -30,6 +50,9 @@ export function ChipTray({ denominations, selected, onSelect, onClear }: ChipTra
         type="button"
         class="chip-tray__clear"
         data-testid="chip-tray-clear"
+        aria-label="Clear pending bets"
+        aria-disabled={disabled ? "true" : undefined}
+        disabled={disabled}
         onClick={onClear}
       >
         Clear
