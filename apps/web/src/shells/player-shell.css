@@ -43,8 +43,12 @@
   background: #4caf50;
 }
 
+.player-shell__dot--reconnecting {
+  background: #ff9800;
+}
+
 .player-shell__dot--off {
-  background: #888;
+  background: #f44336;
 }
 
 .player-shell__name {

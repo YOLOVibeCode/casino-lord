@@ -1239,4 +1239,51 @@ describe("PlayerShell", () => {
     fireEvent.keyDown(tablist, { key: "ArrowLeft" });
     expect(screen.getByRole("tab", { name: "History" }).getAttribute("aria-selected")).toBe("true");
   });
+
+  describe("connection feedback", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function renderWithConnection(initial: "connected" | "reconnecting" | "offline" = "connected") {
+      let connectionState = initial;
+      const { store } = setupStore({ getConnectionState: () => connectionState });
+      renderPlayerShell({ store, playerName: "Ana" });
+      return {
+        store,
+        setConnection: (next: typeof connectionState) => {
+          connectionState = next;
+          act(() => {
+            store.emit({ type: "SETTINGS_CHANGED", patch: {} });
+          });
+        },
+      };
+    }
+
+    it("shows green connected dot with label", () => {
+      renderWithConnection("connected");
+      const dot = screen.getByTestId("connection-dot");
+      expect(dot.className).toContain("player-shell__dot--on");
+      expect(dot.getAttribute("aria-label")).toBe("Connected");
+      expect(dot.getAttribute("title")).toBe("Connected");
+    });
+
+    it("shows amber reconnecting dot with label", () => {
+      renderWithConnection("reconnecting");
+      const dot = screen.getByTestId("connection-dot");
+      expect(dot.className).toContain("player-shell__dot--reconnecting");
+      expect(dot.getAttribute("aria-label")).toBe("Reconnecting…");
+    });
+
+    it("shows red offline dot after 10s non-connected", () => {
+      vi.useFakeTimers();
+      renderWithConnection("reconnecting");
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      const dot = screen.getByTestId("connection-dot");
+      expect(dot.className).toContain("player-shell__dot--off");
+      expect(dot.getAttribute("aria-label")).toBe("Offline");
+    });
+  });
 });
