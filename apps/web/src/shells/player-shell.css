@@ -68,6 +68,19 @@
   flex-shrink: 0;
 }
 
+.player-shell__settings {
+  flex-shrink: 0;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.125rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 .player-shell__rebuy {
   margin: 0;
   padding: 0.5rem 0.75rem;
@@ -181,6 +194,98 @@
   font-size: max(0.875rem, 14px);
   opacity: 0.85;
   word-break: break-all;
+}
+
+.player-shell__history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.player-shell__history-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: max(0.875rem, 14px);
+}
+
+.player-shell__history-label {
+  flex: 1 1 100%;
+  font-weight: 600;
+}
+
+.player-shell__history-outcome {
+  text-transform: uppercase;
+  font-size: max(0.75rem, 12px);
+  font-weight: 700;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.2rem;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.player-shell__history-outcome--win {
+  color: #81c784;
+}
+
+.player-shell__history-outcome--lose {
+  color: #e57373;
+}
+
+.player-shell__history-outcome--push {
+  color: #bdbdbd;
+}
+
+.player-shell__history-profit {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.player-shell__history-net {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.player-shell__history-total {
+  margin-top: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-shell__session-summary h2 {
+  margin: 0 0 1rem;
+  font-size: max(1.125rem, 18px);
+}
+
+.player-shell__summary-stats {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.35rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.player-shell__summary-stats dt {
+  opacity: 0.85;
+}
+
+.player-shell__summary-stats dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.player-shell__verify-link {
+  display: inline-block;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
 }
 
 .player-shell button,
