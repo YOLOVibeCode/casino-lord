@@ -14,6 +14,38 @@ const PLAYER_OWNED: ReadonlySet<TableEventType> = new Set([
 
 const DEALER_FORBIDDEN: ReadonlySet<TableEventType> = new Set(["BET_PLACED", "PLAYER_JOINED"]);
 
+function validatePlayerUpdatedPatch(
+  patch: Record<string, unknown>,
+  module: GameModule<unknown, unknown, unknown, unknown>,
+): ValidationError | null {
+  for (const key of Object.keys(patch)) {
+    if (key === "name" || key === "color") {
+      continue;
+    }
+    if (key === "status") {
+      const value = patch.status;
+      if (value !== "away" && value !== "active") {
+        return { ok: false, reason: "player cannot patch status", ownershipViolation: true };
+      }
+      continue;
+    }
+    if (key === "seat") {
+      const value = patch.seat;
+      if (
+        module.seats?.assign !== "player" ||
+        typeof value !== "number" ||
+        !Number.isInteger(value) ||
+        value <= 0
+      ) {
+        return { ok: false, reason: "player cannot patch seat", ownershipViolation: true };
+      }
+      continue;
+    }
+    return { ok: false, reason: `player cannot patch ${key}`, ownershipViolation: true };
+  }
+  return null;
+}
+
 export interface ValidationResult {
   ok: true;
   event: Omit<TableEvent, "seq" | "at">;
@@ -59,11 +91,9 @@ export function validateInboundEvent(
         return { ok: false, reason: "cannot update another player", ownershipViolation: true };
       }
       const patch = (raw as { patch?: Record<string, unknown> }).patch ?? {};
-      const allowed = new Set(["name", "color"]);
-      for (const key of Object.keys(patch)) {
-        if (!allowed.has(key)) {
-          return { ok: false, reason: `player cannot patch ${key}`, ownershipViolation: true };
-        }
+      const patchError = validatePlayerUpdatedPatch(patch, module);
+      if (patchError) {
+        return patchError;
       }
     }
     if (type === "PLAYER_ACTION") {

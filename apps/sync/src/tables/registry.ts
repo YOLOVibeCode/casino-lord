@@ -180,6 +180,17 @@ export class TableRegistry {
     this.repository.saveVirtualSeed(code, dealer.seriesId, blob);
   }
 
+  dealerRotateVirtualSeries(
+    code: string,
+    opts: { label?: string; auto?: boolean },
+  ): Omit<TableEvent, "seq" | "at">[] | null {
+    const dealer = this.virtualDealers.get(code);
+    if (!dealer) {
+      return null;
+    }
+    return dealer.rotateSeries(opts.auto ?? false, opts.label);
+  }
+
   private restoreVirtualDealer(row: TableRow, events: TableEvent[]): void {
     if (row.participation.outcomeSource !== "virtual") {
       return;

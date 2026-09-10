@@ -8,7 +8,24 @@ Games: Baccarat · Roulette · Craps · Blackjack.
 
 ## Status
 
-Specification complete; implementation starting at milestone M1 (`SPEC.md` §29). `packages/core` exists with the first platform primitives and tests.
+Live deployment: [casinolord.noctusoft.dev](https://casinolord.noctusoft.dev)
+
+Milestones M1–M9 are complete; M10 (polish) is in progress.
+
+| # | Milestone | Status |
+| --- | --- | --- |
+| M1 | Core + Baccarat engine | Complete |
+| M2 | Solo Baccarat | Complete |
+| M3 | Sync | Complete |
+| M4 | Animations | Complete |
+| M5 | Player Mode core | Complete |
+| M6 | Virtual Dealer | Complete |
+| M7 | Roulette | Complete |
+| M8 | Craps | Complete |
+| M9 | Blackjack | Complete |
+| M10 | Polish (themes, ZH labels, PWA, device matrix, visual regression, session export) | In progress |
+
+See [`SPEC.md`](SPEC.md) §29 for full milestone scope.
 
 ## Specifications
 

@@ -147,3 +147,46 @@
 .animation-editor__advanced {
   opacity: 0.85;
 }
+
+.settings-dialog__section {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border, #333);
+}
+
+.settings-dialog__section-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.settings-dialog__hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted, #aaa);
+}
+
+.settings-dialog__hint--warn {
+  color: #ffb74d;
+}
+
+.settings-dialog__fieldset {
+  border: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.settings-dialog__fieldset legend {
+  font-size: 0.85rem;
+  color: var(--text-muted, #aaa);
+  margin-bottom: 0.35rem;
+}
+
+.settings-dialog__option {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.settings-dialog__option--nested {
+  margin-left: 1.25rem;
+}

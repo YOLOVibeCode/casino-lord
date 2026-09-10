@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import "fake-indexeddb/auto";
-import { cleanup, render, screen, waitFor } from "@testing-library/preact";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_ROULETTE_RULES, rouletteModule } from "@casino-lord/game-roulette";
 import { houseSettings } from "@casino-lord/core/testing";
@@ -26,22 +26,17 @@ vi.mock("../sync/qr.js", () => ({
 const roulette = asUntypedModule(rouletteModule);
 
 const soloStoreRef = vi.hoisted(() => ({ current: null as TableStore | null }));
+const resolveSoloTableStore = vi.fn();
+const createNewSoloTable = vi.fn();
 
 vi.mock("../table/solo-table.js", () => ({
-  resolveSoloTableStore: () => {
-    if (!soloStoreRef.current) {
-      soloStoreRef.current = createTableStore({
-        game: "roulette",
-        module: roulette,
-        rules: DEFAULT_ROULETTE_RULES,
-        rng: () => 0,
-        now: () => "2026-01-01T00:00:00.000Z",
-        id: () => "s1",
-      });
+  resolveSoloTableStore: (...args: unknown[]) => {
+    if (soloStoreRef.current) {
+      return Promise.resolve(soloStoreRef.current);
     }
-    return Promise.resolve(soloStoreRef.current);
+    return resolveSoloTableStore(...args);
   },
-  createNewSoloTable: vi.fn(),
+  createNewSoloTable: (...args: unknown[]) => createNewSoloTable(...args),
 }));
 
 class FakeBroadcastChannel {
@@ -85,14 +80,29 @@ function renderPage(path: string) {
   );
 }
 
+function defaultStore() {
+  return createTableStore({
+    game: "roulette",
+    module: roulette,
+    rules: DEFAULT_ROULETTE_RULES,
+    rng: () => 0,
+    now: () => "2026-01-01T00:00:00.000Z",
+    id: () => "s1",
+  });
+}
+
 describe("SoloPage roulette", () => {
   beforeEach(() => {
     soloStoreRef.current = null;
     FakeBroadcastChannel.registry.clear();
     vi.stubGlobal("BroadcastChannel", FakeBroadcastChannel);
+    resolveSoloTableStore.mockResolvedValue(defaultStore());
   });
 
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
 
   it("renders dealer and display shells at /solo/roulette", async () => {
     renderPage("/solo/roulette");
@@ -110,18 +120,12 @@ describe("SoloPage roulette", () => {
   });
 
   it("shows play and display links when local players is enabled", async () => {
-    soloStoreRef.current = createTableStore({
-      game: "roulette",
-      module: roulette,
-      rules: DEFAULT_ROULETTE_RULES,
-      rng: () => 0,
-      now: () => "2026-01-01T00:00:00.000Z",
-      id: () => "s1",
-    });
-    soloStoreRef.current.emit({
+    const store = defaultStore();
+    store.emit({
       type: "PARTICIPATION_CHANGED",
       participation: houseSettings().participation,
     });
+    soloStoreRef.current = store;
 
     renderPage("/solo/roulette");
 
@@ -141,5 +145,35 @@ describe("SoloPage roulette", () => {
       expect(screen.getByTestId("dealer-shell")).toBeTruthy();
     });
     expect(screen.queryByTestId("local-players-toggle")).toBeNull();
+  });
+
+  it("passes virtual participation when Virtual is selected", async () => {
+    createNewSoloTable.mockImplementation(
+      async (options: { participation?: { outcomeSource: string } }) =>
+        createTableStore({
+          game: "roulette",
+          module: roulette,
+          rules: DEFAULT_ROULETTE_RULES,
+          participation: options.participation,
+          rng: () => 0,
+          now: () => "2026-01-01T00:00:01.000Z",
+          id: () => "s2",
+        }),
+    );
+
+    renderPage("/solo/roulette");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Virtual" })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Virtual" }));
+
+    await waitFor(() => {
+      expect(createNewSoloTable).toHaveBeenCalledWith(
+        expect.objectContaining({
+          participation: { playerMode: "off", bank: "none", outcomeSource: "virtual" },
+        }),
+      );
+    });
   });
 });

@@ -1,22 +1,18 @@
 import {
   createSeededRng,
   hexToBytes,
+  parseExportEnvelope,
   replay,
   triggerForKind,
   verifyCommit,
+  type ExportHeader,
   type GameId,
   type TableEvent,
 } from "@casino-lord/core";
 import type { UntypedGameModule } from "../table/module-types.js";
 import { getGame } from "../table/games.js";
 
-export interface ParsedExportHeader {
-  game: GameId;
-  code: string;
-  seriesNumber: number;
-  source: "physical" | "virtual";
-  rules: unknown;
-}
+export type ParsedExportHeader = ExportHeader;
 
 export interface ReplayResult {
   index: number;
@@ -31,32 +27,15 @@ export interface VerifyOutcome {
 }
 
 export function parseExportHeader(text: string): ParsedExportHeader | { error: string } {
-  const firstLine = text.trim().split("\n")[0] ?? "";
-  if (!firstLine.startsWith("#casino-lord")) {
-    return { error: "Not a Casino Lord export" };
+  const parsed = parseExportEnvelope(text);
+  if ("error" in parsed) {
+    return parsed;
   }
-  const gameMatch = firstLine.match(/game=([a-z]+)/);
-  const tableMatch = firstLine.match(/table=([A-Z0-9]+)/);
-  const seriesMatch = firstLine.match(/series=(\d+)/);
-  const sourceMatch = firstLine.match(/source=(physical|virtual)/);
-  const rulesMatch = firstLine.match(/rules=([A-Za-z0-9_-]+)/);
-  if (!gameMatch || !tableMatch || !seriesMatch || !sourceMatch || !rulesMatch) {
-    return { error: "Malformed export header" };
-  }
-  try {
-    const rulesJson = rulesMatch[1]!.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = rulesJson + "=".repeat((4 - (rulesJson.length % 4)) % 4);
-    const rules = JSON.parse(atob(padded)) as unknown;
-    return {
-      game: gameMatch[1] as GameId,
-      code: tableMatch[1]!,
-      seriesNumber: Number(seriesMatch[1]),
-      source: sourceMatch[1] as "physical" | "virtual",
-      rules,
-    };
-  } catch {
-    return { error: "Invalid rules encoding in export" };
-  }
+  return parsed.header;
+}
+
+export function parseExportForImport(text: string) {
+  return parseExportEnvelope(text);
 }
 
 export function replayVirtualSeries(input: {

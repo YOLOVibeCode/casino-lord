@@ -6,6 +6,16 @@ export interface BettingStripProps {
   betsView: BetsView;
   countdownSec: number | null;
   settlementTicker: string;
+  betTimerSec?: number;
+}
+
+function roundTimerTotalSec(round: BettingRound, betTimerSec: number): number | null {
+  if (round.closesAt && round.openedAt) {
+    const total = (Date.parse(round.closesAt) - Date.parse(round.openedAt)) / 1000;
+    if (total > 0) return total;
+  }
+  if (betTimerSec > 0) return betTimerSec;
+  return null;
 }
 
 export function BettingStrip({
@@ -13,6 +23,7 @@ export function BettingStrip({
   betsView,
   countdownSec,
   settlementTicker,
+  betTimerSec = 0,
 }: BettingStripProps) {
   const statusLabel =
     round?.status === "open"
@@ -23,9 +34,10 @@ export function BettingStrip({
           ? settlementTicker
           : "BETS — idle";
 
+  const totalSec = round?.status === "open" ? roundTimerTotalSec(round, betTimerSec) : null;
   const timerPct =
-    round?.status === "open" && round.closesAt && countdownSec !== null
-      ? Math.min(100, Math.max(0, (countdownSec / Math.max(1, countdownSec)) * 100))
+    round?.status === "open" && countdownSec !== null && totalSec !== null
+      ? Math.min(100, Math.max(0, (countdownSec / totalSec) * 100))
       : round?.status === "open"
         ? 100
         : 0;
