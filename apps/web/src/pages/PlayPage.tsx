@@ -9,6 +9,7 @@ import { useLocation, useRoute } from "preact-iso";
 import { PlayerShell } from "../shells/PlayerShell.js";
 import { getTableMeta, joinTablePlayer } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
+import { describeSyncError, type SyncErrorAction } from "../sync/error-copy.js";
 import { clearPlayerToken, loadPlayerToken, savePlayerToken } from "../sync/player-token.js";
 import { getGame } from "../table/games.js";
 import type { UntypedGameModule } from "../table/module-types.js";
@@ -33,27 +34,39 @@ const COLOR_LABELS = [
   "Rose",
 ];
 
+const ACTION_LABELS: Record<SyncErrorAction, string> = {
+  retry: "Try again",
+  home: "Home",
+  display: "Open as Display",
+  takeover: "Take over",
+};
+
+function setErrorPhase(setPhase: (p: Phase) => void, setError: (c: string) => void, code: string) {
+  setPhase("error");
+  setError(code);
+}
+
 export function PlayPage(_props: { path?: string }) {
   const { route } = useLocation();
   const { params } = useRoute();
   const rawCode = params.code ?? "";
   const code = normalizeTableCode(rawCode);
   const [phase, setPhase] = useState<Phase>("loading");
-  const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState("");
+  const [joinError, setJoinError] = useState("");
   const [name, setName] = useState("");
   const [color, setColor] = useState<string>(PLAYER_COLORS[0]!);
   const [store, setStore] = useState<SyncStore | null>(null);
   const [playerName, setPlayerName] = useState("");
+  const [bootstrapKey, setBootstrapKey] = useState(0);
 
   useEffect(() => {
     if (!isSyncConfigured()) {
-      setPhase("error");
-      setError("Sync server not configured");
+      setErrorPhase(setPhase, setErrorCode, "NOT_CONFIGURED");
       return;
     }
     if (!isValidTableCode(code)) {
-      setPhase("error");
-      setError("Invalid table code");
+      setErrorPhase(setPhase, setErrorCode, "INVALID_TABLE_CODE");
       return;
     }
 
@@ -63,15 +76,13 @@ export function PlayPage(_props: { path?: string }) {
         const meta = await getTableMeta(getSyncBaseUrl(), code);
         if (!meta.exists) {
           if (!cancelled) {
-            setPhase("error");
-            setError("Table not found");
+            setErrorPhase(setPhase, setErrorCode, "NOT_FOUND");
           }
           return;
         }
         if (meta.participation?.playerMode !== "on") {
           if (!cancelled) {
-            setPhase("error");
-            setError("Player mode is not enabled on this table");
+            setErrorPhase(setPhase, setErrorCode, "PLAYERS_DISABLED");
           }
           return;
         }
@@ -86,8 +97,7 @@ export function PlayPage(_props: { path?: string }) {
         if (!cancelled) setPhase("join");
       } catch {
         if (!cancelled) {
-          setPhase("error");
-          setError("Could not load table");
+          setErrorPhase(setPhase, setErrorCode, "TABLE_LOOKUP_FAILED");
         }
       }
     })();
@@ -95,7 +105,7 @@ export function PlayPage(_props: { path?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [code, bootstrapKey]);
 
   const connectPlayer = async (token: string, displayName: string, pending: boolean) => {
     const resolveModule = (g: import("@casino-lord/core").GameId): UntypedGameModule => {
@@ -115,8 +125,7 @@ export function PlayPage(_props: { path?: string }) {
         if (errCode === "BAD_TOKEN") {
           clearStoredAndJoin();
         } else {
-          setPhase("error");
-          setError(errCode);
+          setErrorPhase(setPhase, setErrorCode, errCode);
         }
       },
     });
@@ -141,6 +150,7 @@ export function PlayPage(_props: { path?: string }) {
     clearPlayerToken(code);
     setStore(null);
     setPhase("join");
+    setJoinError("");
   };
 
   useEffect(() => {
@@ -169,8 +179,7 @@ export function PlayPage(_props: { path?: string }) {
       if (reason === "DECLINED") {
         store.destroy();
         setStore(null);
-        setPhase("error");
-        setError("The dealer declined your join request");
+        setErrorPhase(setPhase, setErrorCode, "DECLINED");
       }
     });
     return unsub;
@@ -179,10 +188,10 @@ export function PlayPage(_props: { path?: string }) {
   const handleJoin = async () => {
     const validated = validatePlayerName(name);
     if (!validated.ok) {
-      setError(validated.error);
+      setJoinError("INVALID_NAME");
       return;
     }
-    setError("");
+    setJoinError("");
     try {
       const result = await joinTablePlayer(getSyncBaseUrl(), code, {
         name: validated.name,
@@ -192,9 +201,43 @@ export function PlayPage(_props: { path?: string }) {
       setPlayerName(validated.name);
       await connectPlayer(result.playerToken, validated.name, result.pending);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Join failed");
+      setJoinError(e instanceof Error ? e.message : "Join failed");
     }
   };
+
+  const runErrorAction = (action: SyncErrorAction): void => {
+    switch (action) {
+      case "home":
+        route("/");
+        return;
+      case "display":
+        route(`/display/${code}`);
+        return;
+      case "retry":
+        setErrorCode("");
+        setPhase("loading");
+        setBootstrapKey((n) => n + 1);
+        return;
+      case "takeover":
+        return;
+    }
+  };
+
+  const renderErrorActions = (actions: SyncErrorAction[]) => (
+    <div class="play-page__error-actions">
+      {actions.map((action) => (
+        <button
+          key={action}
+          type="button"
+          class="play-page__error-btn"
+          data-testid={`play-error-action-${action}`}
+          onClick={() => runErrorAction(action)}
+        >
+          {ACTION_LABELS[action]}
+        </button>
+      ))}
+    </div>
+  );
 
   if (phase === "loading") {
     return (
@@ -205,17 +248,18 @@ export function PlayPage(_props: { path?: string }) {
   }
 
   if (phase === "error") {
+    const copy = describeSyncError(errorCode);
     return (
       <main class="play-page play-page--error" data-testid="play-page">
-        <p class="play-page__error">{error}</p>
-        <button type="button" onClick={() => route("/")}>
-          Home
-        </button>
+        <h1 class="play-page__error-title">{copy.title}</h1>
+        <p class="play-page__error">{copy.body}</p>
+        {renderErrorActions(copy.actions)}
       </main>
     );
   }
 
   if (phase === "join") {
+    const joinCopy = joinError ? describeSyncError(joinError) : null;
     return (
       <main class="play-page play-page--join" data-testid="play-page">
         <h1>Join table {code}</h1>
@@ -251,7 +295,7 @@ export function PlayPage(_props: { path?: string }) {
             ))}
           </div>
         </fieldset>
-        {error && <p class="play-page__error">{error}</p>}
+        {joinCopy && <p class="play-page__error">{joinCopy.body}</p>}
         <div class="play-page__join-wrap">
           <button
             type="button"
