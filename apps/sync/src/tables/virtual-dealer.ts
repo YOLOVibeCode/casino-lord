@@ -113,12 +113,16 @@ export class VirtualDealer {
     } as Omit<TableEvent, "seq" | "at">;
   }
 
-  private rotateSeries(auto: boolean, label?: string): Omit<TableEvent, "seq" | "at">[] {
+  rotateSeries(
+    auto: boolean,
+    label?: string,
+    newSeriesId?: string,
+  ): Omit<TableEvent, "seq" | "at">[] {
     const ended = this.endSeriesEvent();
-    const newSeriesId = crypto.randomUUID();
+    const nextSeriesId = newSeriesId ?? crypto.randomUUID();
     const newSeed = randomBytes(32);
     this.state = {
-      seriesId: newSeriesId,
+      seriesId: nextSeriesId,
       seed: newSeed,
       rng: createSeededRng(newSeed),
       session: null,

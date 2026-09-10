@@ -222,6 +222,9 @@ function buildStore(internals: StoreInternals): TableStore {
   };
 
   const endSession = (): void => {
+    if (isVirtual() && virtualDealer) {
+      appendPersisted(virtualDealer.endSeriesEvent() as TableEventInput, now());
+    }
     append({ type: "SESSION_ENDED" });
   };
 
