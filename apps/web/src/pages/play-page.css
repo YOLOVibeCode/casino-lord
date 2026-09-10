@@ -152,6 +152,32 @@
   min-height: 100dvh;
 }
 
+.play-page__error-title {
+  font-size: 1.25rem;
+  margin: 0 0 0.75rem;
+}
+
+.play-page__error-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.play-page__error-btn {
+  padding: 0.75rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  background: #1b5e20;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.play-page__error-btn:first-child {
+  background: #2e7d32;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .play-page__join:active {
     transform: none;

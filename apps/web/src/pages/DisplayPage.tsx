@@ -72,7 +72,9 @@ export function DisplayPage(_props: { path?: string }) {
 
   useEffect(() => {
     if (!loading && (error || !store)) {
-      route(`/sync-error?reason=${encodeURIComponent(error ?? "NOT_FOUND")}`);
+      route(
+        `/sync-error?reason=${encodeURIComponent(error ?? "NOT_FOUND")}&code=${encodeURIComponent(code)}&role=display`,
+      );
     }
   }, [error, loading, store, route]);
 
