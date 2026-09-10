@@ -86,6 +86,10 @@ describe("replay determinism", () => {
       { id: "res1", value: 15 },
       { id: "res2", value: 5 },
     ]);
+    expect(state.platform.results.map((r) => ({ id: r.id, index: r.index }))).toEqual([
+      { id: "res1", index: 0 },
+      { id: "res2", index: 1 },
+    ]);
     expect(state.module.sum).toBe(20);
     expect(state.module.appliedThreshold).toBe(10);
     expect(state.platform.bankrolls.p1).toBe(600);

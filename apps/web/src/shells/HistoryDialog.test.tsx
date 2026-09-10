@@ -4,14 +4,15 @@
 import "fake-indexeddb/auto";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import { afterEach, describe, expect, it } from "vitest";
-import { baccaratModule } from "@casino-lord/game-baccarat";
-import { DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
+import { baccaratModule, DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
+import { rouletteModule, DEFAULT_ROULETTE_RULES } from "@casino-lord/game-roulette";
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
 import { UiProviders } from "../ui/test-providers.js";
 import { HistoryDialog } from "./HistoryDialog.js";
 
 const baccarat = asUntypedModule(baccaratModule);
+const roulette = asUntypedModule(rouletteModule);
 
 describe("HistoryDialog", () => {
   afterEach(() => cleanup());
@@ -52,6 +53,36 @@ describe("HistoryDialog", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("confirm-sheet")).toBeNull();
     });
-    expect((store.getComposed().module as { results?: unknown[] }).results?.length).toBe(1);
+    expect(store.getComposed().platform.results).toHaveLength(1);
+  });
+
+  it("lists both roulette spins in history", () => {
+    let n = 0;
+    const store = createTableStore({
+      game: "roulette",
+      module: roulette,
+      rules: DEFAULT_ROULETTE_RULES,
+      rng: () => 0,
+      now: () => `2026-01-01T00:00:0${++n}.000Z`,
+      id: () => `id-${n}`,
+    });
+
+    store.record({ pocket: 17 }, { quick: false });
+    store.record({ pocket: 0 }, { quick: false });
+
+    render(
+      <UiProviders>
+        <HistoryDialog
+          store={store}
+          module={roulette}
+          rules={DEFAULT_ROULETTE_RULES}
+          onClose={() => {}}
+          onEdit={() => {}}
+        />
+      </UiProviders>,
+    );
+
+    expect(screen.getByTestId("history-row-0")).toBeTruthy();
+    expect(screen.getByTestId("history-row-1")).toBeTruthy();
   });
 });

@@ -307,7 +307,12 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
       if (event.type === "RESULT_EDITED") {
         next = replaceResult(next, event.result as ResultEnvelope<unknown>);
         if (event.result.roundId) {
-          return settleRound(next, event.result.roundId, event.result as ResultEnvelope<Result>, ctx);
+          return settleRound(
+            next,
+            event.result.roundId,
+            event.result as ResultEnvelope<Result>,
+            ctx,
+          );
         }
         return next;
       }
@@ -317,9 +322,7 @@ export function reducePlatform<Rules, Result, LiveInput, State, BetTarget, Actio
 
     case "RESULT_UNDONE": {
       const affectedRound = state.rounds.find((r) => r.resultId === event.resultId);
-      const next = affectedRound
-        ? reverseSettlementForRound(state, affectedRound.id)
-        : state;
+      const next = affectedRound ? reverseSettlementForRound(state, affectedRound.id) : state;
       return removeResult(next, event.resultId);
     }
 
