@@ -1,6 +1,7 @@
 import {
   canUndoResult,
   DEFAULT_TABLE_SETTINGS,
+  getCurrentSeriesResults,
   replay,
   resolveEffectiveRules,
   stableStringify,
@@ -197,8 +198,8 @@ function buildStore(internals: StoreInternals): TableStore {
 
   const canUndoLastResult = (): { ok: boolean; reason?: string } => {
     const composed = getComposed();
-    const results = (composed.module as { results?: { id: string }[] }).results;
-    if (!Array.isArray(results) || results.length === 0) {
+    const results = getCurrentSeriesResults(composed.platform);
+    if (results.length === 0) {
       return { ok: false, reason: "No result to undo." };
     }
     const last = results[results.length - 1]!;
@@ -209,8 +210,8 @@ function buildStore(internals: StoreInternals): TableStore {
     const check = canUndoLastResult();
     if (!check.ok) return;
     const composed = getComposed();
-    const results = (composed.module as { results?: { id: string }[] }).results;
-    if (!Array.isArray(results) || results.length === 0) return;
+    const results = getCurrentSeriesResults(composed.platform);
+    if (results.length === 0) return;
     const last = results[results.length - 1]!;
     append({ type: "RESULT_UNDONE", resultId: last.id });
   };

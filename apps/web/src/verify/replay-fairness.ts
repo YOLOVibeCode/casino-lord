@@ -1,5 +1,6 @@
 import {
   createSeededRng,
+  getCurrentSeriesResults,
   hexToBytes,
   parseExportEnvelope,
   replay,
@@ -172,6 +173,5 @@ export function extractResultsFromEvents(
   rules: unknown,
 ): unknown[] {
   const composed = replay(events, module, rules, { code: "VERIFY", includeEphemeral: false });
-  const results = (composed.module as { results?: Array<{ data: unknown }> }).results ?? [];
-  return results.map((r) => r.data);
+  return getCurrentSeriesResults(composed.platform).map((r) => r.data);
 }

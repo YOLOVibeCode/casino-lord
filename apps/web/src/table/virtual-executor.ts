@@ -1,4 +1,4 @@
-import type { TableEvent, TableSettings } from "@casino-lord/core";
+import { getCurrentSeriesResults, type TableEvent, type TableSettings } from "@casino-lord/core";
 import type { UntypedGameModule } from "./module-types.js";
 import type { VirtualPendingState } from "./sync-store-types.js";
 import {
@@ -165,13 +165,12 @@ function appendPacedEvent(input: {
 
   if (typedEvent.type === "RESULT_RECORDED") {
     const composed = ctx.getComposed();
-    const results = (composed.module as { results?: unknown[] }).results ?? [];
     body = {
       type: "RESULT_RECORDED",
       result: {
         ...typedEvent.result,
         id: id(),
-        index: results.length,
+        index: getCurrentSeriesResults(composed.platform).length,
         recordedAt: at,
       },
     } as Omit<TableEvent, "seq" | "at">;
