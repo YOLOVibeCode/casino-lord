@@ -54,6 +54,7 @@ const CONTEXT = {
   getOwnStake: () => 0,
   getTableStake: () => 0,
   settlementFlash: null as const,
+  settlementByZone: {} as Record<string, "win" | "lose">,
   onZoneTap: vi.fn(),
   onZoneLongPress: vi.fn(),
 };
