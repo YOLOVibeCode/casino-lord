@@ -1,4 +1,9 @@
-import { replay, type AnimationTrigger, type ComposedState, type TableEvent } from "@casino-lord/core";
+import {
+  replay,
+  type AnimationTrigger,
+  type ComposedState,
+  type TableEvent,
+} from "@casino-lord/core";
 import { derivePlatformAnimations } from "./platform-triggers.js";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { DeviceSettings } from "../settings/device-settings.js";

@@ -9,7 +9,11 @@ import { createTableStore, reopenTableStore } from "./store.js";
 
 const baccarat = asUntypedModule(baccaratModule);
 
-function buildEventsWithResults(code: string, baseEvents: TableEvent[], count: number): TableEvent[] {
+function buildEventsWithResults(
+  code: string,
+  baseEvents: TableEvent[],
+  count: number,
+): TableEvent[] {
   const events = [...baseEvents];
   let seq = events[events.length - 1]!.seq;
 
@@ -40,37 +44,33 @@ function buildEventsWithResults(code: string, baseEvents: TableEvent[], count: n
 }
 
 describe("replay performance", () => {
-  it(
-    "replays 500 results and serves 10 getComposed calls under 50ms",
-    () => {
-      const seed = createTableStore({
-        game: "baccarat",
-        module: baccarat,
-        rules: DEFAULT_BACCARAT_RULES,
-        rng: () => 0,
-        now: () => "2026-01-01T00:00:00.000Z",
-        id: () => "series-1",
-      });
+  it("replays 500 results and serves 10 getComposed calls under 50ms", () => {
+    const seed = createTableStore({
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      rng: () => 0,
+      now: () => "2026-01-01T00:00:00.000Z",
+      id: () => "series-1",
+    });
 
-      const events = buildEventsWithResults(seed.code, [...seed.events], 500);
-      const store = reopenTableStore({
-        code: seed.code,
-        game: "baccarat",
-        module: baccarat,
-        rules: DEFAULT_BACCARAT_RULES,
-        events,
-      });
+    const events = buildEventsWithResults(seed.code, [...seed.events], 500);
+    const store = reopenTableStore({
+      code: seed.code,
+      game: "baccarat",
+      module: baccarat,
+      rules: DEFAULT_BACCARAT_RULES,
+      events,
+    });
 
+    store.getComposed();
+
+    const start = performance.now();
+    for (let i = 0; i < 10; i++) {
       store.getComposed();
+    }
+    const elapsed = performance.now() - start;
 
-      const start = performance.now();
-      for (let i = 0; i < 10; i++) {
-        store.getComposed();
-      }
-      const elapsed = performance.now() - start;
-
-      expect(elapsed).toBeLessThan(50);
-    },
-    60_000,
-  );
+    expect(elapsed).toBeLessThan(50);
+  }, 60_000);
 });

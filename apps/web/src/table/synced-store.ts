@@ -494,8 +494,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     composedCacheKey = "";
   };
 
-  const composedCacheKeyFor = (): string =>
-    `${events.length}:${latestSeq}:${liveInput?.seq ?? 0}`;
+  const composedCacheKeyFor = (): string => `${events.length}:${latestSeq}:${liveInput?.seq ?? 0}`;
 
   const getComposed = (): ComposedState<unknown> => {
     const key = composedCacheKeyFor();

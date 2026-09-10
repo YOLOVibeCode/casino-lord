@@ -82,7 +82,12 @@ export function UpdatePrompt() {
 
   return (
     <div class="pwa-update-prompt">
-      <button type="button" class="pwa-update-prompt__reload" data-testid="pwa-reload-btn" onClick={reload}>
+      <button
+        type="button"
+        class="pwa-update-prompt__reload"
+        data-testid="pwa-reload-btn"
+        onClick={reload}
+      >
         Reload
       </button>
     </div>
