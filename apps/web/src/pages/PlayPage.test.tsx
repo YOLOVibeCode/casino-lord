@@ -146,7 +146,6 @@ describe("PlayPage", () => {
       expect(screen.getByTestId("play-page")).toBeTruthy();
       expect(screen.getByTestId("player-name-input")).toBeTruthy();
       expect(screen.getByTestId("join-btn")).toBeTruthy();
-      expect(screen.getByTestId("name-counter").textContent).toBe("0/16");
     });
   });
 

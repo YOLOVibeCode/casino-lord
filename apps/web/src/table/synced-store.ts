@@ -262,20 +262,9 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
 
   const isOnline = (): boolean => joined && connectionState === "connected" && !flushing;
 
-  const reportReject = (reason: string): void => {
-    rejectReason = reason;
-    onReject?.(reason);
-    notify();
-  };
-
   const sendPersistedEvent = async (body: TableEventInput): Promise<void> => {
     if (role === "display" || readOnly) return;
     if (role === "dealer" && readOnly) return;
-
-    if (role === "player" && !isOnline()) {
-      reportReject("OFFLINE");
-      return;
-    }
 
     rejectReason = null;
     const clientId = newClientId();
@@ -429,9 +418,10 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     }
 
     if (msg.op === "error" && typeof msg.code === "string") {
-      reportReject(msg.code);
+      rejectReason = msg.code;
       joined = false;
       onJoinError?.(msg.code);
+      notify();
       return;
     }
 
@@ -554,12 +544,12 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
 
   const getRules = (): unknown => {
     const composed = getComposed();
-    return resolveEffectiveRules(activeRules, composed.platform.settings.rules);
+    return resolveEffectiveRules(rules, composed.platform.settings.rules);
   };
 
   const getTableMeta = () => {
     const composed = getComposed();
-    return buildTableMeta(composed, events, activeModule, composed.module);
+    return buildTableMeta(composed, events, module, composed.module);
   };
 
   const emitLive = (body: TableEventInput): void => {

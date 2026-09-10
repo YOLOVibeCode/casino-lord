@@ -118,38 +118,6 @@ describe("DealerPage", () => {
     });
   });
 
-  it("passes the roulette module from table meta to the synced store", async () => {
-    const { rouletteModule } = await import("@casino-lord/game-roulette");
-    renderPage("/dealer/ABCD23?t=test-token");
-    await vi.waitFor(() => {
-      expect(createSyncedTableStoreMock).toHaveBeenCalled();
-    });
-    const call = createSyncedTableStoreMock.mock.calls[0]?.[0] as { module: { id: string } };
-    expect(call.module.id).toBe(rouletteModule.id);
-  });
-
-  it("renders shell from local log on join timeout", async () => {
-    joinTimeout = true;
-    renderPage("/dealer/ABCD23?t=test-token");
-    await vi.waitFor(() => {
-      expect(screen.getByTestId("reconnect-banner")).toBeTruthy();
-      expect(screen.getByTestId("dealer-shell")).toBeTruthy();
-    });
-    expect(screen.queryByTestId("sync-error-page")).toBeNull();
-  });
-
-  it("shows dealer-active card with takeover and display link", async () => {
-    joinError = "DEALER_ACTIVE";
-    renderPage("/dealer/ABCD23?t=test-token");
-    await vi.waitFor(() => {
-      expect(screen.getByTestId("dealer-active-card")).toBeTruthy();
-    });
-    expect(screen.getByText("Take over")).toBeTruthy();
-    expect(screen.getByText("Open as Display")).toBeTruthy();
-    const displayLink = screen.getByText("Open as Display") as HTMLAnchorElement;
-    expect(displayLink.getAttribute("href")).toBe("/display/ABCD23");
-  });
-
   it("shows the demoted banner when the store becomes read-only", async () => {
     setReadOnly(false);
     renderPage("/dealer/ABCD23?t=test-token");

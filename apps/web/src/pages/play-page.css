@@ -40,23 +40,6 @@
   flex-shrink: 0;
 }
 
-.play-page__hint {
-  font-size: max(0.8125rem, 13px);
-  opacity: 0.75;
-  font-weight: normal;
-}
-
-.play-page__counter {
-  font-size: max(0.8125rem, 13px);
-  opacity: 0.75;
-  align-self: flex-end;
-}
-
-.play-page__swatch--taken {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
 .play-page__field label,
 .play-page__field > span {
   font-size: max(1.125rem, 18px);

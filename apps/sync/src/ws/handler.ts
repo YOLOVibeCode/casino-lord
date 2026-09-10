@@ -249,10 +249,6 @@ export function attachWebSocket(io: Server, options: WsHandlerOptions): void {
       }
 
       if (role === "dealer") {
-        if (table.sessionEnded) {
-          socket.emit("message", { op: "error", code: "SESSION_ENDED" });
-          return;
-        }
         if (!token) {
           socket.emit("message", { op: "error", code: "BAD_TOKEN" });
           return;

@@ -1,6 +1,5 @@
 import {
   PLAYER_COLORS,
-  type GameId,
   isValidTableCode,
   normalizeTableCode,
   validatePlayerName,
@@ -240,7 +239,7 @@ export function PlayPage(_props: { path?: string }) {
       });
       savePlayerToken(code, result.playerToken);
       setPlayerName(validated.name);
-      await connectPlayer(result.playerToken, validated.name, result.pending, tableGame);
+      await connectPlayer(result.playerToken, validated.name, result.pending);
     } catch (e) {
       setJoinError(e instanceof Error ? e.message : "Join failed");
     }

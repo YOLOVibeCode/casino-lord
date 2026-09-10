@@ -74,7 +74,7 @@ function mockSyncStore(): SyncStore {
       return () => listeners.delete(listener);
     },
     getConnectionState: () => "connected" as const,
-    getPresence: () => ({ dealers: 0, displays: 1, players: [] }),
+    getPresence: () => presence,
     isReadOnly: () => false,
     getRejectReason: () => null,
     takeover: () => undefined,

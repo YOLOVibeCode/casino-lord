@@ -3,7 +3,6 @@ import { useLocation, useRoute } from "preact-iso";
 import { normalizeTableCode } from "@casino-lord/core";
 import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { DealerShell } from "../shells/DealerShell.js";
-import { getTableMeta } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
 import { describeSyncError, SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
 import { loadDealerToken, saveDealerToken } from "../sync/dealer-token.js";
@@ -52,11 +51,6 @@ export function DealerPage(_props: { path?: string }) {
 
     let destroyed = false;
     let syncStore: SyncStore | null = null;
-    setDealerActive(false);
-    setReconnecting(false);
-    setError(null);
-    setStore(null);
-    setLoading(true);
 
     setJoinBlocked(null);
     setOfflineJoin(false);
@@ -82,30 +76,8 @@ export function DealerPage(_props: { path?: string }) {
       },
     });
 
-        syncStore = createSyncedTableStore({
-          code,
-          role: "dealer",
-          token,
-          syncUrl: getSyncBaseUrl(),
-          module: entry.module,
-          rules: entry.module.defaultRules,
-          takeover: takeoverMode,
-          onJoinError: (errCode) => {
-            if (!destroyed && errCode === "DEALER_ACTIVE") {
-              syncStore?.destroy();
-              syncStore = null;
-              setDealerActive(true);
-              setLoading(false);
-              return;
-            }
-            if (!destroyed) {
-              setError(errCode);
-              setLoading(false);
-            }
-          },
-        });
-
-        await waitForSyncReady(syncStore);
+    void waitForSyncReady(syncStore)
+      .then(() => {
         if (!destroyed) {
           setStore(syncStore);
           setJoinBlocked(null);

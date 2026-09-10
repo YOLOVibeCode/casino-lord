@@ -3,7 +3,6 @@ import { useLocation, useRoute } from "preact-iso";
 import { normalizeTableCode } from "@casino-lord/core";
 import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { DisplayShell } from "../shells/DisplayShell.js";
-import { getTableMeta } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
 import { SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
 import { tableUrl } from "../sync/urls.js";
@@ -39,10 +38,6 @@ export function DisplayPage(_props: { path?: string }) {
 
     let destroyed = false;
     let syncStore: SyncStore | null = null;
-    setReconnecting(false);
-    setError(null);
-    setStore(null);
-    setLoading(true);
 
     setOfflineJoin(false);
     setError(null);
@@ -57,30 +52,12 @@ export function DisplayPage(_props: { path?: string }) {
         if (!destroyed) {
           setError(errCode);
           setLoading(false);
-          return;
         }
-        const entry = getGame(meta.game ?? "baccarat");
-        if (!entry?.module) {
-          setError("UNSUPPORTED_GAME");
-          setLoading(false);
-          return;
-        }
+      },
+    });
 
-        syncStore = createSyncedTableStore({
-          code,
-          role: "display",
-          syncUrl: getSyncBaseUrl(),
-          module: entry.module,
-          rules: entry.module.defaultRules,
-          onJoinError: (errCode) => {
-            if (!destroyed) {
-              setError(errCode);
-              setLoading(false);
-            }
-          },
-        });
-
-        await waitForSyncReady(syncStore);
+    void waitForSyncReady(syncStore)
+      .then(() => {
         if (!destroyed) {
           setStore(syncStore);
           setOfflineJoin(false);
@@ -142,7 +119,7 @@ export function DisplayPage(_props: { path?: string }) {
     );
   }
 
-  if (!store) {
+  if (error || !store) {
     return (
       <main class="display-page">
         <p>Unable to join table…</p>
