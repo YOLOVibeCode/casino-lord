@@ -8,6 +8,7 @@ import { createStubModule, houseSettings, STUB_RULES } from "@casino-lord/core/t
 import { asUntypedModule } from "../table/module-types.js";
 import { createTableStore } from "../table/store.js";
 import { DealerShell } from "./DealerShell.js";
+import { BettingBar } from "./BettingBar.js";
 import { DEFAULT_DEVICE_SETTINGS } from "../settings/device-settings.js";
 
 describe("BettingBar", () => {
@@ -16,7 +17,45 @@ describe("BettingBar", () => {
     vi.useRealTimers();
   });
 
-  it("emits BETS_OPENED when tapped in idle state", () => {
+  it("shows OPEN BETS and No round yet when idle", () => {
+    render(
+      <BettingBar
+        round={null}
+        betsView={{ round: null, summaries: [], openBets: [] }}
+        countdownSec={null}
+        onToggle={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("betting-toggle").textContent).toBe("OPEN BETS");
+    expect(screen.getByTestId("betting-status").textContent).toBe("No round yet");
+  });
+
+  it("shows CLOSE BETS and countdown when open", () => {
+    render(
+      <BettingBar
+        round={{
+          id: "r1",
+          status: "open",
+          seriesId: "s1",
+          openedAt: "2026-01-01T00:00:00.000Z",
+        }}
+        betsView={{
+          round: null,
+          summaries: [{ label: "HIGH", amount: 100, count: 2 }],
+          openBets: [],
+        }}
+        countdownSec={12}
+        onToggle={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("betting-toggle").textContent).toBe("CLOSE BETS");
+    expect(screen.getByTestId("betting-status").textContent).toBe("Bets open · 12 s");
+    expect(screen.getByTestId("betting-countdown").textContent).toContain("0:12");
+    expect(screen.getByText(/100 chips · 2 bets/)).toBeTruthy();
+    expect(screen.getByText("Totals by betting zone")).toBeTruthy();
+  });
+
+  it("emits BETS_OPENED when toggle clicked in idle state", () => {
     const module = asUntypedModule(createStubModule());
     const store = createTableStore({
       game: "baccarat",
@@ -38,7 +77,7 @@ describe("BettingBar", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("betting-bar"));
+    fireEvent.click(screen.getByTestId("betting-toggle"));
     expect(store.events.some((e) => e.type === "BETS_OPENED")).toBe(true);
   });
 
@@ -71,7 +110,7 @@ describe("BettingBar", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("betting-bar"));
+    fireEvent.click(screen.getByTestId("betting-toggle"));
     vi.advanceTimersByTime(5000);
     const closed = store.events.find((e) => e.type === "BETS_CLOSED");
     expect(closed?.type).toBe("BETS_CLOSED");
