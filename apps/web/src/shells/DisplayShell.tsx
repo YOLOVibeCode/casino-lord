@@ -189,7 +189,8 @@ export function DisplayShell({
         composed.platform.settlements,
       );
       if (affected > 0) {
-        setHistoryToast(`History re-evaluated — ${affected} bet(s) affected`);
+        const betWord = formatPlural(affected, "bet", "bets");
+        setHistoryToast(`History re-evaluated — ${affected} ${betWord} affected`);
         if (historyToastTimer.current) clearTimeout(historyToastTimer.current);
         historyToastTimer.current = setTimeout(() => setHistoryToast(null), 4000);
       }
