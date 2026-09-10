@@ -5,6 +5,7 @@ import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { DealerShell } from "../shells/DealerShell.js";
 import { getTableMeta } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
+import { isDefinitiveSyncError } from "../sync/error-copy.js";
 import { loadDealerToken, saveDealerToken } from "../sync/dealer-token.js";
 import { getGame } from "../table/games.js";
 import { createSyncedTableStore, waitForSyncReady } from "../table/synced-store.js";
@@ -20,6 +21,7 @@ export function DealerPage(_props: { path?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [dealerActive, setDealerActive] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const [connectAttempt, setConnectAttempt] = useState(0);
   const [takeoverMode, setTakeoverMode] = useState(false);
   const [deviceSettings, setDeviceSettings] = useDeviceSettings();
@@ -45,6 +47,7 @@ export function DealerPage(_props: { path?: string }) {
     let destroyed = false;
     let syncStore: SyncStore | null = null;
     setDealerActive(false);
+    setReconnecting(false);
     setError(null);
     setStore(null);
     setLoading(true);
@@ -102,6 +105,16 @@ export function DealerPage(_props: { path?: string }) {
           setLoading(false);
           return;
         }
+        if (
+          message === "sync join timeout" &&
+          syncStore &&
+          syncStore.events.length > 0
+        ) {
+          setStore(syncStore);
+          setReconnecting(true);
+          setLoading(false);
+          return;
+        }
         setError(message);
         setLoading(false);
       }
@@ -114,16 +127,23 @@ export function DealerPage(_props: { path?: string }) {
   }, [code, query.t, connectAttempt, takeoverMode]);
 
   useEffect(() => {
-    if (!loading && !dealerActive && (error || !store)) {
-      route(`/sync-error?reason=${encodeURIComponent(error ?? "NOT_FOUND")}`);
+    if (!loading && !dealerActive && !reconnecting && error && isDefinitiveSyncError(error)) {
+      route(`/sync-error?reason=${encodeURIComponent(error)}`);
     }
-  }, [error, loading, store, dealerActive, route]);
+  }, [error, loading, store, dealerActive, reconnecting, route]);
 
   const [, setTick] = useState(0);
   useEffect(() => store?.subscribe(() => setTick((n) => n + 1)), [store]);
 
   const handleTakeover = (): void => {
     setTakeoverMode(true);
+    setConnectAttempt((n) => n + 1);
+  };
+
+  const handleRetry = (): void => {
+    store?.destroy();
+    setStore(null);
+    setReconnecting(false);
     setConnectAttempt((n) => n + 1);
   };
 
@@ -161,7 +181,7 @@ export function DealerPage(_props: { path?: string }) {
     );
   }
 
-  if (error || !store) {
+  if (!store) {
     return (
       <main class="dealer-page">
         <p>Unable to join table…</p>
@@ -174,6 +194,14 @@ export function DealerPage(_props: { path?: string }) {
 
   return (
     <main class="dealer-page">
+      {reconnecting && (
+        <div class="dealer-page__reconnect" data-testid="reconnect-banner">
+          Reconnecting…
+          <button type="button" onClick={handleRetry}>
+            Retry
+          </button>
+        </div>
+      )}
       {store.isReadOnly() && (
         <div class="dealer-page__demoted" data-testid="demoted-banner">
           Another dealer took over.

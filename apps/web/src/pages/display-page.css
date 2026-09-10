@@ -9,6 +9,25 @@
   padding: 4rem 1rem;
 }
 
+.display-page__reconnect {
+  background: #4a3728;
+  color: #fff;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.display-page__reconnect button {
+  background: #fff;
+  color: #333;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
 .display-page__waiting {
   background: #ff9800;
   color: #000;

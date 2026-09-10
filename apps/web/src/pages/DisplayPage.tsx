@@ -5,6 +5,7 @@ import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { DisplayShell } from "../shells/DisplayShell.js";
 import { getTableMeta } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
+import { isDefinitiveSyncError } from "../sync/error-copy.js";
 import { tableUrl } from "../sync/urls.js";
 import { getGame } from "../table/games.js";
 import { createSyncedTableStore, waitForSyncReady } from "../table/synced-store.js";
@@ -18,6 +19,8 @@ export function DisplayPage(_props: { path?: string }) {
   const [store, setStore] = useState<SyncStore | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [connectAttempt, setConnectAttempt] = useState(0);
   const [deviceSettings, setDeviceSettings] = useDeviceSettings();
 
   useEffect(() => {
@@ -29,6 +32,10 @@ export function DisplayPage(_props: { path?: string }) {
 
     let destroyed = false;
     let syncStore: SyncStore | null = null;
+    setReconnecting(false);
+    setError(null);
+    setStore(null);
+    setLoading(true);
 
     void (async () => {
       try {
@@ -66,10 +73,20 @@ export function DisplayPage(_props: { path?: string }) {
           setLoading(false);
         }
       } catch (err) {
-        if (!destroyed) {
-          setError(err instanceof Error ? err.message : "Could not load table");
+        if (destroyed) return;
+        const message = err instanceof Error ? err.message : "Could not load table";
+        if (
+          message === "sync join timeout" &&
+          syncStore &&
+          syncStore.events.length > 0
+        ) {
+          setStore(syncStore);
+          setReconnecting(true);
           setLoading(false);
+          return;
         }
+        setError(message);
+        setLoading(false);
       }
     })();
 
@@ -77,17 +94,23 @@ export function DisplayPage(_props: { path?: string }) {
       destroyed = true;
       syncStore?.destroy();
     };
-  }, [code]);
+  }, [code, connectAttempt]);
 
   useEffect(() => {
-    if (!loading && (error || !store)) {
-      route(`/sync-error?reason=${encodeURIComponent(error ?? "NOT_FOUND")}`);
+    if (!loading && !reconnecting && error && isDefinitiveSyncError(error)) {
+      route(`/sync-error?reason=${encodeURIComponent(error)}`);
     }
-  }, [error, loading, store, route]);
+  }, [error, loading, reconnecting, route]);
 
-  // Re-render on presence/connection changes so the waiting banner tracks the store.
   const [, setTick] = useState(0);
   useEffect(() => store?.subscribe(() => setTick((n) => n + 1)), [store]);
+
+  const handleRetry = (): void => {
+    store?.destroy();
+    setStore(null);
+    setReconnecting(false);
+    setConnectAttempt((n) => n + 1);
+  };
 
   if (!isSyncConfigured()) {
     return (
@@ -106,7 +129,7 @@ export function DisplayPage(_props: { path?: string }) {
     );
   }
 
-  if (error || !store) {
+  if (!store) {
     return (
       <main class="display-page">
         <p>Unable to join table…</p>
@@ -122,6 +145,14 @@ export function DisplayPage(_props: { path?: string }) {
 
   return (
     <main class="display-page">
+      {reconnecting && (
+        <div class="display-page__reconnect" data-testid="reconnect-banner">
+          Reconnecting…
+          <button type="button" onClick={handleRetry}>
+            Retry
+          </button>
+        </div>
+      )}
       {waitingForDealer && (
         <div class="display-page__waiting" data-testid="waiting-for-dealer">
           Waiting for dealer

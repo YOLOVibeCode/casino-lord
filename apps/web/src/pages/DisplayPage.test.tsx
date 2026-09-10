@@ -21,11 +21,20 @@ vi.mock("../sync/config.js", () => ({
   getSyncBaseUrl: () => "http://127.0.0.1:3000",
 }));
 
+vi.mock("../sync/api.js", () => ({
+  getTableMeta: vi.fn(async () => ({
+    exists: true,
+    game: "baccarat",
+    participation: { playerMode: "off", bank: "none", outcomeSource: "physical" },
+  })),
+}));
+
 vi.mock("../hooks/use-device-settings.js", () => ({
   useDeviceSettings: () => [DEFAULT_DEVICE_SETTINGS, vi.fn()],
 }));
 
 let presence = { dealers: 0, displays: 1 };
+let joinTimeout = false;
 const listeners = new Set<() => void>();
 
 function setPresence(next: { dealers: number; displays: number }): void {
@@ -43,6 +52,9 @@ function mockSyncStore(): SyncStore {
     now: () => "2026-01-01T00:00:00.000Z",
     id: () => "s1",
   });
+  if (joinTimeout) {
+    store.emit({ type: "TABLE_CREATED", game: "baccarat", settings: {} as never });
+  }
   return Object.assign(store, {
     subscribe: (listener: () => void) => {
       listeners.add(listener);
@@ -60,7 +72,8 @@ function mockSyncStore(): SyncStore {
 
 vi.mock("../table/synced-store.js", () => ({
   createSyncedTableStore: () => mockSyncStore(),
-  waitForSyncReady: () => Promise.resolve(),
+  waitForSyncReady: () =>
+    joinTimeout ? Promise.reject(new Error("sync join timeout")) : Promise.resolve(),
 }));
 
 function renderPage(path: string) {
@@ -75,7 +88,10 @@ function renderPage(path: string) {
 }
 
 describe("DisplayPage", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    joinTimeout = false;
+    cleanup();
+  });
 
   it("renders display shell and waiting-for-dealer hint", async () => {
     renderPage("/display/ABCD23");
@@ -94,6 +110,15 @@ describe("DisplayPage", () => {
     setPresence({ dealers: 1, displays: 1 });
     await vi.waitFor(() => {
       expect(screen.queryByTestId("waiting-for-dealer")).toBeNull();
+    });
+  });
+
+  it("renders shell from local log on join timeout", async () => {
+    joinTimeout = true;
+    renderPage("/display/ABCD23");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("reconnect-banner")).toBeTruthy();
+      expect(screen.getByTestId("display-shell")).toBeTruthy();
     });
   });
 });

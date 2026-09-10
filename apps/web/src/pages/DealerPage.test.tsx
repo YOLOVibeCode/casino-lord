@@ -29,14 +29,19 @@ vi.mock("../sync/api.js", () => ({
 }));
 
 let joinError: string | null = null;
+let joinTimeout = false;
 const createSyncedTableStoreMock = vi.fn((opts?: { onJoinError?: (code: string) => void }) => {
+  const store = mockSyncStore();
+  if (joinTimeout) {
+    store.emit({ type: "TABLE_CREATED", game: "baccarat", settings: {} as never });
+  }
   if (joinError) {
     queueMicrotask(() => opts?.onJoinError?.(joinError!));
-    return mockSyncStore();
   }
-  return mockSyncStore();
+  return store;
 });
 const waitForSyncReadyMock = vi.fn(() => {
+  if (joinTimeout) return Promise.reject(new Error("sync join timeout"));
   if (joinError) return Promise.reject(new Error(joinError));
   return Promise.resolve();
 });
@@ -93,6 +98,7 @@ function renderPage(path: string) {
 describe("DealerPage", () => {
   afterEach(() => {
     joinError = null;
+    joinTimeout = false;
     cleanup();
   });
 
@@ -111,6 +117,16 @@ describe("DealerPage", () => {
     });
     const call = createSyncedTableStoreMock.mock.calls[0]?.[0] as { module: { id: string } };
     expect(call.module.id).toBe(rouletteModule.id);
+  });
+
+  it("renders shell from local log on join timeout", async () => {
+    joinTimeout = true;
+    renderPage("/dealer/ABCD23?t=test-token");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("reconnect-banner")).toBeTruthy();
+      expect(screen.getByTestId("dealer-shell")).toBeTruthy();
+    });
+    expect(screen.queryByTestId("sync-error-page")).toBeNull();
   });
 
   it("shows dealer-active card with takeover and display link", async () => {

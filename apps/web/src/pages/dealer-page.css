@@ -56,6 +56,27 @@
   margin-top: 1.25rem;
 }
 
+.dealer-page__reconnect {
+  background: #4a3728;
+  color: #fff;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: 4px;
+}
+
+.dealer-page__reconnect button {
+  background: #fff;
+  color: #333;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
 .dealer-page__active-actions button,
 .dealer-page__active-actions a {
   padding: 0.5rem 1rem;

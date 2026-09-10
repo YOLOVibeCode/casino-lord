@@ -119,6 +119,14 @@ function normalizeCode(raw: string): string {
   return trimmed;
 }
 
+export function isTransientSyncError(code: string): boolean {
+  return code === "sync join timeout";
+}
+
+export function isDefinitiveSyncError(code: string): boolean {
+  return !isTransientSyncError(code);
+}
+
 export function describeSyncError(rawCode: string): SyncErrorCopy {
   const code = normalizeCode(rawCode);
 
