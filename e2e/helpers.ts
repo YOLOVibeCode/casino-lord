@@ -76,10 +76,13 @@ export async function createTable(
 
   let dealerToken = "";
   await expect
-    .poll(async () => {
-      dealerToken = await readDealerToken(page, code);
-      return dealerToken;
-    }, { timeout: 10_000 })
+    .poll(
+      async () => {
+        dealerToken = await readDealerToken(page, code);
+        return dealerToken;
+      },
+      { timeout: 10_000 },
+    )
     .not.toBe("");
 
   if (!code || !dealerToken) {
