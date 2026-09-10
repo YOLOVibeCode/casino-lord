@@ -1097,4 +1097,83 @@ describe("PlayerShell", () => {
     renderPlayerShell({ store, playerName: "Ana" });
     expect(screen.getByTestId("player-status-bar").textContent).toContain("17 Black");
   });
+
+  it("craps settlement status uses roll description", () => {
+    const { store } = setupGameStore("craps");
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "pass",
+        amount: 100,
+        declared: false,
+        working: true,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record({ a: 6, b: 1, total: 7, hard: null }, { quick: true });
+    renderPlayerShell({ store, playerName: "Ana" });
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("6-1 — natural");
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("+100");
+  });
+
+  it("blackjack settlement status uses round description", () => {
+    const { store } = setupGameStore("blackjack", { playerSeat: 1 });
+    store.emit({
+      type: "BET_PLACED",
+      bet: {
+        id: "b1",
+        playerId: "p1",
+        roundId: "r1",
+        type: "main",
+        target: { seat: 1 },
+        amount: 100,
+        declared: false,
+        working: false,
+        placedAt: "2026-01-01T00:00:02.000Z",
+        originRoundId: "r1",
+      },
+    });
+    store.emit({ type: "BETS_CLOSED", roundId: "r1", by: "dealer" });
+    store.record(
+      {
+        dealer: { cards: [], total: 20, bust: false, blackjack: false },
+        seats: {
+          1: [
+            {
+              cards: [],
+              doubled: false,
+              fromSplit: false,
+              surrendered: false,
+              outcome: "win",
+            },
+          ],
+        },
+        depth: "outcomes",
+        dealerError: false,
+      },
+      { quick: true },
+    );
+    renderPlayerShell({ store, playerName: "Ana" });
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("Dealer 20");
+    expect(screen.getByTestId("player-status-bar").textContent).toContain("+100");
+  });
+
+  it("footer arrow keys move between tabs", () => {
+    const { store } = setupStore();
+    renderPlayerShell({ store, playerName: "Ana" });
+    const tablist = screen.getByRole("tablist", { name: "Player sections" });
+    fireEvent.keyDown(tablist, { key: "ArrowRight" });
+    expect(screen.getByRole("tab", { name: "History" }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(tablist, { key: "ArrowRight" });
+    expect(screen.getByRole("tab", { name: "Leaderboard" }).getAttribute("aria-selected")).toBe(
+      "true",
+    );
+    fireEvent.keyDown(tablist, { key: "ArrowLeft" });
+    expect(screen.getByRole("tab", { name: "History" }).getAttribute("aria-selected")).toBe("true");
+  });
 });

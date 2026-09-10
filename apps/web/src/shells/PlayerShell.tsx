@@ -156,8 +156,12 @@ function getResultEntries(
   if (!moduleState || typeof moduleState !== "object") return [];
   const state = moduleState as Record<string, unknown>;
   switch (gameId) {
+    case "craps": {
+      const rolls = state.results as Array<{ id: string; data?: unknown }> | undefined;
+      if (!rolls) return [];
+      return rolls.map((r) => ({ id: r.id, data: r.data ?? r }));
+    }
     case "baccarat":
-    case "craps":
       return (state.results as Array<{ id: string; data: unknown }> | undefined) ?? [];
     case "roulette":
       return (state.spins as Array<{ id: string; data: unknown }> | undefined) ?? [];
@@ -1047,10 +1051,14 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
     const tabs = visibleFooterTabs.map((t) => t.id);
-    let currentIdx = activeTab === "play" ? -1 : tabs.indexOf(activeTab);
-    if (currentIdx < 0) currentIdx = 0;
     const delta = e.key === "ArrowRight" ? 1 : -1;
-    const nextIdx = (currentIdx + delta + tabs.length) % tabs.length;
+    let nextIdx: number;
+    if (activeTab === "play") {
+      nextIdx = delta > 0 ? 0 : tabs.length - 1;
+    } else {
+      const currentIdx = tabs.indexOf(activeTab);
+      nextIdx = (currentIdx + delta + tabs.length) % tabs.length;
+    }
     const nextTab = tabs[nextIdx]!;
     setActiveTab(nextTab);
     tabRefs.current[nextTab]?.focus();
