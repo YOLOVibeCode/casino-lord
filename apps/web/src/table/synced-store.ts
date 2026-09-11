@@ -138,6 +138,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   let liveInput: TableEvent | null = null;
   let virtualStatus: VirtualStatus | null = null;
   let virtualPending: VirtualPendingState | null = null;
+  let lastResultAtMs = 0;
 
   let cachedComposed: ComposedState<unknown> | null = null;
   let composedCacheKey = "";
@@ -429,6 +430,11 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     if (msg.op === "event" && msg.event) {
       const event = msg.event as TableEvent;
       if (event.type === "VIRTUAL_PENDING") {
+        const untilMs = Date.parse(event.untilAt);
+        if (Number.isFinite(untilMs) && untilMs <= lastResultAtMs) {
+          notify();
+          return;
+        }
         virtualPending = { kind: event.kind, untilAt: event.untilAt };
         notify();
         return;
@@ -436,6 +442,11 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
       if (event.type === "LIVE_INPUT") {
         invalidateComposedCache();
         liveInput = event;
+      }
+      if (event.type === "RESULT_RECORDED") {
+        virtualPending = null;
+        const atMs = Date.parse(event.at);
+        if (Number.isFinite(atMs)) lastResultAtMs = Math.max(lastResultAtMs, atMs);
       }
       if (event.seq <= 0) {
         notify();

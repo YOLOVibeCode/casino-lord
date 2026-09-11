@@ -205,6 +205,11 @@ describe("virtual dealer extended", () => {
     const table = server.registry.get(code)!;
     const results = table.allEvents.filter((e) => e.type === "RESULT_RECORDED");
     expect(results.length).toBeGreaterThanOrEqual(1);
+    const first = results[0];
+    expect(first?.type).toBe("RESULT_RECORDED");
+    if (first?.type === "RESULT_RECORDED") {
+      expect(first.result.roundId).toBe("r1");
+    }
 
     dealer.close();
   });
