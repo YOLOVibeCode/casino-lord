@@ -61,6 +61,9 @@
 }
 
 .bet-slip__amount {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   font-variant-numeric: tabular-nums;
 }
 

@@ -1,5 +1,5 @@
 import type { BettingRound, PlayerState } from "@casino-lord/core";
-import { FeltZones, usePlayerBetting, type FeltZoneDef } from "@casino-lord/ui";
+import { FeltZones, PlayingCard, usePlayerBetting, type FeltZoneDef } from "@casino-lord/ui";
 import type { BaccaratBetId } from "../bet-target.js";
 import type { BaccaratRules } from "../rules.js";
 import type { BaccaratState } from "../state.js";
@@ -145,12 +145,28 @@ export function PlayerView({ state, rules }: PlayerViewProps) {
         <MiniBigRoad grid={state.roads.bigRoad} visibleCols={8} />
       </div>
       {result && (
-        <p class="baccarat-player-view__last-hand" data-testid="last-hand-line">
-          {formatLastHand(result)}
-          {result.outcome && hasDetailedHand(result)
-            ? ` · ${outcomeDisplayLabel(result.outcome)}`
-            : ""}
-        </p>
+        <div class="baccarat-player-view__last-hand" data-testid="last-hand-line">
+          {result.cards && (
+            <div class="baccarat-player-view__last-cards" aria-hidden="true">
+              {PLAYER_SLOTS.map((slot) => result.cards?.[slot]).map((card, i) =>
+                card ? (
+                  <PlayingCard key={`p-${i}`} rank={card.rank} suit={card.suit} size="sm" />
+                ) : null,
+              )}
+              {BANKER_SLOTS.map((slot) => result.cards?.[slot]).map((card, i) =>
+                card ? (
+                  <PlayingCard key={`b-${i}`} rank={card.rank} suit={card.suit} size="sm" />
+                ) : null,
+              )}
+            </div>
+          )}
+          <p>
+            {formatLastHand(result)}
+            {result.outcome && hasDetailedHand(result)
+              ? ` · ${outcomeDisplayLabel(result.outcome)}`
+              : ""}
+          </p>
+        </div>
       )}
     </div>
   );

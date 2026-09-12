@@ -47,7 +47,7 @@ function PuckBoard({ state, compact }: { state: CrapsState; compact?: boolean })
           >
             <span class="craps-puck-board__num">{box}</span>
             {puckOn && isPoint && (
-              <span class="craps-puck-board__puck" data-testid="puck">
+              <span class="craps-puck-board__puck craps-puck-board__puck--on" data-testid="puck">
                 ON
               </span>
             )}
@@ -56,7 +56,7 @@ function PuckBoard({ state, compact }: { state: CrapsState; compact?: boolean })
         );
       })}
       {!puckOn && (
-        <span class="craps-puck-board__off" data-testid="puck">
+        <span class="craps-puck-board__off craps-puck-board__puck--off" data-testid="puck">
           OFF
         </span>
       )}
@@ -180,7 +180,7 @@ export function DisplayView({ state, rules, table, layout }: DisplayViewProps) {
 
       {rules.showLiveDice && (state.liveInput.a !== null || state.liveInput.b !== null) && (
         <div class="craps-display__live" data-testid="last-roll-dice">
-          <DicePair a={state.liveInput.a} b={state.liveInput.b} />
+          <DicePair a={state.liveInput.a} b={state.liveInput.b} size="lg" />
         </div>
       )}
 

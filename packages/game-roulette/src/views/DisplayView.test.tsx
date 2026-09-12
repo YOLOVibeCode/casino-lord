@@ -59,4 +59,9 @@ describe("DisplayView", () => {
     expect(screen.getByTestId("roulette-wheel")).toBeTruthy();
     expect(document.querySelector('[data-pocket="17"]')).toBeTruthy();
   });
+
+  it("draws a ball in the winning pocket", () => {
+    renderDisplay("classic");
+    expect(screen.getByTestId("wheel-ball")).toBeTruthy();
+  });
 });

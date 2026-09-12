@@ -1,6 +1,8 @@
+import { ChipStack } from "./Chip.js";
 import { usePlayerBetting } from "./player-betting-context.js";
 import type { FeltZoneDef } from "./felt-zone-types.js";
 import { useLongPress } from "./use-long-press.js";
+import "./felt-surface.css";
 import "./felt-zones.css";
 
 export interface FeltZonesProps {
@@ -32,8 +34,6 @@ function FeltZoneButton({
   } = usePlayerBetting();
   const ownStake = getOwnStake(zone.id);
   const tableStake = getTableStake(zone.id);
-  const chipCount = Math.min(5, Math.ceil(ownStake / 25) || (ownStake > 0 ? 1 : 0));
-
   const press = useLongPress({
     onTap: () => {
       if (!disabled) onTap(zone);
@@ -94,13 +94,7 @@ function FeltZoneButton({
           <span class="felt-zones__stake" data-testid={`felt-zone-stake-${zone.id}`}>
             ⛁ {ownStake}
           </span>
-          {chipCount > 0 && (
-            <div class="felt-zones__chips" aria-hidden="true">
-              {Array.from({ length: chipCount }, (_, i) => (
-                <span key={i} class="felt-zones__chip" />
-              ))}
-            </div>
-          )}
+          {ownStake > 0 && <ChipStack amount={ownStake} size="xs" playerColor={playerColor} />}
         </>
       )}
       {showOthersBets && tableStake > 0 && (
@@ -127,7 +121,7 @@ export function FeltZones({
     const mainZones = zones.filter((z) => !z.id.includes("pair"));
     return (
       <div
-        class={`felt-zones felt-zones--baccarat${disabled ? " felt-zones--disabled" : ""}`}
+        class={`felt-zones felt-surface felt-zones--baccarat${disabled ? " felt-zones--disabled" : ""}`}
         data-testid="felt-zones"
       >
         <div class="felt-zones__side-row">
@@ -157,7 +151,10 @@ export function FeltZones({
   }
 
   return (
-    <div class={`felt-zones${disabled ? " felt-zones--disabled" : ""}`} data-testid="felt-zones">
+    <div
+      class={`felt-zones felt-surface${disabled ? " felt-zones--disabled" : ""}`}
+      data-testid="felt-zones"
+    >
       {zones.map((zone) => (
         <FeltZoneButton
           key={zone.id}

@@ -20,8 +20,8 @@
 }
 
 .dealer-view__slot {
-  min-width: 48px;
-  min-height: 48px;
+  min-width: 3.4rem;
+  min-height: 5rem;
   border: 1px solid var(--bj-border, rgba(255, 255, 255, 0.2));
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.25);
@@ -29,6 +29,10 @@
   cursor: pointer;
   font-size: 0.95rem;
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
 }
 
 .dealer-view__slot--empty {
@@ -49,17 +53,6 @@
 
 .dealer-view__slot--hole {
   background: #1a2744;
-  color: transparent;
-}
-
-.dealer-view__slot--hole::after {
-  content: "▮▮";
-  color: #4a5568;
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .dealer-view__slot--red {

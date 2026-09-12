@@ -4,11 +4,11 @@ import type { BlackjackRules } from "../rules.js";
 import { blackjackStats } from "../stats.js";
 import type { BlackjackState } from "../state.js";
 import type { HandInput, Seat, SeatOutcome } from "../types.js";
+import { PlayingCard } from "@casino-lord/ui";
 import {
   dealerStatusLabel,
   formatCardGlyph,
   handTotalLabel,
-  isRedSuit,
   outcomeColor,
   outcomeDisplayLabel,
 } from "./card-display.js";
@@ -24,14 +24,14 @@ export interface DisplayViewProps {
 }
 
 function renderCard(card: { rank: string; suit: string | null }, faceDown = false) {
-  if (faceDown) {
-    return <span class="display-view__card display-view__card--down">▮▮</span>;
-  }
-  const red = card.suit ? isRedSuit(card.suit as import("../types.js").Suit) : false;
   return (
-    <span class={`display-view__card${red ? " display-view__card--red" : ""}`}>
-      {formatCardGlyph(card as import("../types.js").Card)}
-    </span>
+    <PlayingCard
+      rank={card.rank}
+      suit={card.suit}
+      faceDown={faceDown}
+      size="md"
+      label={faceDown ? "Face-down card" : formatCardGlyph(card as import("../types.js").Card)}
+    />
   );
 }
 
@@ -75,9 +75,9 @@ function SeatPanel({
         return (
           <div class="display-view__hand" key={hi} data-testid={`seat-${seat}-hand-${hi}`}>
             {entryDepth === "full" && hand.cards.length > 0 && (
-              <div>
+              <div class="display-view__hand-cards">
                 {hand.cards.map((c, ci) => (
-                  <span key={ci}>{renderCard(c)} </span>
+                  <span key={ci}>{renderCard(c)}</span>
                 ))}
               </div>
             )}
@@ -122,7 +122,7 @@ export function DisplayView({ state, rules, layout }: DisplayViewProps) {
         <div class="display-view__dealer-cards">
           {dealerCards.length === 0 && "—"}
           {dealerCards.map((c, i) => (
-            <span key={i}>{renderCard(c, holeHidden && i === 1)} </span>
+            <span key={i}>{renderCard(c, holeHidden && i === 1)}</span>
           ))}
         </div>
         <div class="display-view__dealer-status">

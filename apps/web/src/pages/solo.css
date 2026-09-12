@@ -126,7 +126,8 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
-  min-height: calc(100vh - 4rem);
+  height: calc(100dvh - 5rem);
+  min-height: 0;
 }
 
 @media (max-width: 768px) {
@@ -137,7 +138,13 @@
 
 .solo__dealer,
 .solo__display {
-  min-height: 20rem;
+  min-height: 0;
+  height: 100%;
+}
+
+.solo__display .display-shell,
+.solo__dealer .dealer-shell {
+  height: 100%;
 }
 
 .solo--error {

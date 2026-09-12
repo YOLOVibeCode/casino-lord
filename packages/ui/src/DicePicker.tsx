@@ -1,19 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { Die, type DieFace } from "./Die.js";
 import { tapHaptic } from "./haptics.js";
 import "./dice-picker.css";
 
-export type DieFace = 1 | 2 | 3 | 4 | 5 | 6;
+export type { DieFace };
 
 const FACES: DieFace[] = [1, 2, 3, 4, 5, 6];
-
-const PIP_LAYOUT: Record<DieFace, number[]> = {
-  1: [4],
-  2: [0, 8],
-  3: [0, 4, 8],
-  4: [0, 2, 6, 8],
-  5: [0, 2, 4, 6, 8],
-  6: [0, 2, 3, 5, 6, 8],
-};
 
 export interface DicePickerProps {
   dieA: DieFace | null;
@@ -60,14 +52,7 @@ function DieGrid({
             aria-pressed={selected === face}
             onClick={() => onSelect(face)}
           >
-            <span class="dice-picker__pip-grid" aria-hidden="true">
-              {Array.from({ length: 9 }, (_, i) => (
-                <span
-                  key={i}
-                  class={`dice-picker__pip${PIP_LAYOUT[face].includes(i) ? " dice-picker__pip--on" : ""}`}
-                />
-              ))}
-            </span>
+            <Die face={face} size="sm" />
           </button>
         ))}
       </div>

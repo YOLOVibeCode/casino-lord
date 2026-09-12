@@ -31,9 +31,11 @@
   justify-content: center;
   min-height: 56px;
   padding: 0.35rem;
-  border: 2px solid var(--craps-felt-border, #2d6a4f);
+  border: 1.5px solid var(--gold-hairline, rgba(184, 148, 90, 0.5));
   border-radius: 8px;
-  background: var(--craps-felt, #1b4332);
+  background:
+    linear-gradient(180deg, rgba(12, 58, 44, 0.55), rgba(4, 22, 16, 0.75)),
+    var(--craps-felt, #1b4332);
   color: inherit;
   cursor: pointer;
 }
@@ -73,6 +75,56 @@
   color: inherit;
   cursor: pointer;
   text-align: center;
+}
+
+.craps-player-view__zone--flash-win,
+.craps-player-view__place-box.craps-player-view__zone--flash-win {
+  animation: felt-zone-win 0.6s ease-out;
+}
+
+.craps-player-view__zone--flash-lose,
+.craps-player-view__place-box.craps-player-view__zone--flash-lose {
+  animation: felt-zone-lose 0.6s ease-out;
+}
+
+@keyframes felt-zone-win {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: 0 0 0 4px #4ade80;
+  }
+}
+
+@keyframes felt-zone-lose {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: 0 0 0 4px #f87171;
+  }
+}
+
+.craps-player-view__badge {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.craps-player-view__badge--win {
+  background: #166534;
+  color: #fff;
+}
+
+.craps-player-view__badge--lose {
+  background: #7f1d1d;
+  color: #fff;
 }
 
 .craps-player-view__zone--disabled {

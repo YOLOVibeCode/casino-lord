@@ -1,4 +1,4 @@
-import { CardPicker, OutcomeChips } from "@casino-lord/ui";
+import { CardPicker, OutcomeChips, PlayingCard } from "@casino-lord/ui";
 import type { Emit, ResultEnvelope, TableMeta } from "@casino-lord/core";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { cardValue } from "../cards.js";
@@ -19,8 +19,6 @@ const QUICK_CHIPS = [
   { id: "T", label: "T", color: "#16a34a", ariaLabel: "Quick entry Tie" },
 ];
 
-const SUIT_GLYPH: Record<string, string> = { S: "♠", H: "♥", D: "♦", C: "♣" };
-
 const SUIT_NAMES: Record<Suit, string> = {
   S: "spades",
   H: "hearts",
@@ -37,11 +35,6 @@ const RANK_NAMES: Partial<Record<Rank, string>> = {
 
 function isRedSuit(suit: Suit | null): boolean {
   return suit === "H" || suit === "D";
-}
-
-function formatSlotCard(card: Card): string {
-  const glyph = card.suit ? (SUIT_GLYPH[card.suit] ?? "") : "";
-  return `${card.rank}${glyph}`;
 }
 
 function slotTitle(slot: SlotId): string {
@@ -316,10 +309,12 @@ export function DealerView({
         {isDraw && <span class="dealer-view__draw-badge">DRAW</span>}
         {card ? (
           <>
-            {formatSlotCard(card)}
+            <PlayingCard rank={card.rank} suit={card.suit} size="md" />
             <span class="dealer-view__slot-value">{cardValue(card.rank)}</span>
           </>
-        ) : null}
+        ) : (
+          <PlayingCard empty size="md" />
+        )}
         {error && <span class="dealer-view__error-msg">{error}</span>}
       </button>
     );

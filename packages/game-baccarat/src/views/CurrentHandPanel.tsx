@@ -1,12 +1,7 @@
+import { PlayingCard } from "@casino-lord/ui";
 import type { BaccaratState } from "../state.js";
 import type { BaccaratResult, Card, SlotId } from "../types.js";
-import {
-  BANKER_SLOTS,
-  PLAYER_SLOTS,
-  formatSlotCard,
-  isRedSuit,
-  outcomeDisplayLabel,
-} from "./card-display.js";
+import { BANKER_SLOTS, PLAYER_SLOTS, formatSlotCard, outcomeDisplayLabel } from "./card-display.js";
 import "./current-hand-panel.css";
 
 interface CurrentHandPanelProps {
@@ -15,14 +10,15 @@ interface CurrentHandPanelProps {
 
 function renderCards(slots: Partial<Record<SlotId, Card>>, sideSlots: SlotId[]) {
   return sideSlots
-    .map((slot) => slots[slot])
-    .filter(Boolean)
-    .map((card, i) => (
+    .map((slot) => ({ slot, card: slots[slot] }))
+    .filter((row): row is { slot: SlotId; card: Card } => Boolean(row.card))
+    .map(({ slot, card }, i) => (
       <span
-        key={`${sideSlots[i]}-${card!.rank}`}
-        class={`current-hand-panel__card${isRedSuit(card!.suit) ? " current-hand-panel__card--red" : ""}`}
+        key={`${slot}-${card.rank}`}
+        class={`current-hand-panel__card${i === 2 ? " current-hand-panel__card--third" : ""}`}
+        aria-label={formatSlotCard(card)}
       >
-        {formatSlotCard(card!)}
+        <PlayingCard rank={card.rank} suit={card.suit} size="lg" />
       </span>
     ));
 }
