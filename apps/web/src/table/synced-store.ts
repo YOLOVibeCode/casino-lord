@@ -49,6 +49,8 @@ export interface CreateSyncedStoreOptions {
   id?: () => string;
   onJoinError?: (code: string) => void;
   onReject?: (reason: string) => void;
+  playerId?: string;
+  onTrace?: (event: string, detail?: string) => void;
 }
 
 function defaultResolveModule(game: GameId): UntypedGameModule {
@@ -115,8 +117,16 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     id = defaultId,
     onJoinError,
     onReject,
+    onTrace,
   } = options;
   const token = options.token;
+  const trace = (event: string, detail?: string): void => {
+    if (detail !== undefined && detail !== "") {
+      onTrace?.(event, detail);
+      return;
+    }
+    onTrace?.(event);
+  };
   const rulesExplicit = options.rules !== undefined;
   let game: GameId = "baccarat";
   let module = resolveModule(game);
@@ -130,7 +140,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   let rejectReason: string | null = null;
   let connectionState: ConnectionState = "reconnecting";
   let presence: SyncPresence = { dealers: 0, displays: 0, players: [] };
-  let playerId: string | null = null;
+  let playerId: string | null = options.playerId ?? null;
   let pendingPlayers: PendingPlayerEntry[] = [];
   const pending = new Map<string, PendingEmit>();
   let offlineTimer: ReturnType<typeof setTimeout> | null = null;
@@ -331,6 +341,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     };
     if ((role === "dealer" || role === "player") && token) payload.token = token;
     if (takeoverJoin) payload.takeover = true;
+    trace("socket-join-sent", `role=${role} sinceSeq=${sinceSeq}`);
     socket.emit("message", payload);
   };
 
@@ -383,6 +394,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
 
     persist();
     notify();
+    trace("socket-joined", `playerId=${playerId ?? ""} seq=${latestSeq}`);
     void flushOfflineQueue();
   };
 
@@ -390,17 +402,26 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
   // right sinceSeq and the server delta never lands on top of a later local merge.
   const socket: Socket = io(syncUrl, {
     path: "/ws",
-    transports: ["websocket"],
+    // Phones / carrier NATs often stall websocket-only; polling is the fallback.
+    transports: ["websocket", "polling"],
+    upgrade: true,
     autoConnect: false,
   });
 
   socket.on("connect", () => {
+    const transport = socket.io.engine?.transport?.name;
+    trace("socket-connect", transport ? `transport=${transport} id=${socket.id ?? ""}` : undefined);
     setConnectionState("reconnecting");
     clearOfflineTimer();
     sendJoin(takeover);
   });
 
-  socket.on("disconnect", () => {
+  socket.on("connect_error", (err: Error) => {
+    trace("socket-connect-error", err.message);
+  });
+
+  socket.on("disconnect", (reason) => {
+    trace("socket-disconnect", String(reason));
     joined = false;
     setConnectionState("reconnecting");
     scheduleOffline();
@@ -422,6 +443,7 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     if (msg.op === "error" && typeof msg.code === "string") {
       rejectReason = msg.code;
       joined = false;
+      trace("socket-error", msg.code);
       onJoinError?.(msg.code);
       notify();
       return;
@@ -529,7 +551,9 @@ export function createSyncedTableStore(options: CreateSyncedStoreOptions): SyncS
     })
     .catch(() => undefined)
     .then(() => {
-      if (!destroyed) socket.connect();
+      if (destroyed) return;
+      trace("socket-connect-start", syncUrl);
+      socket.connect();
     });
 
   if (role === "dealer" && token) saveDealerToken(code, token);

@@ -54,13 +54,16 @@ import { PLAYER_COLORS } from "@casino-lord/core";
 import { houseSettings } from "@casino-lord/core/testing";
 import { baccaratModule, DEFAULT_BACCARAT_RULES } from "@casino-lord/game-baccarat";
 import { rouletteModule, DEFAULT_ROULETTE_RULES } from "@casino-lord/game-roulette";
-import { getTableMeta } from "../sync/api.js";
-import { describeSyncError } from "../sync/error-copy.js";
+import { getTableMeta, joinTablePlayer } from "../sync/api.js";
+import { describeSyncError, SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
 import { PlayPage } from "./PlayPage.js";
 import { createTableStore } from "../table/store.js";
 import { asUntypedModule } from "../table/module-types.js";
 
-function buildMockStore(options?: { rejectToken?: boolean }) {
+function buildMockStore(options?: {
+  rejectToken?: boolean;
+  connection?: "connected" | "reconnecting" | "offline";
+}) {
   const isRoulette = mockTableGame === "roulette";
   const module = asUntypedModule(isRoulette ? rouletteModule : baccaratModule);
   const store = createTableStore({
@@ -84,11 +87,12 @@ function buildMockStore(options?: { rejectToken?: boolean }) {
   });
 
   const rejectReason = options?.rejectToken ? "BAD_TOKEN" : null;
+  const connection = options?.connection ?? (rejectReason ? "reconnecting" : "connected");
 
   return {
     ...store,
     getPlayerId: () => "p1",
-    getConnectionState: () => (rejectReason ? "reconnecting" : "connected"),
+    getConnectionState: () => connection,
     getRejectReason: () => rejectReason,
     getModule: () => module,
     destroy: vi.fn(),
@@ -212,6 +216,37 @@ describe("PlayPage", () => {
     expect(screen.getByText("taken")).toBeTruthy();
     const availableSwatch = screen.getByTestId(`color-${PLAYER_COLORS[1]}`);
     expect(availableSwatch.className).toContain("play-page__swatch--selected");
+  });
+
+  it("shows join diagnostics on the name form", async () => {
+    renderPlayPage("/play/K7X2PQ");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("join-diagnostics")).toBeTruthy();
+    });
+    expect(screen.getByTestId("join-diagnostics-text").textContent).toMatch(/table=K7X2PQ/);
+  });
+
+  it("enters the table when HTTP join succeeds but the socket times out", async () => {
+    vi.mocked(joinTablePlayer).mockResolvedValueOnce({
+      playerId: "p1",
+      playerToken: "tok-join",
+      pending: false,
+    });
+    waitForSyncReady.mockRejectedValueOnce(new Error(SYNC_JOIN_TIMEOUT));
+    createSyncedTableStore.mockImplementationOnce(() =>
+      buildMockStore({ rejectToken: false, connection: "reconnecting" }),
+    );
+
+    renderPlayPage("/play/K7X2PQ");
+    const input = await screen.findByTestId("player-name-input");
+    fireEvent.input(input, { target: { value: "Ana" } });
+    fireEvent.click(screen.getByTestId("join-btn"));
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("player-shell")).toBeTruthy();
+    });
+    expect(screen.getByTestId("entered-on-timeout")).toBeTruthy();
+    expect(screen.getByTestId("join-diagnostics-text").textContent).toMatch(/enter-without-ready/);
   });
 
   it("renders roulette player view without baccarat felt zones", async () => {

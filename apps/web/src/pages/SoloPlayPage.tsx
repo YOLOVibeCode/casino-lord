@@ -7,6 +7,8 @@ import {
 import { useEffect, useState } from "preact/hooks";
 import { useLocation, useRoute } from "preact-iso";
 import { PlayerShell } from "../shells/PlayerShell.js";
+import { JoinDiagnosticsPanel } from "../sync/JoinDiagnosticsPanel.js";
+import { appendJoinTrace, type JoinTrace } from "../sync/join-diagnostics.js";
 import { loadPlayerToken } from "../sync/player-token.js";
 import { getGame } from "../table/games.js";
 import {
@@ -50,6 +52,27 @@ export function SoloPlayPage(_props: { path?: string }) {
   const [color, setColor] = useState<string>(PLAYER_COLORS[0]!);
   const [store, setStore] = useState<SyncStore | null>(null);
   const [playerName, setPlayerName] = useState("");
+  const [traces, setTraces] = useState<JoinTrace[]>([]);
+
+  const pushTrace = (event: string, detail?: string): void => {
+    setTraces((prev) => appendJoinTrace(prev, event, detail));
+  };
+
+  const soloTimeoutHint =
+    "Solo QR only works in another tab of this same browser, not on a different phone. Create a table from Home to join from a phone.";
+
+  const diagnosticsReport = () => ({
+    phase,
+    tableCode: code,
+    href: typeof window !== "undefined" ? window.location.href : "",
+    syncUrl: "solo-broadcast-channel",
+    online: typeof navigator !== "undefined" ? navigator.onLine : true,
+    connectionState: store ? "connected" : "none",
+    rejectReason: error || null,
+    playerId: store?.getPlayerId() ?? null,
+    traces,
+    userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
+  });
 
   useEffect(() => {
     if (!isSoloBroadcastChannelAvailable()) {
@@ -132,11 +155,14 @@ export function SoloPlayPage(_props: { path?: string }) {
     }
 
     setError("");
+    pushTrace("solo-join-start", `name=${validated.name}`);
     const result = await joinSoloPlayer({ code, name: validated.name, color });
     if (!result.ok) {
-      setError(result.reason);
+      pushTrace("solo-join-failed", result.reason);
+      setError(result.reason === "TIMEOUT" ? `TIMEOUT — ${soloTimeoutHint}` : result.reason);
       return;
     }
+    pushTrace("solo-join-ok", `playerId=${result.playerId}`);
 
     const playerStore = createSoloPlayerStore({
       code,
@@ -175,6 +201,7 @@ export function SoloPlayPage(_props: { path?: string }) {
         <button type="button" onClick={() => route("/")}>
           Home
         </button>
+        <JoinDiagnosticsPanel report={diagnosticsReport()} />
       </main>
     );
   }
@@ -216,6 +243,7 @@ export function SoloPlayPage(_props: { path?: string }) {
           </div>
         </fieldset>
         {error && <p class="play-page__error">{error}</p>}
+        <JoinDiagnosticsPanel report={diagnosticsReport()} />
         <div class="play-page__join-wrap">
           <button
             type="button"

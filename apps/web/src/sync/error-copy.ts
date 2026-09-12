@@ -91,6 +91,16 @@ const COPY: Record<string, SyncErrorCopy> = {
     body: "Could not reach the sync server in time. Check your network and try again.",
     actions: ["retry", "home"],
   },
+  TIMEOUT: {
+    title: "Connection timed out",
+    body: "The join request timed out. If you scanned a Solo QR, that only works in another tab of the same browser — create a table from Home to join from a phone.",
+    actions: ["retry", "home"],
+  },
+  "Could not connect": {
+    title: "Still connecting",
+    body: "The live socket did not finish in time. You can stay on this table; the phone will keep trying to connect.",
+    actions: ["retry", "home"],
+  },
   MIXED_SERIES: {
     title: "Series mismatch",
     body: "This action does not match the current series. Refresh or start a new series from the dealer menu.",
@@ -199,6 +209,8 @@ export const CANONICAL_SYNC_ERROR_CODES = [
   "join failed: 500",
   "join failed: 503",
   SYNC_JOIN_TIMEOUT,
+  "TIMEOUT",
+  "Could not connect",
   "MIXED_SERIES",
   "DEALING",
   "NOT_VIRTUAL",
@@ -236,7 +248,7 @@ export function describeSyncError(code: string): SyncErrorCopy {
 }
 
 export function isDefinitiveJoinError(code: string): boolean {
-  if (code === "DEALER_ACTIVE" || code === SYNC_JOIN_TIMEOUT) {
+  if (code === "DEALER_ACTIVE" || code === SYNC_JOIN_TIMEOUT || code === "TIMEOUT") {
     return false;
   }
   return true;
