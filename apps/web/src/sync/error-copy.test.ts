@@ -32,4 +32,9 @@ describe("describeSyncError", () => {
     expect(SYNC_JOIN_TIMEOUT).toBe("sync join timeout");
     expect(describeSyncError(SYNC_JOIN_TIMEOUT).title).toBe("Connection timed out");
   });
+
+  it("maps raw TIMEOUT from the join form", () => {
+    expect(describeSyncError("TIMEOUT").title).toBe("Connection timed out");
+    expect(isGenericSyncError(describeSyncError("TIMEOUT"))).toBe(false);
+  });
 });

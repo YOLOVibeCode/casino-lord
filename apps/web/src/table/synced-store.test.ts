@@ -11,6 +11,7 @@ import { minimalBaccaratResult } from "../../../sync/src/test-helpers/baccarat-r
 import { getGame } from "./games.js";
 import { asUntypedModule } from "./module-types.js";
 import { composedStateFingerprint } from "./store.js";
+import { SYNC_JOIN_TIMEOUT } from "../sync/error-copy.js";
 import {
   createSyncedTableStore,
   deliverMessageForTest,
@@ -77,6 +78,21 @@ async function waitForFingerprint(
   }
   expect(composedStateFingerprint(display)).toBe(expected);
 }
+
+describe("waitForSyncReady", () => {
+  it("rejects with SYNC_JOIN_TIMEOUT when the socket never connects", async () => {
+    const listeners = new Set<() => void>();
+    const store = {
+      getConnectionState: () => "reconnecting" as const,
+      getRejectReason: () => null,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    } as unknown as SyncStore;
+    await expect(waitForSyncReady(store, 20)).rejects.toThrow(SYNC_JOIN_TIMEOUT);
+  });
+});
 
 describe("synced store", () => {
   it("dealer records 3 results and display reaches same fingerprint", async () => {

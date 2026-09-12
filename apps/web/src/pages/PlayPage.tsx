@@ -9,7 +9,9 @@ import { useLocation, useRoute } from "preact-iso";
 import { PlayerShell } from "../shells/PlayerShell.js";
 import { getTableMeta, joinTablePlayer } from "../sync/api.js";
 import { isSyncConfigured, getSyncBaseUrl } from "../sync/config.js";
-import { describeSyncError, type SyncErrorAction } from "../sync/error-copy.js";
+import { describeSyncError, SYNC_JOIN_TIMEOUT, type SyncErrorAction } from "../sync/error-copy.js";
+import { JoinDiagnosticsPanel } from "../sync/JoinDiagnosticsPanel.js";
+import { appendJoinTrace, type JoinTrace } from "../sync/join-diagnostics.js";
 import { clearPlayerToken, loadPlayerToken, savePlayerToken } from "../sync/player-token.js";
 import { getGame } from "../table/games.js";
 import type { UntypedGameModule } from "../table/module-types.js";
@@ -67,6 +69,26 @@ export function PlayPage(_props: { path?: string }) {
   const [playerName, setPlayerName] = useState("");
   const [takenColors, setTakenColors] = useState<string[]>([]);
   const [bootstrapKey, setBootstrapKey] = useState(0);
+  const [joining, setJoining] = useState(false);
+  const [traces, setTraces] = useState<JoinTrace[]>([]);
+  const [enteredOnTimeout, setEnteredOnTimeout] = useState(false);
+
+  const pushTrace = (event: string, detail?: string): void => {
+    setTraces((prev) => appendJoinTrace(prev, event, detail));
+  };
+
+  const diagnosticsReport = () => ({
+    phase,
+    tableCode: code,
+    href: typeof window !== "undefined" ? window.location.href : "",
+    syncUrl: isSyncConfigured() ? getSyncBaseUrl() : "not-configured",
+    online: typeof navigator !== "undefined" ? navigator.onLine : true,
+    connectionState: store?.getConnectionState() ?? "none",
+    rejectReason: store?.getRejectReason() ?? (joinError || errorCode || null),
+    playerId: store?.getPlayerId() ?? null,
+    traces,
+    userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
+  });
 
   useEffect(() => {
     if (!isSyncConfigured()) {
@@ -81,7 +103,12 @@ export function PlayPage(_props: { path?: string }) {
     let cancelled = false;
     void (async () => {
       try {
+        pushTrace("lookup-start", getSyncBaseUrl());
         const meta = await getTableMeta(getSyncBaseUrl(), code);
+        pushTrace(
+          "lookup-ok",
+          `game=${meta.game ?? "?"} playerMode=${meta.participation?.playerMode ?? "?"}`,
+        );
         if (!meta.exists) {
           if (!cancelled) {
             setErrorPhase(setPhase, setErrorCode, "NOT_FOUND");
@@ -116,7 +143,8 @@ export function PlayPage(_props: { path?: string }) {
         }
 
         if (!cancelled) setPhase("join");
-      } catch {
+      } catch (e) {
+        pushTrace("lookup-failed", e instanceof Error ? e.message : "unknown");
         if (!cancelled) {
           setErrorPhase(setPhase, setErrorCode, "TABLE_LOOKUP_FAILED");
         }
@@ -135,7 +163,12 @@ export function PlayPage(_props: { path?: string }) {
     history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
   };
 
-  const connectPlayer = async (token: string, displayName: string, pending: boolean) => {
+  const connectPlayer = async (
+    token: string,
+    displayName: string,
+    pending: boolean,
+    knownPlayerId?: string,
+  ) => {
     const resolveModule = (g: import("@casino-lord/core").GameId): UntypedGameModule => {
       const entry = getGame(g);
       if (!entry?.module) throw new Error("UNSUPPORTED_GAME");
@@ -149,7 +182,12 @@ export function PlayPage(_props: { path?: string }) {
       token,
       syncUrl: getSyncBaseUrl(),
       resolveModule,
+      ...(knownPlayerId ? { playerId: knownPlayerId } : {}),
+      onTrace: (event, detail) => {
+        pushTrace(event, detail);
+      },
       onJoinError: (errCode) => {
+        pushTrace("join-error", errCode);
         if (errCode === "BAD_TOKEN") {
           clearStoredAndJoin();
         } else {
@@ -160,16 +198,26 @@ export function PlayPage(_props: { path?: string }) {
 
     try {
       await waitForSyncReady(syncStore);
-    } catch {
-      syncStore.destroy();
-      if (syncStore.getRejectReason() === "BAD_TOKEN") {
+      setEnteredOnTimeout(false);
+    } catch (err) {
+      const reason = syncStore.getRejectReason();
+      const timedOut = err instanceof Error && err.message === SYNC_JOIN_TIMEOUT;
+      if (reason === "BAD_TOKEN") {
+        syncStore.destroy();
         return;
       }
-      throw new Error(syncStore.getRejectReason() ?? "Could not connect");
+      if (!timedOut && reason) {
+        syncStore.destroy();
+        throw new Error(reason);
+      }
+      // HTTP join already created the player. Keep the socket and enter the table
+      // so a stalled phone websocket cannot block the name form forever.
+      pushTrace("enter-without-ready", timedOut ? SYNC_JOIN_TIMEOUT : (reason ?? "unknown"));
+      setEnteredOnTimeout(true);
     }
     savePlayerToken(code, token);
     setStore(syncStore);
-    const pid = syncStore.getPlayerId();
+    const pid = syncStore.getPlayerId() ?? knownPlayerId ?? null;
     const fromLog = pid
       ? syncStore.getComposed().platform.players.find((p) => p.id === pid)?.name
       : undefined;
@@ -208,9 +256,11 @@ export function PlayPage(_props: { path?: string }) {
     return store.subscribe(check);
   }, [store, phase]);
 
+  const [, setDiagTick] = useState(0);
   useEffect(() => {
     if (!store) return;
     const unsub = store.subscribe(() => {
+      setDiagTick((n) => n + 1);
       const reason = store.getRejectReason();
       if (reason === "DECLINED") {
         store.destroy();
@@ -232,16 +282,27 @@ export function PlayPage(_props: { path?: string }) {
       return;
     }
     setJoinError("");
+    setJoining(true);
+    const started = Date.now();
+    pushTrace("http-join-start", `name=${validated.name}`);
     try {
       const result = await joinTablePlayer(getSyncBaseUrl(), code, {
         name: validated.name,
         color,
       });
+      pushTrace(
+        "http-join-ok",
+        `ms=${Date.now() - started} playerId=${result.playerId} pending=${result.pending}`,
+      );
       savePlayerToken(code, result.playerToken);
       setPlayerName(validated.name);
-      await connectPlayer(result.playerToken, validated.name, result.pending);
+      await connectPlayer(result.playerToken, validated.name, result.pending, result.playerId);
     } catch (e) {
-      setJoinError(e instanceof Error ? e.message : "Join failed");
+      const message = e instanceof Error ? e.message : "Join failed";
+      pushTrace("http-join-failed", `ms=${Date.now() - started} ${message}`);
+      setJoinError(message);
+    } finally {
+      setJoining(false);
     }
   };
 
@@ -283,6 +344,7 @@ export function PlayPage(_props: { path?: string }) {
     return (
       <main class="play-page play-page--loading" data-testid="play-page">
         <p>Loading…</p>
+        <JoinDiagnosticsPanel report={diagnosticsReport()} />
       </main>
     );
   }
@@ -293,7 +355,13 @@ export function PlayPage(_props: { path?: string }) {
       <main class="play-page play-page--error" data-testid="play-page">
         <h1 class="play-page__error-title">{copy.title}</h1>
         <p class="play-page__error">{copy.body}</p>
+        {errorCode && (
+          <p class="play-page__error-code" data-testid="play-error-code">
+            {errorCode}
+          </p>
+        )}
         {renderErrorActions(copy.actions)}
+        <JoinDiagnosticsPanel report={diagnosticsReport()} />
       </main>
     );
   }
@@ -348,6 +416,12 @@ export function PlayPage(_props: { path?: string }) {
           </div>
         </fieldset>
         {joinCopy && <p class="play-page__error">{joinCopy.body}</p>}
+        {joinError && (
+          <p class="play-page__error-code" data-testid="play-join-error-code">
+            {joinError}
+          </p>
+        )}
+        <JoinDiagnosticsPanel report={diagnosticsReport()} />
         <div class="play-page__join-wrap">
           {joinDisabledReason && (
             <p class="play-page__join-hint" data-testid="join-disabled-reason">
@@ -357,11 +431,11 @@ export function PlayPage(_props: { path?: string }) {
           <button
             type="button"
             class="play-page__join"
-            disabled={!nameValidation.ok}
+            disabled={!nameValidation.ok || joining}
             onClick={() => void handleJoin()}
             data-testid="join-btn"
           >
-            Join
+            {joining ? "Joining…" : "Join"}
           </button>
         </div>
       </main>
@@ -375,6 +449,9 @@ export function PlayPage(_props: { path?: string }) {
           Waiting for the dealer to approve
         </p>
         <PlayerShell store={store} playerName={playerName} />
+        <div class="play-page__diag-overlay">
+          <JoinDiagnosticsPanel report={diagnosticsReport()} defaultOpen={enteredOnTimeout} />
+        </div>
       </main>
     );
   }
@@ -382,7 +459,15 @@ export function PlayPage(_props: { path?: string }) {
   if (phase === "playing" && store) {
     return (
       <main class="play-page play-page--embedded" data-testid="play-page">
+        {enteredOnTimeout && (
+          <p class="play-page__timeout-banner" data-testid="entered-on-timeout">
+            Joined — still connecting to the live table
+          </p>
+        )}
         <PlayerShell store={store} playerName={playerName || "Player"} />
+        <div class="play-page__diag-overlay">
+          <JoinDiagnosticsPanel report={diagnosticsReport()} defaultOpen={enteredOnTimeout} />
+        </div>
       </main>
     );
   }
