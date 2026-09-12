@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { Chip } from "./Chip.js";
 import "./bet-slip.css";
 
 export interface BetSlipEntry {
@@ -73,7 +74,12 @@ export function BetSlip({
               {entry.detail ?? entry.label}
               {entry.pending && !entry.detail ? " (pending)" : ""}
             </span>
-            {!entry.detail && <span class="bet-slip__amount">{entry.amount}</span>}
+            {!entry.detail && (
+              <span class="bet-slip__amount">
+                <Chip denom={entry.amount} size="xs" />
+                {entry.amount}
+              </span>
+            )}
             <button
               type="button"
               class="bet-slip__remove"

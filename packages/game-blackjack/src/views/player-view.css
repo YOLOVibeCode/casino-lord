@@ -22,31 +22,12 @@
 .blackjack-player-view__cards {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  align-items: flex-end;
+  gap: 0;
 }
 
-.blackjack-player-view__card {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2.5rem;
-  min-height: 3rem;
-  padding: 0.25rem 0.4rem;
-  border-radius: 0.35rem;
-  background: #1a1f2e;
-  border: 1px solid rgba(237, 230, 214, 0.2);
-  font-size: 1rem;
-  color: #ede6d6;
-}
-
-.blackjack-player-view__card--red {
-  color: #d7263d;
-}
-
-.blackjack-player-view__card--down {
-  background: #0f1219;
-  color: #64748b;
-  letter-spacing: -0.15em;
+.blackjack-player-view__cards .playing-card + .playing-card {
+  margin-left: -1.1rem;
 }
 
 .blackjack-player-view__total {
@@ -73,6 +54,9 @@
 }
 
 .blackjack-player-view__stake {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.85rem;
   color: #d4af37;
   margin-top: 0.35rem;

@@ -1,5 +1,6 @@
 import type { BettingRound, PlacedBet, PlayerState } from "@casino-lord/core";
 import {
+  ChipStack,
   FeltZones,
   PlayerBettingContext,
   usePlayerBetting,
@@ -180,7 +181,12 @@ function InsideHitLayer({
               if (allowed === true) tryRemove(zone.zoneId);
             }}
           >
-            {stake > 0 && <span class="player-felt__hit-stake">⛁ {stake}</span>}
+            {stake > 0 && (
+              <span class="player-felt__hit-stake">
+                <ChipStack amount={stake} size="xs" />
+                <span>{stake}</span>
+              </span>
+            )}
           </button>
         );
       })}

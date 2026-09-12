@@ -1,5 +1,5 @@
 import type { BettingRound, PlacedBet, PlayerState } from "@casino-lord/core";
-import { PlayerBettingContext } from "@casino-lord/ui";
+import { ChipStack, PlayerBettingContext } from "@casino-lord/ui";
 import { useCallback, useContext, useState } from "preact/hooks";
 import type { CrapsAction } from "../actions.js";
 import { crapsPlayerActions } from "../actions.js";
@@ -115,6 +115,19 @@ function PlaceBox({
   const reason = disabled ? placeAllowed : undefined;
   const comeBet = travelledComeOnPoint(me, point);
   const placeStake = stakeOnPoint(me, point, ["place", "buy", "lay", "hard"]);
+  const betting = useContext(PlayerBettingContext);
+  const zoneOutcome =
+    betting?.settlementByZone.place ??
+    betting?.settlementByZone.buy ??
+    betting?.settlementByZone.lay ??
+    betting?.settlementByZone.hard ??
+    (placeStake > 0 || comeBet ? betting?.settlementFlash : null);
+  const flashClass =
+    zoneOutcome === "win"
+      ? " craps-player-view__zone--flash-win"
+      : zoneOutcome === "lose"
+        ? " craps-player-view__zone--flash-lose"
+        : "";
 
   const handlePlace = useCallback(
     (betId: CrapsBetId, target?: CrapsBetTarget) => {
@@ -134,7 +147,7 @@ function PlaceBox({
     <>
       <button
         type="button"
-        class={`craps-player-view__place-box${disabled ? " craps-player-view__zone--disabled" : ""}`}
+        class={`craps-player-view__place-box${disabled ? " craps-player-view__zone--disabled" : ""}${flashClass}`}
         style={{ minHeight: "56px" }}
         data-testid={`place-box-${point}`}
         aria-disabled={disabled}
@@ -148,6 +161,14 @@ function PlaceBox({
         onKeyDown={(e) => press.handleKeyDown(e as unknown as KeyboardEvent)}
       >
         <span class="craps-player-view__place-num">{point}</span>
+        {zoneOutcome && (
+          <span
+            class={`craps-player-view__badge craps-player-view__badge--${zoneOutcome}`}
+            data-testid={`place-box-badge-${point}`}
+          >
+            {zoneOutcome === "win" ? "WIN" : "LOSE"}
+          </span>
+        )}
         {comeBet && (
           <span
             class="craps-player-view__come-chip"
@@ -157,7 +178,7 @@ function PlaceBox({
               onSelectBet(comeBet.id);
             }}
           >
-            ⛀{comeBet.amount}
+            <ChipStack amount={comeBet.amount} size="xs" showAmount />
             <span class="craps-player-view__come-mark">C</span>
           </span>
         )}
@@ -181,7 +202,7 @@ function PlaceBox({
               if (bet) onSelectBet(bet.id);
             }}
           >
-            ⛀{placeStake}
+            <ChipStack amount={placeStake} size="xs" showAmount />
           </span>
         )}
         {reason && <span class="craps-player-view__zone-reason">{reason}</span>}
@@ -223,11 +244,23 @@ function BetZone({
   const allowed = betAllowed(betId, state, me);
   const disabled = allowed !== true;
   const reason = disabled ? allowed : undefined;
+  const betting = useContext(PlayerBettingContext);
+  const ownStake = me.openBets
+    .filter((b) => b.type === betId)
+    .reduce((sum, b) => sum + b.amount, 0);
+  const zoneOutcome =
+    betting?.settlementByZone[betId] ?? (ownStake > 0 ? betting?.settlementFlash : null);
+  const flashClass =
+    zoneOutcome === "win"
+      ? " craps-player-view__zone--flash-win"
+      : zoneOutcome === "lose"
+        ? " craps-player-view__zone--flash-lose"
+        : "";
 
   return (
     <button
       type="button"
-      class={`craps-player-view__zone${className ? ` ${className}` : ""}${disabled ? " craps-player-view__zone--disabled" : ""}`}
+      class={`craps-player-view__zone${className ? ` ${className}` : ""}${disabled ? " craps-player-view__zone--disabled" : ""}${flashClass}`}
       data-testid={`bet-zone-${betId}`}
       aria-disabled={disabled}
       aria-label={`${label}${reason ? `, ${reason}` : ""}`}
@@ -237,6 +270,12 @@ function BetZone({
       }}
     >
       <span class="craps-player-view__zone-label">{label}</span>
+      {ownStake > 0 && <ChipStack amount={ownStake} size="xs" showAmount />}
+      {zoneOutcome && (
+        <span class={`craps-player-view__badge craps-player-view__badge--${zoneOutcome}`}>
+          {zoneOutcome === "win" ? "WIN" : "LOSE"}
+        </span>
+      )}
       {reason && <span class="craps-player-view__zone-reason">{reason}</span>}
     </button>
   );
@@ -392,7 +431,7 @@ export function PlayerView({
               );
             }}
           >
-            ODDS ⛀{amount}
+            ODDS <ChipStack amount={amount} size="xs" showAmount />
           </button>
         )}
         {dontSideLine && (
@@ -414,7 +453,7 @@ export function PlayerView({
               );
             }}
           >
-            LAY ODDS ⛀{amount}
+            LAY ODDS <ChipStack amount={amount} size="xs" showAmount />
           </button>
         )}
         <BetZone

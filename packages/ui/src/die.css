@@ -1,0 +1,25 @@
+.die {
+  display: inline-block;
+  line-height: 0;
+  vertical-align: middle;
+  --die-h: 2.75rem;
+}
+
+.die svg {
+  display: block;
+  width: var(--die-h);
+  height: var(--die-h);
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+}
+
+.die--sm {
+  --die-h: 1.5rem;
+}
+
+.die--md {
+  --die-h: 2.75rem;
+}
+
+.die--lg {
+  --die-h: 4.25rem;
+}

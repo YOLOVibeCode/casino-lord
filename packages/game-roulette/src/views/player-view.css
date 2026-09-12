@@ -90,6 +90,9 @@
 }
 
 .player-felt {
+  background: radial-gradient(ellipse at 50% 20%, rgba(11, 61, 46, 0.35), transparent 70%);
+  border: 1px solid var(--gold-hairline, rgba(184, 148, 90, 0.3));
+  border-radius: 0.5rem;
   display: flex;
   flex-direction: column;
   gap: var(--felt-gap);
@@ -210,9 +213,12 @@
   position: absolute;
   bottom: 0;
   right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   font-size: 0.55rem;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 0.1rem 0.2rem;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 0.1rem;
   border-radius: 0.15rem;
 }
 
@@ -317,5 +323,23 @@
 @media (orientation: landscape) and (min-width: 640px) {
   .roulette-player-view__body {
     flex-direction: row-reverse;
+  }
+}
+
+@media (min-width: 768px) {
+  .roulette-player-view {
+    --felt-cell: 4.75rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .player-felt__track-num {
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 0.8rem;
+  }
+
+  .player-felt__sector-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
   }
 }

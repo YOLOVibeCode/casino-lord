@@ -1,5 +1,11 @@
 import type { BettingRound, Player, PlayerState } from "@casino-lord/core";
-import { FeltZones, usePlayerBetting, type FeltZoneDef } from "@casino-lord/ui";
+import {
+  ChipStack,
+  FeltZones,
+  PlayingCard,
+  usePlayerBetting,
+  type FeltZoneDef,
+} from "@casino-lord/ui";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { canPlaceEvenMoney, isActionEnabled, isMyTurn } from "../actions-enabled.js";
 import type { BlackjackBetId } from "../bet-target.js";
@@ -9,7 +15,7 @@ import type { BlackjackState } from "../state.js";
 import { blackjackTurn, getLiveInput, isInsuranceWindow } from "../turn.js";
 import type { HandInput, Seat } from "../types.js";
 import type { BlackjackAction } from "../virtual.js";
-import { formatCardGlyph, handTotalLabel, isRedSuit, outcomeDisplayLabel } from "./card-display.js";
+import { formatCardGlyph, handTotalLabel, outcomeDisplayLabel } from "./card-display.js";
 import "./blackjack-tokens.css";
 import "./player-view.css";
 
@@ -281,24 +287,26 @@ export function PlayerView({
         <div class="blackjack-player-view__section-label">DEALER</div>
         <div class="blackjack-player-view__cards">
           {dealerVisible && (
-            <span
-              class={`blackjack-player-view__card${dealerVisible.suit && isRedSuit(dealerVisible.suit) ? " blackjack-player-view__card--red" : ""}`}
-            >
-              {formatCardGlyph(dealerVisible)}
-            </span>
+            <PlayingCard
+              rank={dealerVisible.rank}
+              suit={dealerVisible.suit}
+              size="lg"
+              label={formatCardGlyph(dealerVisible)}
+            />
           )}
-          {holeHidden && (
-            <span class="blackjack-player-view__card blackjack-player-view__card--down">▮▮</span>
-          )}
+          {holeHidden && <PlayingCard faceDown size="lg" />}
           {!holeHidden &&
-            dealerCards.slice(1).map((card, i) => (
-              <span
-                key={i}
-                class={`blackjack-player-view__card${card.suit && isRedSuit(card.suit) ? " blackjack-player-view__card--red" : ""}`}
-              >
-                {formatCardGlyph(card)}
-              </span>
-            ))}
+            dealerCards
+              .slice(1)
+              .map((card, i) => (
+                <PlayingCard
+                  key={i}
+                  rank={card.rank}
+                  suit={card.suit}
+                  size="lg"
+                  label={formatCardGlyph(card)}
+                />
+              ))}
         </div>
         <div class="blackjack-player-view__total" data-testid="dealer-total">
           = {dealerTotal ?? "—"}
@@ -323,12 +331,14 @@ export function PlayerView({
               )}
               <div class="blackjack-player-view__cards">
                 {hand.cards.map((card, ci) => (
-                  <span
+                  <PlayingCard
                     key={ci}
-                    class={`blackjack-player-view__card${card.suit && isRedSuit(card.suit) ? " blackjack-player-view__card--red" : ""}`}
-                  >
-                    {formatCardGlyph(card)}
-                  </span>
+                    rank={card.rank}
+                    suit={card.suit}
+                    size="lg"
+                    highlight={active}
+                    label={formatCardGlyph(card)}
+                  />
                 ))}
               </div>
               <div class="blackjack-player-view__total" data-testid={`my-hand-total-${hi}`}>
@@ -339,7 +349,8 @@ export function PlayerView({
         })}
         {mainStake(me, mySeat) > 0 && (
           <div class="blackjack-player-view__stake" data-testid="main-stake">
-            ⛀{mainStake(me, mySeat)} main
+            <ChipStack amount={mainStake(me, mySeat)} size="sm" showAmount />
+            <span> main</span>
           </div>
         )}
       </section>

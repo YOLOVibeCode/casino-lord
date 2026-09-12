@@ -1,0 +1,57 @@
+.felt-surface {
+  background: radial-gradient(
+    ellipse at 50% 28%,
+    var(--felt-top, #0b3d2e),
+    var(--felt-bottom, #062418) 72%
+  );
+  position: relative;
+}
+
+.felt-surface::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.14;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+  z-index: 0;
+}
+
+.felt-surface::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 45%, transparent 52%, rgba(0, 0, 0, 0.38) 100%);
+  z-index: 0;
+}
+
+.felt-surface > * {
+  position: relative;
+  z-index: 1;
+}
+
+.felt-zones.felt-surface {
+  isolation: isolate;
+}
+
+.felt-zones__zone {
+  background:
+    linear-gradient(180deg, rgba(12, 58, 44, 0.55), rgba(4, 22, 16, 0.72)), rgba(0, 0, 0, 0.18);
+  border-width: 1.5px;
+  border-color: var(--gold-hairline, rgba(184, 148, 90, 0.55));
+  border-radius: 0.4rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.felt-zones__label {
+  color: #f4ead0;
+  font-weight: 800;
+}
+
+.felt-zones__sublabel {
+  color: var(--gold-accent, #d4af37);
+  letter-spacing: 0.04em;
+}

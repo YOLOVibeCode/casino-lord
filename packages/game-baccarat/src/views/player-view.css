@@ -20,6 +20,17 @@
   flex-shrink: 0;
 }
 
+.baccarat-player-view__last-hand p {
+  margin: 0.25rem 0 0;
+}
+
+.baccarat-player-view__last-cards {
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
 .baccarat-player-view__road-label {
   font-size: max(0.75rem, 12px);
   opacity: 0.7;

@@ -1,4 +1,4 @@
-import { CardPicker, OutcomeChips } from "@casino-lord/ui";
+import { CardPicker, OutcomeChips, PlayingCard } from "@casino-lord/ui";
 import type { PickedCard } from "@casino-lord/ui";
 import type { Emit, Player, TableEvent, TableMeta } from "@casino-lord/core";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
@@ -503,11 +503,13 @@ export function DealerView({
                 }
                 onClick={() => openPicker(target)}
               >
-                {!isHolePlaceholder && card ? (
-                  formatCardGlyph(card)
-                ) : !isHolePlaceholder ? (
+                {isHolePlaceholder ? (
+                  <PlayingCard faceDown size="md" />
+                ) : card ? (
+                  <PlayingCard rank={card.rank} suit={card.suit} size="md" />
+                ) : (
                   <span class="dealer-view__slot-plus">+</span>
-                ) : null}
+                )}
               </button>
             );
           })}
@@ -593,7 +595,7 @@ export function DealerView({
                         onClick={() => openPicker(target)}
                       >
                         {card ? (
-                          formatCardGlyph(card)
+                          <PlayingCard rank={card.rank} suit={card.suit} size="md" />
                         ) : (
                           <span class="dealer-view__slot-plus">+</span>
                         )}

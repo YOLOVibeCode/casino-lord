@@ -23,16 +23,18 @@
   min-height: 3.5rem;
   width: 3.5rem;
   height: 3.5rem;
+  padding: 0;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  background: #333;
+  border: 2px solid transparent;
+  background: transparent;
   color: #fff;
-  font-weight: 700;
-  font-size: max(0.875rem, 14px);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.1s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chip-tray__denom:active {

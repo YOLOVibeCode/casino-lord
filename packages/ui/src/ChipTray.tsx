@@ -1,6 +1,5 @@
+import { Chip } from "./Chip.js";
 import "./chip-tray.css";
-
-const CHIP_COLORS = ["#e5322d", "#16a34a", "#1a1a1a", "#7c3aed", "#ca8a04"];
 
 export interface ChipTrayProps {
   denominations: number[];
@@ -30,12 +29,11 @@ export function ChipTray({
           Selected chip: {selected}
         </span>
       )}
-      {denominations.map((denom, i) => (
+      {denominations.map((denom) => (
         <button
           key={denom}
           type="button"
           class={`chip-tray__denom${selected === denom ? " chip-tray__denom--selected" : ""}`}
-          style={{ background: CHIP_COLORS[i % CHIP_COLORS.length] }}
           aria-label={`Select ${denom} chip`}
           aria-pressed={selected === denom}
           aria-disabled={disabled ? "true" : undefined}
@@ -43,7 +41,7 @@ export function ChipTray({
           data-testid={`chip-denom-${denom}`}
           onClick={() => onSelect(denom)}
         >
-          {denom}
+          <Chip denom={denom} size="lg" />
         </button>
       ))}
       <button

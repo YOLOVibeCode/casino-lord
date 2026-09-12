@@ -1,0 +1,68 @@
+.chip {
+  display: inline-block;
+  line-height: 0;
+  vertical-align: middle;
+  --chip-h: 2.25rem;
+}
+
+.chip svg {
+  display: block;
+  width: var(--chip-h);
+  height: var(--chip-h);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+}
+
+.chip--xs {
+  --chip-h: 1.15rem;
+}
+
+.chip--sm {
+  --chip-h: 1.65rem;
+}
+
+.chip--md {
+  --chip-h: 2.25rem;
+}
+
+.chip--lg {
+  --chip-h: 3.5rem;
+}
+
+.chip-stack {
+  display: inline-flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  position: relative;
+  min-height: 1.5rem;
+}
+
+.chip-stack__item {
+  display: block;
+  margin-top: -0.55rem;
+}
+
+.chip-stack__item:first-child {
+  margin-top: 0;
+}
+
+.chip-stack__overflow {
+  position: absolute;
+  top: -0.55rem;
+  right: -0.55rem;
+  min-width: 1rem;
+  padding: 0 0.2rem;
+  border-radius: 0.5rem;
+  background: #111;
+  color: #fff;
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.chip-stack__amount {
+  margin-top: 0.15rem;
+  font-size: max(0.75rem, 12px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}

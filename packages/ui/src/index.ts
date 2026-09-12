@@ -9,9 +9,27 @@ export {
 export { OutcomeChips, type OutcomeChipsProps } from "./OutcomeChips.js";
 export type { PickedCard, OutcomeChipDef, CardRank, CardSuit } from "./types.js";
 export { DicePicker, type DicePickerProps, type DieFace } from "./DicePicker.js";
+export { Die, type DieProps, type DieSize } from "./Die.js";
 export { ChipTray, type ChipTrayProps } from "./ChipTray.js";
 export { BetSlip, type BetSlipProps, type BetSlipEntry } from "./BetSlip.js";
 export { FeltZones, type FeltZonesProps } from "./FeltZones.js";
+export {
+  PlayingCard,
+  playingCardLabel,
+  type PlayingCardProps,
+  type PlayingCardSize,
+} from "./PlayingCard.js";
+export {
+  Chip,
+  ChipStack,
+  chipColor,
+  splitChipAmount,
+  type ChipPalette,
+  type ChipProps,
+  type ChipSize,
+  type ChipSplit,
+  type ChipStackProps,
+} from "./Chip.js";
 export type { FeltZoneDef } from "./felt-zone-types.js";
 export {
   PlayerBettingContext,

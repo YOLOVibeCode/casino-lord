@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { tapHaptic } from "./haptics.js";
+import "./felt-surface.css";
 import "./number-grid.css";
 
 export type NumberGridPocket = 0 | "00" | number;
@@ -184,7 +185,7 @@ export function NumberGrid({
   };
 
   return (
-    <div class="number-grid" data-testid="number-grid">
+    <div class="number-grid felt-surface" data-testid="number-grid">
       <div class="number-grid__zeros">
         {renderCell(0)}
         {isAmericanWheel(wheel) && renderCell("00")}
