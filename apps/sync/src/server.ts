@@ -85,6 +85,7 @@ export async function buildServer(
   if (options.registry) {
     registerTableRoutes(app, {
       registry: options.registry,
+      tableCreateLimit: config.tableCreateLimit,
       ...(options.rateLimiter ? { rateLimiter: options.rateLimiter } : {}),
       notifyPending: (code) => {
         if (ioRef) {

@@ -111,11 +111,12 @@
   font-size: 0.875rem;
 }
 
-.solo__local-link img {
-  display: block;
-  width: 8rem;
-  height: 8rem;
-  margin-bottom: 0.5rem;
+.solo__local-links-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
 .solo__local-link a {

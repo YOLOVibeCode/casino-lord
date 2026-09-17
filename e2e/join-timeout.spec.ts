@@ -1,7 +1,5 @@
 import { expect, test } from "@playwright/test";
-import jsQR from "jsqr";
-import { PNG } from "pngjs";
-import type { BrowserContext, Locator } from "@playwright/test";
+import type { BrowserContext } from "@playwright/test";
 import { createTable, startFreshSolo } from "./helpers.js";
 
 /**
@@ -10,15 +8,6 @@ import { createTable, startFreshSolo } from "./helpers.js";
  * Each test drives the app the way the person did, so the timeout is produced by
  * the product, not simulated by the test.
  */
-
-async function scanQr(image: Locator): Promise<string> {
-  const src = await image.getAttribute("src");
-  expect(src, "QR image has no source").toMatch(/^data:image\/png;base64,/);
-  const png = PNG.sync.read(Buffer.from(src!.split(",")[1]!, "base64"));
-  const decoded = jsQR(new Uint8ClampedArray(png.data), png.width, png.height);
-  expect(decoded, "QR image could not be scanned").not.toBeNull();
-  return decoded!.data;
-}
 
 /**
  * Kill the live socket the way a hostile network does: the websocket upgrade is
@@ -32,8 +21,8 @@ async function blackholeLiveSocket(context: BrowserContext): Promise<void> {
   await context.route("**/ws/**", (route) => route.abort());
 }
 
-test.describe("solo QR scanned from another device", () => {
-  test("times out after 5s with no way to recover", async ({ browser }) => {
+test.describe("solo mode local players", () => {
+  test("offers a link and a real table, never a QR that can only time out", async ({ browser }) => {
     test.setTimeout(90_000);
 
     const hostContext = await browser.newContext();
@@ -43,11 +32,33 @@ test.describe("solo QR scanned from another device", () => {
     await host.getByTestId("local-players-toggle").locator("input").check();
     await expect(host.getByTestId("solo-local-links")).toBeVisible();
 
-    const playUrl = await scanQr(host.getByTestId("solo-play-qr"));
+    // Solo is one browser talking to itself over BroadcastChannel. A QR here can
+    // only ever time out on the phone that scans it, so there is no QR to scan.
+    await expect(host.getByTestId("solo-play-qr")).toHaveCount(0);
+    await expect(host.getByTestId("solo-display-qr")).toHaveCount(0);
+    await expect(host.getByTestId("solo-same-device-note")).toContainText(
+      /phone cannot join a solo table/i,
+    );
+    expect(await host.getByTestId("solo-create-table-link").getAttribute("href")).toBe("/");
+
+    const playUrl = await host.getByTestId("solo-play-link").getAttribute("href");
     expect(playUrl).toContain("/solo/baccarat/play?code=");
 
-    // A different device is a different browser: BroadcastChannel cannot reach
-    // the host tab, which is the whole premise of solo mode.
+    await hostContext.close();
+  });
+
+  test("a stale solo link opened elsewhere still explains itself", async ({ browser }) => {
+    test.setTimeout(90_000);
+
+    const hostContext = await browser.newContext();
+    const host = await hostContext.newPage();
+    await startFreshSolo(host, "baccarat");
+    await host.getByTestId("local-players-toggle").locator("input").check();
+    await expect(host.getByTestId("solo-local-links")).toBeVisible();
+    const playUrl = (await host.getByTestId("solo-play-link").getAttribute("href"))!;
+
+    // Someone photographed the old QR, or the link was pasted into a chat. A
+    // different browser cannot reach the host tab's BroadcastChannel.
     const phoneContext = await browser.newContext();
     const phone = await phoneContext.newPage();
     await phone.goto(playUrl);
@@ -58,6 +69,7 @@ test.describe("solo QR scanned from another device", () => {
 
     const error = phone.locator(".play-page__error");
     await expect(error).toContainText("TIMEOUT", { timeout: 20_000 });
+    await expect(error).toContainText(/same browser/i);
 
     await hostContext.close();
     await phoneContext.close();
@@ -65,18 +77,10 @@ test.describe("solo QR scanned from another device", () => {
 });
 
 test.describe("synced table when the live socket never connects", () => {
-  // KNOWN BUG — remove `.fixme` with the fix.
-  //
-  // #94 made a player enter the table after the 8s join timeout instead of being
-  // stuck on the name form. With a socket that never connects at all, that path
-  // renders a page whose <main> contains exactly one element:
-  //
-  //   <p data-testid="entered-on-timeout">Joined — still connecting to the live table</p>
-  //
-  // PlayerShell and the diagnostics panel produce no DOM, so there is no shell,
-  // no "Loading…", no diagnostics to copy and no way back. PlayerShell has a
-  // `if (!module)` fallback that never gets the chance to render.
-  test.fixme("a player still gets in over HTTP and is told it is still connecting", async ({
+  // Regression for the blank page: #94 enters the table after the 8s join
+  // timeout, which left PlayerShell rendering against an empty log. That threw
+  // on `settings.bank`, so <main> held nothing but the timeout banner.
+  test("a player still gets in over HTTP and is told it is still connecting", async ({
     browser,
   }) => {
     test.setTimeout(120_000);
@@ -99,6 +103,9 @@ test.describe("synced table when the live socket never connects", () => {
 
     await expect(phone.getByTestId("player-shell")).toBeVisible({ timeout: 30_000 });
     await expect(phone.getByTestId("entered-on-timeout")).toBeVisible();
+    // Say it is a connection problem — not that the dealer has not approved them.
+    await expect(phone.getByTestId("player-connecting")).toContainText(/connecting to the table/i);
+    await expect(phone.getByTestId("player-shell")).not.toContainText(/approve/i);
 
     await phoneContext.close();
   });

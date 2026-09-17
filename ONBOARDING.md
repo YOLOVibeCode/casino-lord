@@ -16,7 +16,7 @@ Roles: **Dealer** (phone, controls the table) · **Display** (TV, read-only boar
 | P4 | Player | Landing → **Join** → type code → Join as Player | `/play/:code` | [LandingPage.tsx](apps/web/src/pages/LandingPage.tsx) |
 | P5 | Player | **Reissue link** handed out by the dealer | `/play/:code?t=` | [PlayersDialog.tsx](apps/web/src/shells/PlayersDialog.tsx) |
 | P6 | Player | Returning — stored token in `localStorage` | `/play/:code` | [player-token.ts](apps/web/src/sync/player-token.ts) |
-| P7 | Player | Solo QR (same browser only, **not** another device) | `/solo/:game/play` | [SoloPage.tsx](apps/web/src/pages/SoloPage.tsx) |
+| P7 | Player | Solo link — another tab of the **same browser**, never another device (no QR, by design) | `/solo/:game/play` | [SoloPage.tsx](apps/web/src/pages/SoloPage.tsx) |
 | D1 | Dealer | Dealer QR / link on the Table created screen | `/dealer/:code?t=` | [TableCreatedPage.tsx](apps/web/src/pages/TableCreatedPage.tsx) |
 | D2 | Dealer | Landing → **Your tables** → Reopen | `/dealer/:code?t=` | [dealer-token.ts](apps/web/src/sync/dealer-token.ts) |
 | D3 | Dealer | Landing → Join → Staff → paste dealer token | `/dealer/:code?t=` | [LandingPage.tsx](apps/web/src/pages/LandingPage.tsx) |
@@ -54,7 +54,9 @@ create table ──▶ /created/:code ──▶ [QR] ──▶ /play/:code
 | --- | --- | --- | --- |
 | QR target | Scanned URL is unreachable from the phone | Links were built from the **sync** URL (`VITE_SYNC_URL`), which can be `localhost`, a loopback address or a private API host. | `tableUrl()` now builds from the **page origin** — [urls.ts](apps/web/src/sync/urls.ts), [urls.test.ts](apps/web/src/sync/urls.test.ts) |
 | QR target | Dealer's **Show QR** had no Join entry — guests scanned Display (read-only) or Dealer (full control) | `buildQrDialogEntries` supported a Join entry; `DealerShell` never passed `playerModeOn`/`joinUrl`. | [DealerShell.qr.test.tsx](apps/web/src/shells/DealerShell.qr.test.tsx) |
-| QR target | Solo QR scanned from a phone never connects | Solo is one browser over `BroadcastChannel`, by design. | `TIMEOUT` copy in [error-copy.ts](apps/web/src/sync/error-copy.ts) |
+| QR target | Solo QR scanned from a phone never connects | Solo is one browser over `BroadcastChannel`, so a scanned code could only ever time out on the phone that scanned it. The QR is gone; the page offers a same-device link and points phones at Create Table. | [SoloPage.tsx](apps/web/src/pages/SoloPage.tsx), [join-timeout.spec.ts](e2e/join-timeout.spec.ts) |
+| Socket | Player enters a blank page | `initialPlatformState()` returned `settings: {} as TableSettings`. A shell rendering before `TABLE_CREATED` arrives — the #94 "enter after timeout" path — threw on `settings.bank`, leaving `<main>` holding nothing but the timeout banner. | [platform-state.ts](packages/core/src/platform-state.ts), [PlayerShell.connecting.test.tsx](apps/web/src/shells/PlayerShell.connecting.test.tsx) |
+| Socket | Player told the dealer has not approved them | `playerPending = !player \|\| …` could not tell "not in the log yet" from "awaiting approval". | [PlayerShell.tsx](apps/web/src/shells/PlayerShell.tsx) |
 | Page load | `/play/:code` 404s | SPA deep links depend on the server's not-found handler. | [server.ts](apps/sync/src/server.ts); covered by every e2e that opens a join URL cold |
 | Lookup | Code is gone | Tables expire (`TABLE_TTL_HOURS`, default 6) and `PERSIST=memory` loses them on restart. | `NOT_FOUND` copy |
 | Lookup | Wrong error shown | Socket reject reasons were relabelled `TABLE_LOOKUP_FAILED`, sending people to chase a network fault. | [PlayPage.tsx](apps/web/src/pages/PlayPage.tsx), PlayPage test *"surfaces the socket's own reason"* |
@@ -80,6 +82,7 @@ create table ──▶ /created/:code ──▶ [QR] ──▶ /play/:code
 | D1–D3 dealer entry | `TableCreatedPage.test.tsx`, `LandingPage.test.tsx`, `dealer-token.test.ts` | `onboarding.spec.ts` — dealer QR opens the dealer shell |
 | V1–V2 display entry | `DisplayShell.test.tsx` | `onboarding.spec.ts` |
 | Gameplay after onboarding | per-game shell tests | `sync-*-players.spec.ts`, `sync-virtual-*.spec.ts` |
+| Timeouts and dead sockets | `PlayerShell.connecting.test.tsx` | `join-timeout.spec.ts` — solo link, dead socket for player and dealer |
 
 ### Still uncovered
 
@@ -87,6 +90,7 @@ create table ──▶ /created/:code ──▶ [QR] ──▶ /play/:code
 - **Simultaneous colour pick** — two guests choosing the same colour in the same instant both succeed.
 - **PWA / service-worker staleness** on a phone that has the app cached from an older deploy.
 - **Session-ended mid-play** for a connected player.
+- **`PUBLIC_URL`** is parsed by the sync config and read by nothing. Either wire it as an override for `appBaseUrl` or drop it.
 
 ---
 
@@ -97,6 +101,10 @@ pnpm test                                   # unit (Node 22 — see below)
 pnpm e2e                                    # full Playwright suite
 npx playwright test --config e2e/playwright.config.ts e2e/onboarding.spec.ts
 ```
+
+The e2e server runs with `TABLE_CREATE_LIMIT=1000`. The suite creates tables far
+faster than a venue does and every page shares `127.0.0.1`, so the production
+guard (5/min) otherwise throttles it into minutes of retry sleep.
 
 `onboarding.spec.ts` decodes each rendered QR (`pngjs` + `jsqr`) and navigates to what it
 decoded, so a QR pointed at the wrong host fails the test rather than passing on an

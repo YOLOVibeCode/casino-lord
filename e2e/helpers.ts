@@ -418,8 +418,6 @@ export function screenshotMaskLocators(page: Page) {
   return [
     page.locator(".qr-badge"),
     page.locator('[data-testid="display-qr-badge"]'),
-    page.locator('[data-testid="solo-play-qr"]'),
-    page.locator('[data-testid="solo-display-qr"]'),
     page.locator('[data-testid="betting-countdown"]'),
     page.locator(".betting-strip__bar"),
     page.locator(".display-shell--idle-attract .display-shell__module"),

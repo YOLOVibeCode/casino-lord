@@ -136,9 +136,29 @@ describe("SoloPage roulette", () => {
       expect(screen.getByTestId("solo-local-links")).toBeTruthy();
       expect(screen.getByTestId("solo-play-link")).toBeTruthy();
       expect(screen.getByTestId("solo-display-link")).toBeTruthy();
-      expect(screen.getByTestId("solo-play-qr")).toBeTruthy();
-      expect(screen.getByTestId("solo-display-qr")).toBeTruthy();
     });
+  });
+
+  it("offers no QR for a channel that only works in this browser", async () => {
+    const store = defaultStore();
+    store.emit({
+      type: "PARTICIPATION_CHANGED",
+      participation: houseSettings().participation,
+    });
+    soloStoreRef.current = store;
+
+    renderPage("/solo/roulette");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("solo-local-links")).toBeTruthy();
+    });
+    // A scanned solo QR can only ever time out on the phone that scanned it.
+    expect(screen.queryByTestId("solo-play-qr")).toBeNull();
+    expect(screen.queryByTestId("solo-display-qr")).toBeNull();
+    expect(screen.getByTestId("solo-same-device-note").textContent).toMatch(
+      /phone cannot join a solo table/i,
+    );
+    expect(screen.getByTestId("solo-create-table-link").getAttribute("href")).toBe("/");
   });
 
   it("hides local players toggle when BroadcastChannel is unavailable", async () => {

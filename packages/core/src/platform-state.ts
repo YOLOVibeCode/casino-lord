@@ -1,7 +1,7 @@
 import type { GameId, Participation } from "./types.js";
 import type { BettingRound, PlacedBet, Player, ResultEnvelope } from "./data-model.js";
 import type { Settlement } from "./betting.js";
-import type { TableSettings } from "./settings.js";
+import { DEFAULT_TABLE_SETTINGS, type TableSettings } from "./settings.js";
 
 export interface PlatformState {
   code: string;
@@ -25,7 +25,11 @@ export function initialPlatformState(): PlatformState {
     code: "",
     game: "baccarat",
     participation: { playerMode: "off", bank: "none", outcomeSource: "physical" },
-    settings: {} as TableSettings,
+    // Complete settings, not `{} as TableSettings`: every consumer reads
+    // settings.bank / settings.players directly, and a shell can render before
+    // TABLE_CREATED arrives (a phone that joined over HTTP while the live socket
+    // is still down). An empty object made that a crash instead of a blank table.
+    settings: DEFAULT_TABLE_SETTINGS,
     players: [],
     bankrolls: {},
     rounds: [],
