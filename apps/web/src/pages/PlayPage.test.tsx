@@ -265,4 +265,142 @@ describe("PlayPage", () => {
     expect(screen.getByTestId("roulette-player-view")).toBeTruthy();
     expect(screen.queryByTestId("felt-zone-banker")).toBeNull();
   });
+  it("shows NOT_FOUND when the scanned code is not a live table", async () => {
+    vi.mocked(getTableMeta).mockResolvedValueOnce({ exists: false });
+    renderPlayPage("/play/K7X2PQ");
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("play-error-code").textContent).toBe("NOT_FOUND");
+    });
+    expect(screen.getByText(describeSyncError("NOT_FOUND").title)).toBeTruthy();
+  });
+
+  it("shows PLAYERS_DISABLED when the QR points at a dealer-only table", async () => {
+    vi.mocked(getTableMeta).mockResolvedValueOnce({
+      exists: true,
+      game: "baccarat",
+      participation: { playerMode: "off", bank: "none", outcomeSource: "physical" },
+    });
+    renderPlayPage("/play/K7X2PQ");
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("play-error-code").textContent).toBe("PLAYERS_DISABLED");
+    });
+    // Offer the display as the way out, not a dead end.
+    expect(screen.getByTestId("play-error-action-display")).toBeTruthy();
+  });
+
+  it("shows INVALID_TABLE_CODE for a malformed code in the URL", async () => {
+    renderPlayPage("/play/nope");
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("play-error-code").textContent).toBe("INVALID_TABLE_CODE");
+    });
+  });
+
+  it("reports TABLE_LOOKUP_FAILED only when the lookup itself fails", async () => {
+    vi.mocked(getTableMeta).mockRejectedValueOnce(new Error("network down"));
+    renderPlayPage("/play/K7X2PQ");
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("play-error-code").textContent).toBe("TABLE_LOOKUP_FAILED");
+    });
+    expect(screen.getByTestId("join-diagnostics-text").textContent).toMatch(/lookup-failed/);
+  });
+
+  it("surfaces the socket's own reason instead of mislabelling it a lookup failure", async () => {
+    // A stored token reconnecting into a table whose session has since ended.
+    loadPlayerToken.mockReturnValue("token-abc");
+    createSyncedTableStore.mockImplementationOnce(() => ({
+      ...buildMockStore(),
+      getConnectionState: () => "reconnecting" as const,
+      getRejectReason: () => "SESSION_ENDED",
+    }));
+    waitForSyncReady.mockRejectedValueOnce(new Error("SESSION_ENDED"));
+
+    renderPlayPage("/play/K7X2PQ");
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("play-error-code").textContent).toBe("SESSION_ENDED");
+    });
+    expect(screen.getByText(describeSyncError("SESSION_ENDED").title)).toBeTruthy();
+  });
+
+  it("keeps the player on the form and explains a closed table", async () => {
+    vi.mocked(joinTablePlayer).mockRejectedValueOnce(new Error("JOINING_CLOSED"));
+    renderPlayPage("/play/K7X2PQ");
+
+    const input = await screen.findByTestId("player-name-input");
+    fireEvent.input(input, { target: { value: "Ana" } });
+    fireEvent.click(screen.getByTestId("join-btn"));
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("play-join-error-code").textContent).toBe("JOINING_CLOSED");
+    });
+    expect(screen.getByText(describeSyncError("JOINING_CLOSED").body)).toBeTruthy();
+    expect(screen.getByTestId("join-btn")).toHaveProperty("disabled", false);
+  });
+
+  it("explains a full table and a rate-limited room", async () => {
+    vi.mocked(joinTablePlayer).mockRejectedValueOnce(new Error("TABLE_FULL"));
+    renderPlayPage("/play/K7X2PQ");
+
+    const input = await screen.findByTestId("player-name-input");
+    fireEvent.input(input, { target: { value: "Ana" } });
+    fireEvent.click(screen.getByTestId("join-btn"));
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("play-join-error-code").textContent).toBe("TABLE_FULL");
+    });
+
+    vi.mocked(joinTablePlayer).mockRejectedValueOnce(new Error("rate limit exceeded"));
+    fireEvent.click(screen.getByTestId("join-btn"));
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("play-join-error-code").textContent).toBe("rate limit exceeded");
+    });
+    expect(screen.getByText(describeSyncError("rate limit exceeded").body)).toBeTruthy();
+  });
+
+  it("waits for dealer approval when the table requires it", async () => {
+    vi.mocked(joinTablePlayer).mockResolvedValueOnce({
+      playerId: "p-new",
+      playerToken: "tok-pending",
+      pending: true,
+    });
+    createSyncedTableStore.mockImplementationOnce(() => ({
+      ...buildMockStore(),
+      getPlayerId: () => "p-new",
+    }));
+
+    renderPlayPage("/play/K7X2PQ");
+    const input = await screen.findByTestId("player-name-input");
+    fireEvent.input(input, { target: { value: "Ana" } });
+    fireEvent.click(screen.getByTestId("join-btn"));
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("pending-message").textContent).toMatch(/approve/i);
+    });
+    expect(savePlayerToken).toHaveBeenCalledWith("K7X2PQ", "tok-pending");
+  });
+
+  it("shows the declined page when the dealer rejects the join", async () => {
+    let reason: string | null = null;
+    loadPlayerToken.mockReturnValue("token-abc");
+    const declining = {
+      ...buildMockStore(),
+      getRejectReason: () => reason,
+    };
+    createSyncedTableStore.mockImplementationOnce(() => declining);
+
+    renderPlayPage("/play/K7X2PQ");
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("player-shell")).toBeTruthy();
+    });
+
+    reason = "DECLINED";
+    declining.emit({ type: "SETTINGS_CHANGED", patch: {} });
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("play-error-code").textContent).toBe("DECLINED");
+    });
+  });
 });

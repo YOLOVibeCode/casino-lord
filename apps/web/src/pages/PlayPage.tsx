@@ -101,7 +101,24 @@ export function PlayPage(_props: { path?: string }) {
     }
 
     let cancelled = false;
+
     void (async () => {
+      // connectPlayer rejects with the server's own reason (PLAYERS_DISABLED,
+      // SESSION_ENDED, JOINING_CLOSED …). Surface that code instead of letting it
+      // fall through to the lookup catch, which mislabels them TABLE_LOOKUP_FAILED
+      // and sends the player chasing a network problem they do not have.
+      const connectWithToken = async (token: string): Promise<void> => {
+        try {
+          await connectPlayer(token, "", false);
+        } catch (e) {
+          const reason = e instanceof Error ? e.message : "unknown";
+          pushTrace("connect-failed", reason);
+          if (!cancelled) {
+            setErrorPhase(setPhase, setErrorCode, reason);
+          }
+        }
+      };
+
       try {
         pushTrace("lookup-start", getSyncBaseUrl());
         const meta = await getTableMeta(getSyncBaseUrl(), code);
@@ -132,14 +149,14 @@ export function PlayPage(_props: { path?: string }) {
         if (queryToken) {
           savePlayerToken(code, queryToken);
           stripTokenFromUrl();
-          await connectPlayer(queryToken, "", false);
-          if (!cancelled) return;
+          await connectWithToken(queryToken);
+          return;
         }
 
         const storedToken = loadPlayerToken(code);
         if (storedToken) {
-          await connectPlayer(storedToken, "", false);
-          if (!cancelled) return;
+          await connectWithToken(storedToken);
+          return;
         }
 
         if (!cancelled) setPhase("join");

@@ -1007,6 +1007,8 @@ export function DealerShell({
               warning: "Anyone with this link can control the table.",
             },
           ]}
+          playerModeOn={playerModeOn && !sessionEnded}
+          joinUrl={tableUrl(`/play/${store.code}`)}
           onClose={() => setActiveDialog(null)}
         />
       )}

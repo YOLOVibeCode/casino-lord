@@ -67,11 +67,28 @@ describe("TableCreatedPage", () => {
       expect(screen.getByTestId("play-qr")).toBeTruthy();
     });
 
+    // Links are built from the page origin, not the sync URL: the sync host can be
+    // one only this device can reach, and a QR built from it scans to a dead address.
     const displayLink = screen.getByTestId("open-display") as HTMLAnchorElement;
-    expect(displayLink.getAttribute("href")).toBe("http://test.local/display/ABCD23");
+    expect(displayLink.getAttribute("href")).toBe(`${window.location.origin}/display/ABCD23`);
+    expect(displayLink.getAttribute("href")).not.toContain("test.local");
 
     const dealerLink = screen.getByTestId("open-dealer") as HTMLAnchorElement;
-    expect(dealerLink.getAttribute("href")).toBe("http://test.local/dealer/ABCD23?t=secret-token");
+    expect(dealerLink.getAttribute("href")).toBe(
+      `${window.location.origin}/dealer/ABCD23?t=secret-token`,
+    );
+
+    const playLink = screen.getByTestId("open-play") as HTMLAnchorElement;
+    expect(playLink.getAttribute("href")).toBe(`${window.location.origin}/play/ABCD23`);
+  });
+
+  it("encodes the join URL in the player QR, not just next to it", async () => {
+    renderPage("/created/ABCD23?t=secret-token");
+
+    const playQr = await screen.findByTestId("play-qr");
+    const joinUrl = `${window.location.origin}/play/ABCD23`;
+    // qrDataUrl is mocked to base64 its input, so the image proves what it encodes.
+    expect(playQr.getAttribute("src")).toBe(`data:image/png;base64,${btoa(joinUrl)}`);
   });
 
   it("saves dealer token with game metadata", () => {
@@ -141,17 +158,19 @@ describe("TableCreatedPage", () => {
 
     fireEvent.click(screen.getByTestId("copy-display-url"));
     await waitFor(() => {
-      expect(writeTextMock).toHaveBeenCalledWith("http://test.local/display/ABCD23");
+      expect(writeTextMock).toHaveBeenCalledWith(`${window.location.origin}/display/ABCD23`);
     });
 
     fireEvent.click(screen.getByTestId("copy-dealer-url"));
     await waitFor(() => {
-      expect(writeTextMock).toHaveBeenCalledWith("http://test.local/dealer/ABCD23?t=secret-token");
+      expect(writeTextMock).toHaveBeenCalledWith(
+        `${window.location.origin}/dealer/ABCD23?t=secret-token`,
+      );
     });
 
     fireEvent.click(screen.getByTestId("copy-play-url"));
     await waitFor(() => {
-      expect(writeTextMock).toHaveBeenCalledWith("http://test.local/play/ABCD23");
+      expect(writeTextMock).toHaveBeenCalledWith(`${window.location.origin}/play/ABCD23`);
     });
   });
 
