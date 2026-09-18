@@ -28,7 +28,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `VITE_SYNC_URL=/ pnpm build && PERSIST=memory PORT=${port} node apps/sync/dist/main.js`,
+    // TABLE_CREATE_LIMIT: the suite creates tables far faster than a venue does,
+    // and every page shares 127.0.0.1, so the production guard would throttle it.
+    command: `VITE_SYNC_URL=/ pnpm build && PERSIST=memory PORT=${port} TABLE_CREATE_LIMIT=1000 node apps/sync/dist/main.js`,
     cwd: repoRoot,
     url: `${baseURL}/healthz`,
     reuseExistingServer: !process.env.CI,

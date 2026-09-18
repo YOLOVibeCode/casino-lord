@@ -1121,6 +1121,24 @@ export function PlayerShell({ store, playerName }: PlayerShellProps) {
     );
   }
 
+  // An empty log means the live table has not arrived yet — this phone joined
+  // over HTTP while the socket was still down. That is a connection problem, not
+  // the dealer sitting on an approval, and `playerPending` below cannot tell the
+  // two apart (`!player` is true either way).
+  if (!store.events.some((e) => e.type === "TABLE_CREATED")) {
+    return (
+      <div class="player-shell player-shell--blocked" data-testid="player-shell">
+        <div class="player-shell__blocked-card" data-testid="player-connecting">
+          <p>Connecting to the table…</p>
+          <p>You are in. The live table has not come through yet.</p>
+          <button type="button" class="player-shell__home" onClick={() => route("/")}>
+            Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (playerRemoved) {
     return (
       <div class="player-shell player-shell--blocked" data-testid="player-shell">

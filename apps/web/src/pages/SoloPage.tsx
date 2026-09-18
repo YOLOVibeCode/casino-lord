@@ -5,7 +5,6 @@ import { useDeviceSettings } from "../hooks/use-device-settings.js";
 import { DealerShell } from "../shells/DealerShell.js";
 import { DisplayShell } from "../shells/DisplayShell.js";
 import { useStore } from "../hooks/use-store.js";
-import { qrDataUrl } from "../sync/qr.js";
 import { getGame } from "../table/games.js";
 import { createNewSoloTable, resolveSoloTableStore } from "../table/solo-table.js";
 import {
@@ -153,8 +152,6 @@ function SoloPanes({
   const channelAvailable = isSoloBroadcastChannelAvailable();
   const localPlayersOn = composed.platform.participation.playerMode === "on";
   const channelRef = useRef<SoloBroadcastChannelHandle | null>(null);
-  const [playQr, setPlayQr] = useState("");
-  const [displayQr, setDisplayQr] = useState("");
 
   const playUrl = soloLocalUrl(`/solo/${gameId}/play?code=${store.code}`);
   const displayUrl = soloLocalUrl(`/solo/${gameId}/display?code=${store.code}`);
@@ -174,27 +171,6 @@ function SoloPanes({
       channelRef.current = null;
     };
   }, [store, channelAvailable, localPlayersOn, entry.module]);
-
-  useEffect(() => {
-    if (!localPlayersOn) {
-      setPlayQr("");
-      setDisplayQr("");
-      return;
-    }
-
-    let cancelled = false;
-    void (async () => {
-      const [p, d] = await Promise.all([qrDataUrl(playUrl), qrDataUrl(displayUrl)]);
-      if (!cancelled) {
-        setPlayQr(p);
-        setDisplayQr(d);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [localPlayersOn, playUrl, displayUrl]);
 
   const handleLocalPlayersToggle = (): void => {
     const outcomeSource = composed.platform.participation.outcomeSource;
@@ -253,22 +229,34 @@ function SoloPanes({
       </div>
       {localPlayersOn && (
         <section class="solo__local-links" data-testid="solo-local-links">
+          {/*
+            No QR codes here. A solo table is one browser talking to itself over
+            BroadcastChannel, so a scanned code can only ever time out on the
+            phone that scanned it. Links open in another tab; phones get sent to
+            a real table instead.
+          */}
+          <p class="solo__local-links-note" data-testid="solo-same-device-note">
+            These open in another tab of this browser. A phone cannot join a solo table.
+          </p>
           <div class="solo__local-link">
             <h2>Join (Player)</h2>
-            {playQr && <img src={playQr} alt="Player join QR" data-testid="solo-play-qr" />}
             <a href={playUrl} data-testid="solo-play-link">
               {playUrl}
             </a>
           </div>
           <div class="solo__local-link">
             <h2>Display mirror</h2>
-            {displayQr && (
-              <img src={displayQr} alt="Display mirror QR" data-testid="solo-display-qr" />
-            )}
             <a href={displayUrl} data-testid="solo-display-link">
               {displayUrl}
             </a>
           </div>
+          <p class="solo__local-links-note">
+            To let people join from their own phones,{" "}
+            <a href="/" data-testid="solo-create-table-link">
+              create a table from Home
+            </a>{" "}
+            — that one has a QR worth scanning.
+          </p>
         </section>
       )}
       <div class="solo__panes">

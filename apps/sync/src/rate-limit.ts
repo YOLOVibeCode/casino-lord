@@ -28,7 +28,13 @@ export const DEALER_EVENT_LIMIT = 20;
 export const DEALER_EVENT_WINDOW_MS = 1_000;
 export const PLAYER_EVENT_LIMIT = 10;
 export const PLAYER_EVENT_WINDOW_MS = 1_000;
-export const PLAYER_JOIN_LIMIT = 10;
+/**
+ * Every guest at a table is normally behind one NAT (the venue's wifi), so the
+ * whole room shares a single `join:<ip>` bucket. The limit has to clear the
+ * table's own capacity (maxPlayers 20, hard cap 50) with room for re-scans and
+ * reloads, or a full table cannot finish onboarding.
+ */
+export const PLAYER_JOIN_LIMIT = 60;
 export const PLAYER_JOIN_WINDOW_MS = 60_000;
 export const VIRTUAL_TRIGGER_LIMIT = 2;
 export const VIRTUAL_TRIGGER_WINDOW_MS = 1_000;

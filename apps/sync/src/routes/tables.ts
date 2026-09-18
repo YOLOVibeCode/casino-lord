@@ -36,6 +36,8 @@ function parseBearer(authHeader: string | undefined): string | null {
 
 export interface RegisterTableRoutesOptions {
   registry: TableRegistry;
+  /** Overrides TABLE_CREATE_LIMIT. e2e creates tables far faster than a venue does. */
+  tableCreateLimit?: number;
   rateLimiter?: RateLimiter;
   notifyPending?: (code: string) => void;
   broadcastEvent?: (code: string, event: TableEvent) => void;
@@ -48,10 +50,11 @@ export function registerTableRoutes(
 ): void {
   const { registry } = options;
   const rateLimiter = options.rateLimiter ?? createRateLimiter();
+  const createLimit = options.tableCreateLimit ?? TABLE_CREATE_LIMIT;
 
   app.post("/tables", async (request, reply) => {
     const ip = clientIp(request);
-    if (!rateLimiter.tryConsume(`create:${ip}`, TABLE_CREATE_LIMIT, TABLE_CREATE_WINDOW_MS)) {
+    if (!rateLimiter.tryConsume(`create:${ip}`, createLimit, TABLE_CREATE_WINDOW_MS)) {
       return reply.code(429).send({ error: "rate limit exceeded" });
     }
 

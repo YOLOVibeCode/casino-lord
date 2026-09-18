@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TABLE_CREATE_LIMIT } from "./rate-limit.js";
 
 const persistSchema = z.enum(["memory", "sqlite", "redis"]);
 
@@ -26,6 +27,7 @@ const configSchema = z.object({
   enablePlayerMode: booleanFromEnv.default(true),
   enableVirtual: booleanFromEnv.default(true),
   maxPlayersHard: z.coerce.number().int().positive().default(50),
+  tableCreateLimit: z.coerce.number().int().positive().default(TABLE_CREATE_LIMIT),
   seedKey: z.string().min(1).optional(),
 });
 
@@ -44,6 +46,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     enablePlayerMode: env.ENABLE_PLAYER_MODE,
     enableVirtual: env.ENABLE_VIRTUAL,
     maxPlayersHard: env.MAX_PLAYERS_HARD,
+    tableCreateLimit: env.TABLE_CREATE_LIMIT,
     seedKey: env.SEED_KEY,
   });
 
