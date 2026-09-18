@@ -36,6 +36,7 @@ packages/game-craps/      GameModule for craps. Engine + dealer/display/player v
 packages/game-blackjack/  GameModule for blackjack. Engine + dealer/display/player views + virtual exist (M9).
 apps/web/                 Vite + Preact SPA: dealer / display / player shells, sync client, animation runtime, Solo in-process Virtual Dealer, PWA, themes. Exists (M2–M4, M10).
 apps/sync/                Fastify + Socket.IO relay + SQLite persistence + Virtual Dealer. Exists (M3, M6).
+e2e/                      Playwright end-to-end tests, run against a built instance (`pnpm e2e`). Separate from each package's own Vitest unit tests.
 ```
 
 - Tests live next to the code: `src/foo.ts` is tested by `src/foo.test.ts`. Vitest picks up `packages/*/src/**/*.test.ts`, `packages/*/src/**/*.test.tsx`, and `apps/*/src/**/*.test.ts(x)`.
@@ -46,16 +47,19 @@ apps/sync/                Fastify + Socket.IO relay + SQLite persistence + Virtu
 
 Run from the repo root. All of these work on a fresh clone with Node 22 and pnpm 10 and no secrets.
 
+On Node 26+, `dealer-token.test.ts` and `LandingPage.test.tsx` fail because the runtime's own `localStorage` global shadows jsdom's — that is an environment mismatch, not a regression to fix. Use Node 22.
+
 | Purpose | Command | Notes |
 | --- | --- | --- |
 | Install | `pnpm install --frozen-lockfile` | Never `npm install` or `yarn`. Commit `pnpm-lock.yaml` changes with the dependency change. |
 | Typecheck | `pnpm typecheck` | Runs `tsc --noEmit` in every package. Must pass. |
 | Lint | `pnpm lint` | Prettier check. Fix with `pnpm format`. |
 | Test | `pnpm test` | Vitest, all packages, under a few seconds. |
+| E2E | `pnpm e2e` | Playwright, against a production-style build + in-memory sync server. CI's second job; not included in `pnpm check`. |
 | Build | `pnpm build` | Vite web bundle, then `tsc` for sync. |
 | Start | `pnpm start` | Production sync server (`apps/sync/dist/main.js`). |
 | Stamp | `pnpm stamp` | Write `apps/web/dist/version.json` (named `stamp` because `pnpm deploy` is reserved). |
-| Everything | `pnpm check` | typecheck + lint + test. This is what CI runs. Run it before you say you are done. |
+| Everything unit-level | `pnpm check` | typecheck + lint + test. CI's first job. Run it before you say you are done; run `pnpm e2e` too if you touched anything user-facing. |
 | Watch tests | `pnpm test:watch` | Interactive only. |
 
 Integration branch: **`main`**. Work on a feature branch (`feat/<topic>`, `fix/<topic>`) and open a PR against `main`. The shell hook blocks any push to `main`, `master`, or `develop`, and blocks force-push.
