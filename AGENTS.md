@@ -8,6 +8,19 @@ Casino Lord is a browser-based, multi-game electronic casino table system. A dea
 
 "Working" means: the behaviour described in the specs is implemented by pure, deterministic engines with tests, rendered by Preact views inside the platform shells, and synchronised through an append-only event log. Every device replaying the same log reaches byte-identical state.
 
+<<<<<<< Updated upstream
+=======
+## Noctusoft platforms
+
+This product does not sign up for OpenAI, Twilio, or SendGrid. It calls two Noctusoft platforms. The product id is the only difference.
+
+- **LLM Relay** — OpenAI-compatible API at `https://ai.noctusoft.com/v1` on litellm-vm (Azure `20.46.250.159`, Tailscale `100.112.233.46`). Virtual key. No provider SDK. Not noctusoft-relay on `ns`.
+- **Mail** — `POST /email/send` or SendGrid drop-in `POST /v3/mail/send` on `api.sendgrid.noctusoft.com`, with the product key and `X-App-Env` (`dev` captures in smtp4dev, `uat` tags and sends, anything else is real delivery).
+- **Text** — `POST /sms/send` or Twilio drop-in on `api.twilio.noctusoft.com`.
+- **One store** — the product's billing alias on noctusoft-relay. Square item codes are `NOCTU-{PRODUCT}-…`. The Square category is `Noctusoft — {brand}`.
+- **Marketplace** — Connect Hub, the FieldView shape: `POST /connect/{productKey}/recipients/{seller}/charge`. The seller is the merchant. The fee lives on that product's `connect_apps` row.
+
+>>>>>>> Stashed changes
 ## Where the truth is
 
 The specifications are the source of truth and are more detailed than any prompt you will receive. When a request is ambiguous, the spec decides.
