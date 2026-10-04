@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import Fastify, { type FastifyInstance } from "fastify";
 import { Server as SocketIOServer } from "socket.io";
 import { loadConfig, type Config } from "./config.js";
+import { buildHealthPayload } from "./health.js";
 import { GAMES } from "./games.js";
 import { registerTableRoutes } from "./routes/tables.js";
 import type { TableRegistry } from "./tables/registry.js";
@@ -64,11 +65,15 @@ export async function buildServer(
   const startedAt = Date.now();
   const app = Fastify({ logger: true });
 
-  app.get("/healthz", async () => ({
-    ok: true,
-    uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
-    enableVirtual: config.enableVirtual,
-  }));
+  const healthHandler = async () =>
+    buildHealthPayload({
+      startedAtMs: startedAt,
+      enableVirtual: config.enableVirtual,
+    });
+
+  app.get("/healthz", healthHandler);
+  app.get("/health", healthHandler);
+  app.get("/api/health", healthHandler);
 
   app.get("/games", async () => ({
     enableVirtual: config.enableVirtual,
