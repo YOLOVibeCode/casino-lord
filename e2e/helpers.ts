@@ -319,6 +319,15 @@ export async function triggerVirtualDeal(dealer: Page): Promise<void> {
   await dealer.waitForTimeout(VIRTUAL_TRIGGER_GAP_MS);
 }
 
+/** Virtual craps: shooter taps ROLL; dealer page shows reveal/last-result. */
+export async function triggerVirtualShooterRoll(shooter: Page, dealer: Page): Promise<void> {
+  const roll = shooter.getByTestId("shooter-roll");
+  await expect(roll).toBeVisible({ timeout: 10_000 });
+  await expect(roll).toBeEnabled({ timeout: 10_000 });
+  await roll.click();
+  await waitForNextVirtualResult(dealer);
+}
+
 export async function completeVirtualBlackjackHand(dealer: Page, player: Page): Promise<void> {
   let stood = false;
   for (let i = 0; i < 32; i += 1) {
@@ -411,6 +420,13 @@ export async function closeBetsIfOpen(dealerPage: Page): Promise<void> {
     await bar.getByTestId("betting-toggle-btn").click();
     await status.filter({ hasText: /NO MORE BETS|BETS — idle/ }).waitFor({ timeout: 5_000 });
   }
+}
+
+export async function waitForDealerBetsClosed(dealer: Page): Promise<void> {
+  await expect(dealer.getByTestId("betting-bar").locator(".betting-bar__status")).toContainText(
+    /NO MORE BETS|BETS — idle/,
+    { timeout: 15_000 },
+  );
 }
 
 /** Volatile UI regions excluded from visual regression screenshots. */

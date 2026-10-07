@@ -2,11 +2,11 @@ import { expect, test } from "@playwright/test";
 import {
   closeBetsIfOpen,
   closeSyncedSession,
-  expectDisplaySettlement,
   openBets,
+  parseBankroll,
   setupSyncedTable,
-  triggerVirtualDeal,
-  waitForNextVirtualResult,
+  triggerVirtualShooterRoll,
+  waitForDealerBetsClosed,
 } from "./helpers.js";
 
 test("sync virtual craps shooter rolls until pass-line settlement", async ({ browser }) => {
@@ -36,20 +36,29 @@ test("sync virtual craps shooter rolls until pass-line settlement", async ({ bro
   await ana.getByTestId("bet-zone-pass").click();
   await ben.getByTestId("chip-denom-100").click();
   await ben.getByTestId("bet-zone-pass").click();
-  const passDecided = /NATURAL|CRAPS|POINT MADE|SEVEN OUT/i;
+  const anaBefore = parseBankroll(await ana.getByTestId("player-bankroll").textContent());
+
+  const passLineDecision =
+    /Decision: (?:natural|craps|point made|seven out)|— (?:natural|craps|point made|seven out)\b/i;
+  let decided = false;
   for (let i = 0; i < 16; i += 1) {
     await closeBetsIfOpen(dealer);
-    await expect(ana.getByTestId("shooter-roll")).toBeVisible();
-    await triggerVirtualDeal(dealer);
-    await waitForNextVirtualResult(dealer);
-    const last = (await dealer.getByTestId("virtual-last-result").textContent()) ?? "";
-    if (passDecided.test(last)) {
-      await expectDisplaySettlement(display, "Ana", "nonzero", ana, 10_000);
+    await waitForDealerBetsClosed(dealer);
+    await triggerVirtualShooterRoll(ana, dealer);
+    const panel = (await dealer.getByTestId("virtual-last-result").textContent()) ?? "";
+    if (passLineDecision.test(panel)) {
+      decided = true;
+      await expect
+        .poll(async () => parseBankroll(await ana.getByTestId("player-bankroll").textContent()), {
+          timeout: 30_000,
+        })
+        .not.toBe(anaBefore);
       break;
     }
   }
+  expect(decided).toBe(true);
 
-  await expect(dealer.getByTestId("virtual-last-result")).toContainText(passDecided);
+  await expect(dealer.getByTestId("virtual-last-result")).toContainText(passLineDecision);
   await expect(display.getByTestId("virtual-board-tag")).toBeVisible();
   await expect(display.getByTestId("last-roll-dice")).toBeVisible();
 
