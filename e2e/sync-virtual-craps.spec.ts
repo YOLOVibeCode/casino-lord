@@ -37,7 +37,11 @@ test("sync virtual craps shooter rolls until pass-line settlement", async ({ bro
   await ben.getByTestId("chip-denom-100").click();
   await ben.getByTestId("bet-zone-pass").click();
   const passDecided = /NATURAL|CRAPS|POINT MADE|SEVEN OUT/i;
+  const bettingStatus = dealer.getByTestId("betting-bar").locator(".betting-bar__status");
   for (let i = 0; i < 16; i += 1) {
+    // A roll made while the round is idle (between settlement and auto-open) settles
+    // nothing (SPEC.md §13.1), so carried pass bets would miss a deciding roll.
+    await expect(bettingStatus).toContainText("BETS OPEN", { timeout: 10_000 });
     await closeBetsIfOpen(dealer);
     await expect(ana.getByTestId("shooter-roll")).toBeVisible();
     await triggerVirtualDeal(dealer);
