@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadConfig } from "./config.js";
 import { createMemoryRepository } from "./persistence/memory.js";
 import { buildServer } from "./server.js";
@@ -28,6 +28,7 @@ function testConfig() {
 }
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   while (servers.length > 0) {
     const handle = servers.pop();
     if (handle) {
@@ -48,6 +49,22 @@ async function buildTestServer(): Promise<TestServerHandle> {
   return handle;
 }
 
+const FULL_SHA = "a".repeat(40);
+
+function expectHealthShape(body: Record<string, unknown>): void {
+  expect(body).toEqual({
+    ok: true,
+    uptimeSeconds: expect.any(Number),
+    enableVirtual: true,
+    service: "casino-lord",
+    commit: expect.any(String),
+    env: expect.any(String),
+    utc: expect.any(String),
+  });
+  expect(typeof body["utc"]).toBe("string");
+  expect(Number.isNaN(Date.parse(String(body["utc"])))).toBe(false);
+}
+
 describe("buildServer", () => {
   it("returns healthz shape", async () => {
     const {
@@ -57,11 +74,51 @@ describe("buildServer", () => {
     const response = await app.inject({ method: "GET", url: "/healthz" });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
-      ok: true,
-      uptimeSeconds: expect.any(Number),
-      enableVirtual: true,
-    });
+    expectHealthShape(response.json() as Record<string, unknown>);
+  });
+
+  it("serves the same health payload on /health and /api/health", async () => {
+    const {
+      built: { app },
+    } = await buildTestServer();
+
+    const healthz = await app.inject({ method: "GET", url: "/healthz" });
+    const health = await app.inject({ method: "GET", url: "/health" });
+    const apiHealth = await app.inject({ method: "GET", url: "/api/health" });
+
+    expect(health.statusCode).toBe(200);
+    expect(apiHealth.statusCode).toBe(200);
+    expect(Object.keys(health.json() as object).sort()).toEqual(
+      Object.keys(healthz.json() as object).sort(),
+    );
+    expect(Object.keys(apiHealth.json() as object).sort()).toEqual(
+      Object.keys(healthz.json() as object).sort(),
+    );
+  });
+
+  it("uses RAILWAY_GIT_COMMIT_SHA for commit when set", async () => {
+    vi.stubEnv("RAILWAY_GIT_COMMIT_SHA", FULL_SHA);
+    const {
+      built: { app },
+    } = await buildTestServer();
+
+    const response = await app.inject({ method: "GET", url: "/healthz" });
+
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as { commit: string }).commit).toBe(FULL_SHA);
+  });
+
+  it('returns commit "unknown" when commit env vars are unset', async () => {
+    vi.stubEnv("RAILWAY_GIT_COMMIT_SHA", "");
+    vi.stubEnv("GIT_COMMIT", "");
+    const {
+      built: { app },
+    } = await buildTestServer();
+
+    const response = await app.inject({ method: "GET", url: "/healthz" });
+
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as { commit: string }).commit).toBe("unknown");
   });
 
   it("returns version fallback when version.json is missing", async () => {
